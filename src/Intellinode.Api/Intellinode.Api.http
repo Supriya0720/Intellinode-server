@@ -1,0 +1,994 @@
+@Intellinode.Api_HostAddress = http://localhost:5288
+
+
+
+### Agent bootstrap (anonymous)
+
+GET {{Intellinode.Api_HostAddress}}/api/v1/agents/bootstrap
+
+
+
+### Admin login
+
+# @name adminLogin
+
+POST {{Intellinode.Api_HostAddress}}/api/v1/admin/auth/login
+
+Content-Type: application/json
+
+
+
+{
+
+  "userName": "admin",
+
+  "password": "Admin@123"
+
+}
+
+
+
+@adminToken = {{adminLogin.response.body.accessToken}}
+
+
+
+### Admin enrollment link (MAC-bound token for S2 MacMismatch test)
+
+# @name enrollmentLinkBound
+
+GET {{Intellinode.Api_HostAddress}}/api/v1/admin/agents/enrollment-link?macAddress=00-11-22-33-44-55
+
+Authorization: Bearer {{adminToken}}
+
+
+
+@enrollmentTokenBound = {{enrollmentLinkBound.response.body.token}}
+
+
+
+### S2 — Enroll with wrong deviceIdentity (MAC-bound token) → 401 MacMismatch
+
+POST {{Intellinode.Api_HostAddress}}/api/v1/agents/enroll
+
+Content-Type: application/json
+
+
+
+{
+
+  "token": "{{enrollmentTokenBound}}",
+
+  "deviceIdentity": "AA-BB-CC-DD-EE-FF"
+
+}
+
+
+
+# Expected: 401 { "error": "MacMismatch", "message": "..." }
+
+
+
+### Admin enrollment link (fresh token for happy path)
+
+# @name enrollmentLink
+
+GET {{Intellinode.Api_HostAddress}}/api/v1/admin/agents/enrollment-link?macAddress=00-11-22-33-44-55
+
+Authorization: Bearer {{adminToken}}
+
+
+
+@enrollmentToken = {{enrollmentLink.response.body.token}}
+
+
+
+### S2 — Agent enroll (anonymous)
+
+# @name agentEnroll
+
+POST {{Intellinode.Api_HostAddress}}/api/v1/agents/enroll
+
+Content-Type: application/json
+
+
+
+{
+
+  "token": "{{enrollmentToken}}",
+
+  "deviceIdentity": "00-11-22-33-44-55"
+
+}
+
+
+
+@agentToken = {{agentEnroll.response.body.accessToken}}
+
+@refreshToken = {{agentEnroll.response.body.refreshToken}}
+
+
+
+### S1.2 — Heartbeat after enroll only (no inventory) → autoDiscoverFlag: "SDFT"
+
+# @name heartbeatPendingInventory
+
+POST {{Intellinode.Api_HostAddress}}/api/v1/agents/heartbeat
+
+Content-Type: application/json
+
+Authorization: Bearer {{agentToken}}
+
+
+
+{
+
+  "clientStatus": "ON",
+
+  "duration": "00:05:00",
+
+  "dhcp": true,
+
+  "hostName": "WORKSTATION-01",
+
+  "macAddress": "00-11-22-33-44-55",
+
+  "ipAddress": "192.168.1.100",
+
+  "communicationIpAddress": "192.168.1.100",
+
+  "subnetMask": "255.255.255.0",
+
+  "gateway": "192.168.1.1",
+
+  "primaryDns": "8.8.8.8",
+
+  "secondaryDns": "8.8.4.4",
+
+  "primaryWins": "0.0.0.0",
+
+  "secondaryWins": "0.0.0.0",
+
+  "groupName": "Default",
+
+  "shutdownAck": "",
+
+  "loginUserName": "DOMAIN\\user",
+
+  "pollInterval": 300,
+
+  "communicationType": "HTTP",
+
+  "domain": "CONTOSO",
+
+  "workgroup": "",
+
+  "isDomainJoined": true,
+
+  "userName": "user",
+
+  "password": "",
+
+  "license": "",
+
+  "agentUpTime": "01:23:45",
+
+  "taskId": 0,
+
+  "agentAction": 0
+
+}
+
+
+
+# Expected: 200 { "autoDiscoverFlag": "SDFT", ... }
+
+
+
+### S2 — Agent inventory with osInfo/network field promotion
+
+# Expected device fields after upload:
+
+#   device.os = "Windows 11"
+
+#   device.osVersion = "23H2"
+
+#   device.agentVersion = "2.1.0"
+
+#   device.hostName = "WORKSTATION-01"
+
+#   device.ipAddress = "192.168.1.100"
+
+POST {{Intellinode.Api_HostAddress}}/api/v1/agents/inventory
+
+Content-Type: application/json
+
+Authorization: Bearer {{agentToken}}
+
+
+
+{
+
+  "hardware": { "cpu": "Intel Core i7" },
+
+  "network": {
+
+    "hostName": "WORKSTATION-01",
+
+    "ipAddress": "192.168.1.100"
+
+  },
+
+  "osInfo": {
+
+    "name": "Windows 11",
+
+    "version": "23H2",
+
+    "agentVersion": "2.1.0"
+
+  },
+
+  "security": {}
+
+}
+
+
+
+### S1.3 — Heartbeat after inventory (active + inventory, no pending tasks) → autoDiscoverFlag: "0"
+
+POST {{Intellinode.Api_HostAddress}}/api/v1/agents/heartbeat
+
+Content-Type: application/json
+
+Authorization: Bearer {{agentToken}}
+
+
+
+{
+
+  "clientStatus": "ON",
+
+  "duration": "00:05:00",
+
+  "dhcp": true,
+
+  "hostName": "WORKSTATION-01",
+
+  "macAddress": "00-11-22-33-44-55",
+
+  "ipAddress": "192.168.1.100",
+
+  "communicationIpAddress": "192.168.1.100",
+
+  "subnetMask": "255.255.255.0",
+
+  "gateway": "192.168.1.1",
+
+  "primaryDns": "8.8.8.8",
+
+  "secondaryDns": "8.8.4.4",
+
+  "primaryWins": "0.0.0.0",
+
+  "secondaryWins": "0.0.0.0",
+
+  "groupName": "Default",
+
+  "shutdownAck": "",
+
+  "loginUserName": "DOMAIN\\user",
+
+  "pollInterval": 300,
+
+  "communicationType": "HTTP",
+
+  "domain": "CONTOSO",
+
+  "workgroup": "",
+
+  "isDomainJoined": true,
+
+  "userName": "user",
+
+  "password": "",
+
+  "license": "",
+
+  "agentUpTime": "01:23:45",
+
+  "taskId": 0,
+
+  "agentAction": 0
+
+}
+
+
+
+# Expected: 200 { "autoDiscoverFlag": "0", ... }
+
+
+
+### S1.4 — Heartbeat with clientStatus COFF → autoDiscoverFlag: "0", device offline (isOnline=false)
+
+POST {{Intellinode.Api_HostAddress}}/api/v1/agents/heartbeat
+
+Content-Type: application/json
+
+Authorization: Bearer {{agentToken}}
+
+
+
+{
+
+  "clientStatus": "COFF",
+
+  "duration": "00:05:00",
+
+  "dhcp": true,
+
+  "hostName": "WORKSTATION-01",
+
+  "macAddress": "00-11-22-33-44-55",
+
+  "ipAddress": "192.168.1.100",
+
+  "communicationIpAddress": "192.168.1.100",
+
+  "subnetMask": "255.255.255.0",
+
+  "gateway": "192.168.1.1",
+
+  "primaryDns": "8.8.8.8",
+
+  "secondaryDns": "8.8.4.4",
+
+  "primaryWins": "0.0.0.0",
+
+  "secondaryWins": "0.0.0.0",
+
+  "groupName": "Default",
+
+  "shutdownAck": "",
+
+  "loginUserName": "DOMAIN\\user",
+
+  "pollInterval": 300,
+
+  "communicationType": "HTTP",
+
+  "domain": "CONTOSO",
+
+  "workgroup": "",
+
+  "isDomainJoined": true,
+
+  "userName": "user",
+
+  "password": "",
+
+  "license": "",
+
+  "agentUpTime": "01:23:45",
+
+  "taskId": 0,
+
+  "agentAction": 0
+
+}
+
+
+
+# Expected: 200 { "autoDiscoverFlag": "0", ... } — device.isOnline = false
+
+
+
+### S1.1 — Unknown MAC heartbeat via auth/token stub (no enroll) → autoDiscoverFlag: "SDFT"
+
+# Auth creates a minimal device stub; heartbeat before inventory returns SDFT.
+
+# @name unknownMacAuth
+
+POST {{Intellinode.Api_HostAddress}}/api/v1/agents/auth/token
+
+Content-Type: application/json
+
+
+
+{
+
+  "deviceIdentity": "DE-AD-BE-EF-00-01",
+
+  "isRegistered": 1
+
+}
+
+
+
+@unknownMacToken = {{unknownMacAuth.response.body.accessToken}}
+
+
+
+POST {{Intellinode.Api_HostAddress}}/api/v1/agents/heartbeat
+
+Content-Type: application/json
+
+Authorization: Bearer {{unknownMacToken}}
+
+
+
+{
+
+  "clientStatus": "ON",
+
+  "duration": "00:05:00",
+
+  "dhcp": true,
+
+  "hostName": "UNKNOWN-PC",
+
+  "macAddress": "DE-AD-BE-EF-00-01",
+
+  "ipAddress": "192.168.1.200",
+
+  "communicationIpAddress": "192.168.1.200",
+
+  "subnetMask": "255.255.255.0",
+
+  "gateway": "192.168.1.1",
+
+  "primaryDns": "8.8.8.8",
+
+  "secondaryDns": "8.8.4.4",
+
+  "primaryWins": "0.0.0.0",
+
+  "secondaryWins": "0.0.0.0",
+
+  "groupName": "Default",
+
+  "shutdownAck": "",
+
+  "loginUserName": "",
+
+  "pollInterval": 300,
+
+  "communicationType": "HTTP",
+
+  "domain": "",
+
+  "workgroup": "WORKGROUP",
+
+  "isDomainJoined": false,
+
+  "userName": "",
+
+  "password": "",
+
+  "license": "",
+
+  "agentUpTime": "00:10:00",
+
+  "taskId": 0,
+
+  "agentAction": 0
+
+}
+
+
+
+# Expected: 200 { "autoDiscoverFlag": "SDFT", ... }
+
+
+
+### S1.2 — Shutdown ack early path (SH) → autoDiscoverFlag: "1"
+
+POST {{Intellinode.Api_HostAddress}}/api/v1/agents/heartbeat
+
+Content-Type: application/json
+
+Authorization: Bearer {{agentToken}}
+
+
+
+{
+
+  "clientStatus": "ON",
+
+  "duration": "00:05:00",
+
+  "dhcp": true,
+
+  "hostName": "WORKSTATION-01",
+
+  "macAddress": "00-11-22-33-44-55",
+
+  "ipAddress": "192.168.1.100",
+
+  "communicationIpAddress": "192.168.1.100",
+
+  "subnetMask": "255.255.255.0",
+
+  "gateway": "192.168.1.1",
+
+  "primaryDns": "8.8.8.8",
+
+  "secondaryDns": "8.8.4.4",
+
+  "primaryWins": "0.0.0.0",
+
+  "secondaryWins": "0.0.0.0",
+
+  "groupName": "Default",
+
+  "shutdownAck": "SH",
+
+  "loginUserName": "DOMAIN\\user",
+
+  "pollInterval": 300,
+
+  "communicationType": "HTTP",
+
+  "domain": "CONTOSO",
+
+  "workgroup": "",
+
+  "isDomainJoined": true,
+
+  "userName": "user",
+
+  "password": "",
+
+  "license": "",
+
+  "agentUpTime": "01:23:45",
+
+  "taskId": 0,
+
+  "agentAction": 0
+
+}
+
+
+
+# Expected: 200 { "autoDiscoverFlag": "1", ... }
+
+
+
+### Agent token (legacy auth path — register device without enrollment link)
+
+POST {{Intellinode.Api_HostAddress}}/api/v1/agents/auth/token
+
+Content-Type: application/json
+
+
+
+{
+
+  "deviceIdentity": "00-11-22-33-44-55",
+
+  "isRegistered": 1
+
+}
+
+
+
+### S3 — Admin queue task for device (FusionX Task_Schedule_Details)
+
+# @name queueShutdownTask
+
+POST {{Intellinode.Api_HostAddress}}/api/v1/admin/devices/00-11-22-33-44-55/tasks
+
+Content-Type: application/json
+
+Authorization: Bearer {{adminToken}}
+
+
+
+{
+
+  "moduleName": "Power Management",
+
+  "functionName": "Shutdown",
+
+  "functionParameter": "",
+
+  "legacyTaskId": 0,
+
+  "signal": "&CD"
+
+}
+
+
+
+@queuedTaskId = {{queueShutdownTask.response.body.taskId}}
+
+@queuedLegacyTaskId = {{queueShutdownTask.response.body.legacyTaskId}}
+
+
+
+# Expected: 201 { "taskId": "...", "legacyTaskId": 1 }
+
+
+
+### S3 — Heartbeat with pending task → autoDiscoverFlag: "1"
+
+POST {{Intellinode.Api_HostAddress}}/api/v1/agents/heartbeat
+
+Content-Type: application/json
+
+Authorization: Bearer {{agentToken}}
+
+
+
+{
+
+  "clientStatus": "ON",
+
+  "duration": "00:05:00",
+
+  "dhcp": true,
+
+  "hostName": "WORKSTATION-01",
+
+  "macAddress": "00-11-22-33-44-55",
+
+  "ipAddress": "192.168.1.100",
+
+  "communicationIpAddress": "192.168.1.100",
+
+  "subnetMask": "255.255.255.0",
+
+  "gateway": "192.168.1.1",
+
+  "primaryDns": "8.8.8.8",
+
+  "secondaryDns": "8.8.4.4",
+
+  "primaryWins": "0.0.0.0",
+
+  "secondaryWins": "0.0.0.0",
+
+  "groupName": "Default",
+
+  "shutdownAck": "",
+
+  "loginUserName": "DOMAIN\\user",
+
+  "pollInterval": 300,
+
+  "communicationType": "HTTP",
+
+  "domain": "CONTOSO",
+
+  "workgroup": "",
+
+  "isDomainJoined": true,
+
+  "userName": "user",
+
+  "password": "",
+
+  "license": "",
+
+  "agentUpTime": "01:23:45",
+
+  "taskId": 0,
+
+  "agentAction": 0
+
+}
+
+
+
+# Expected: 200 { "autoDiscoverFlag": "1", ... }
+
+
+
+### S3 — Agent poll pending tasks (getXPPOllData)
+
+# @name pendingTasks
+
+GET {{Intellinode.Api_HostAddress}}/api/v1/agents/tasks/pending
+
+Authorization: Bearer {{agentToken}}
+
+
+
+# Expected: 200 { "tasks": [ { "id", "legacyTaskId", "moduleName", "functionName", "signal": "&CD", "status": "InProcess" } ] }
+
+
+
+### S3 — Agent acknowledge task (getXPAckNEW) — batch body
+
+POST {{Intellinode.Api_HostAddress}}/api/v1/agents/tasks/ack
+
+Content-Type: application/json
+
+Authorization: Bearer {{agentToken}}
+
+
+
+{
+
+  "acknowledgements": [
+
+    {
+
+      "taskId": "{{queuedTaskId}}",
+
+      "legacyTaskId": {{queuedLegacyTaskId}},
+
+      "status": "Completed",
+
+      "ackCode": "SHACK"
+
+    }
+
+  ]
+
+}
+
+
+
+# Expected: 204 No Content
+
+
+
+### S3 — Heartbeat after task completed → autoDiscoverFlag: "0"
+
+POST {{Intellinode.Api_HostAddress}}/api/v1/agents/heartbeat
+
+Content-Type: application/json
+
+Authorization: Bearer {{agentToken}}
+
+
+
+{
+
+  "clientStatus": "ON",
+
+  "duration": "00:05:00",
+
+  "dhcp": true,
+
+  "hostName": "WORKSTATION-01",
+
+  "macAddress": "00-11-22-33-44-55",
+
+  "ipAddress": "192.168.1.100",
+
+  "communicationIpAddress": "192.168.1.100",
+
+  "subnetMask": "255.255.255.0",
+
+  "gateway": "192.168.1.1",
+
+  "primaryDns": "8.8.8.8",
+
+  "secondaryDns": "8.8.4.4",
+
+  "primaryWins": "0.0.0.0",
+
+  "secondaryWins": "0.0.0.0",
+
+  "groupName": "Default",
+
+  "shutdownAck": "",
+
+  "loginUserName": "DOMAIN\\user",
+
+  "pollInterval": 300,
+
+  "communicationType": "HTTP",
+
+  "domain": "CONTOSO",
+
+  "workgroup": "",
+
+  "isDomainJoined": true,
+
+  "userName": "user",
+
+  "password": "",
+
+  "license": "",
+
+  "agentUpTime": "01:23:45",
+
+  "taskId": 0,
+
+  "agentAction": 0
+
+}
+
+
+
+# Expected: 200 { "autoDiscoverFlag": "0", ... }
+
+
+
+### S4 — Refresh access token (OAuth-style rotation)
+
+# After refresh, clients MUST store the new refreshToken from the response body.
+
+@oldRefreshToken = {{refreshToken}}
+
+# @name agentRefresh
+
+POST {{Intellinode.Api_HostAddress}}/api/v1/agents/auth/refresh
+
+Content-Type: application/json
+
+
+
+{
+
+  "refreshToken": "{{refreshToken}}"
+
+}
+
+
+
+@agentToken = {{agentRefresh.response.body.accessToken}}
+
+@refreshToken = {{agentRefresh.response.body.refreshToken}}
+
+
+
+# Expected: 200 { "accessToken", "refreshToken", "expiresUtc", ... }
+
+
+
+### S4 — Heartbeat with refreshed access token → 200
+
+POST {{Intellinode.Api_HostAddress}}/api/v1/agents/heartbeat
+
+Content-Type: application/json
+
+Authorization: Bearer {{agentToken}}
+
+
+
+{
+
+  "clientStatus": "ON",
+
+  "duration": "00:05:00",
+
+  "dhcp": true,
+
+  "hostName": "WORKSTATION-01",
+
+  "macAddress": "00-11-22-33-44-55",
+
+  "ipAddress": "192.168.1.100",
+
+  "communicationIpAddress": "192.168.1.100",
+
+  "subnetMask": "255.255.255.0",
+
+  "gateway": "192.168.1.1",
+
+  "primaryDns": "8.8.8.8",
+
+  "secondaryDns": "8.8.4.4",
+
+  "primaryWins": "0.0.0.0",
+
+  "secondaryWins": "0.0.0.0",
+
+  "groupName": "Default",
+
+  "shutdownAck": "",
+
+  "loginUserName": "DOMAIN\\user",
+
+  "pollInterval": 300,
+
+  "communicationType": "HTTP",
+
+  "domain": "CONTOSO",
+
+  "workgroup": "",
+
+  "isDomainJoined": true,
+
+  "userName": "user",
+
+  "password": "",
+
+  "license": "",
+
+  "agentUpTime": "01:23:45",
+
+  "taskId": 0,
+
+  "agentAction": 0
+
+}
+
+
+
+# Expected: 200
+
+
+
+### S4 — Refresh with old refresh token after rotation → 401 RefreshTokenRevoked
+
+POST {{Intellinode.Api_HostAddress}}/api/v1/agents/auth/refresh
+
+Content-Type: application/json
+
+
+
+{
+
+  "refreshToken": "{{oldRefreshToken}}"
+
+}
+
+
+
+# Expected: 401 { "error": "RefreshTokenRevoked", ... }
+
+
+
+### S4 — Refresh with garbage token → 401 InvalidRefreshToken
+
+POST {{Intellinode.Api_HostAddress}}/api/v1/agents/auth/refresh
+
+Content-Type: application/json
+
+
+
+{
+
+  "refreshToken": "not-a-valid-refresh-token"
+
+}
+
+
+
+# Expected: 401 { "error": "InvalidRefreshToken", ... }
+
+
+
+### S4 — Revoke refresh token → 204
+
+POST {{Intellinode.Api_HostAddress}}/api/v1/agents/auth/revoke
+
+Content-Type: application/json
+
+
+
+{
+
+  "refreshToken": "{{refreshToken}}"
+
+}
+
+
+
+# Expected: 204 No Content
+
+
+
+### S4 — Refresh after revoke → 401 RefreshTokenRevoked
+
+POST {{Intellinode.Api_HostAddress}}/api/v1/agents/auth/refresh
+
+Content-Type: application/json
+
+
+
+{
+
+  "refreshToken": "{{refreshToken}}"
+
+}
+
+
+
+# Expected: 401 { "error": "RefreshTokenRevoked", ... }
+

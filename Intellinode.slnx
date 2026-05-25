@@ -1,0 +1,8 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Intellinode.Api/Intellinode.Api.csproj" />
+    <Project Path="src/Intellinode.Application/Intellinode.Application.csproj" />
+    <Project Path="src/Intellinode.Domain/Intellinode.Domain.csproj" />
+    <Project Path="src/Intellinode.Infrastructure/Intellinode.Infrastructure.csproj" />
+  </Folder>
+</Solution>
