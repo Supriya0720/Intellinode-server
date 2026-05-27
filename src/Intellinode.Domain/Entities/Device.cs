@@ -47,4 +47,6 @@ public class Device
     public ICollection<DeviceTask> Tasks { get; set; } = [];
     public ICollection<AgentRefreshToken> RefreshTokens { get; set; } = [];
     public DeviceInventory? Inventory { get; set; }
+    public DeviceRemoteSettings? RemoteSettings { get; set; }
+    public DeviceAgentAdvancedSettings? AgentAdvancedSettings { get; set; }
 }

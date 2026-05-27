@@ -10,9 +10,12 @@ public static class AgentApiPaths
     public const string AuthRevoke = "/api/v1/agents/auth/revoke";
     public const string Heartbeat = "/api/v1/agents/heartbeat";
     public const string Inventory = "/api/v1/agents/inventory";
-    public const string Enroll = "/api/v1/agents/enroll";
+    public const string WindowsRegister = "/api/v1/agents/windows/register";
+    public const string WindowsEnroll = "/api/v1/agents/windows/enroll";
     public const string TasksPending = "/api/v1/agents/tasks/pending";
     public const string TasksAck = "/api/v1/agents/tasks/ack";
+    public const string Config = "/api/v1/agents/config";
+    public const string ConfigAck = "/api/v1/agents/config/ack";
 }
 
 public sealed class AgentBootstrapResponse
@@ -31,15 +34,41 @@ public sealed class AgentEndpointPaths
     public string AuthRevoke { get; set; } = AgentApiPaths.AuthRevoke;
     public string Heartbeat { get; set; } = AgentApiPaths.Heartbeat;
     public string Inventory { get; set; } = AgentApiPaths.Inventory;
-    public string Enroll { get; set; } = AgentApiPaths.Enroll;
+    public string WindowsRegister { get; set; } = AgentApiPaths.WindowsRegister;
+    public string WindowsEnroll { get; set; } = AgentApiPaths.WindowsEnroll;
     public string TasksPending { get; set; } = AgentApiPaths.TasksPending;
     public string TasksAck { get; set; } = AgentApiPaths.TasksAck;
+    public string Config { get; set; } = AgentApiPaths.Config;
+    public string ConfigAck { get; set; } = AgentApiPaths.ConfigAck;
 }
 
-public sealed class AgentEnrollRequest
+public sealed class WindowsAgentEnrollRequest
 {
     public string Token { get; set; } = string.Empty;
     public string? DeviceIdentity { get; set; }
+}
+
+public sealed class WindowsAgentInventoryRequest
+{
+    public JsonElement? Hardware { get; set; }
+    public JsonElement? Network { get; set; }
+    public JsonElement? OsInfo { get; set; }
+    public JsonElement? Security { get; set; }
+
+    public AgentInventoryRequest ToAgentInventoryRequest() => new()
+    {
+        Hardware = Hardware,
+        Network = Network,
+        OsInfo = OsInfo,
+        Security = Security
+    };
+}
+
+public sealed class WindowsAgentRegisterRequest
+{
+    public string Token { get; set; } = string.Empty;
+    public string? DeviceIdentity { get; set; }
+    public WindowsAgentInventoryRequest Inventory { get; set; } = new();
 }
 
 public sealed class AgentErrorResponse
@@ -115,6 +144,7 @@ public sealed class HeartbeatResponse
     public string? HostName { get; set; }
     public string? IpAddress { get; set; }
     public DateTime LastHeartbeatUtc { get; set; }
+    public bool ConfigPending { get; set; }
 }
 
 public sealed class AgentAuthRequest

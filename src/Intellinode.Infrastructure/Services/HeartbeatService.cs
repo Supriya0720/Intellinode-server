@@ -12,11 +12,16 @@ namespace Intellinode.Infrastructure.Services;
 public sealed class HeartbeatService : IHeartbeatService
 {
     private readonly IntellinodeDbContext _dbContext;
+    private readonly IEffectiveAgentSettingsResolver _settingsResolver;
     private readonly ILogger<HeartbeatService> _logger;
 
-    public HeartbeatService(IntellinodeDbContext dbContext, ILogger<HeartbeatService> logger)
+    public HeartbeatService(
+        IntellinodeDbContext dbContext,
+        IEffectiveAgentSettingsResolver settingsResolver,
+        ILogger<HeartbeatService> logger)
     {
         _dbContext = dbContext;
+        _settingsResolver = settingsResolver;
         _logger = logger;
     }
 
@@ -150,6 +155,7 @@ public sealed class HeartbeatService : IHeartbeatService
         await ProcessAgentAcknowledgementsAsync(device, request, clientStatus, cancellationToken);
 
         await _dbContext.SaveChangesAsync(cancellationToken);
+        response.ConfigPending = await _settingsResolver.HasPendingConfigAsync(device.Id, cancellationToken);
         return response;
     }
 
@@ -173,7 +179,8 @@ public sealed class HeartbeatService : IHeartbeatService
             return new HeartbeatResponse
             {
                 AutoDiscoverFlag = "0",
-                LastHeartbeatUtc = lastHeartbeatUtc
+                LastHeartbeatUtc = lastHeartbeatUtc,
+                ConfigPending = await _settingsResolver.HasPendingConfigAsync(device.Id, cancellationToken)
             };
         }
 
@@ -192,7 +199,8 @@ public sealed class HeartbeatService : IHeartbeatService
             return new HeartbeatResponse
             {
                 AutoDiscoverFlag = "1",
-                LastHeartbeatUtc = lastHeartbeatUtc
+                LastHeartbeatUtc = lastHeartbeatUtc,
+                ConfigPending = await _settingsResolver.HasPendingConfigAsync(device.Id, cancellationToken)
             };
         }
 

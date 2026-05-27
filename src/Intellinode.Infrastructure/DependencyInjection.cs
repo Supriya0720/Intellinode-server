@@ -37,6 +37,22 @@ public static class DependencyInjection
                             "heartbeat_binding_kind",
                             IntellinodeDbContext.SchemaName,
                             nameTranslator: new NpgsqlNullNameTranslator());
+                        npgsql.MapEnum<AgentPlatform>(
+                            "agent_platform",
+                            IntellinodeDbContext.SchemaName,
+                            nameTranslator: new NpgsqlNullNameTranslator());
+                        npgsql.MapEnum<CommunicationType>(
+                            "communication_type",
+                            IntellinodeDbContext.SchemaName,
+                            nameTranslator: new NpgsqlNullNameTranslator());
+                        npgsql.MapEnum<SettingsKind>(
+                            "settings_kind",
+                            IntellinodeDbContext.SchemaName,
+                            nameTranslator: new NpgsqlNullNameTranslator());
+                        npgsql.MapEnum<SettingsApplyStatus>(
+                            "settings_apply_status",
+                            IntellinodeDbContext.SchemaName,
+                            nameTranslator: new NpgsqlNullNameTranslator());
                     })
                 .UseSnakeCaseNamingConvention());
 
@@ -48,8 +64,15 @@ public static class DependencyInjection
         services.AddScoped<IAdminAuthService, AdminAuthService>();
         services.AddScoped<IAgentBootstrapService, AgentBootstrapService>();
         services.AddScoped<IAgentEnrollmentService, AgentEnrollmentService>();
+        services.AddScoped<EnrollmentCoreService>();
+        services.AddScoped<IWindowsAgentEnrollmentService, WindowsAgentEnrollmentService>();
         services.AddScoped<IAgentInventoryService, AgentInventoryService>();
         services.AddScoped<IAgentTaskService, AgentTaskService>();
+        services.AddScoped<IDeviceRemoteSettingsService, DeviceRemoteSettingsService>();
+        services.AddScoped<IDeviceAgentAdvancedSettingsService, DeviceAgentAdvancedSettingsService>();
+        services.AddScoped<IGroupRemoteSettingsService, GroupRemoteSettingsService>();
+        services.AddScoped<EffectiveAgentSettingsResolver>();
+        services.AddScoped<IEffectiveAgentSettingsResolver>(sp => sp.GetRequiredService<EffectiveAgentSettingsResolver>());
         services.AddSingleton<ITokenService, TokenService>();
         return services;
     }

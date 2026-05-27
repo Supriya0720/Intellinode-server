@@ -33,6 +33,22 @@ public sealed class IntellinodeDbContextFactory : IDesignTimeDbContextFactory<In
                         "heartbeat_binding_kind",
                         IntellinodeDbContext.SchemaName,
                         nameTranslator: new NpgsqlNullNameTranslator());
+                    npgsql.MapEnum<AgentPlatform>(
+                        "agent_platform",
+                        IntellinodeDbContext.SchemaName,
+                        nameTranslator: new NpgsqlNullNameTranslator());
+                    npgsql.MapEnum<CommunicationType>(
+                        "communication_type",
+                        IntellinodeDbContext.SchemaName,
+                        nameTranslator: new NpgsqlNullNameTranslator());
+                    npgsql.MapEnum<SettingsKind>(
+                        "settings_kind",
+                        IntellinodeDbContext.SchemaName,
+                        nameTranslator: new NpgsqlNullNameTranslator());
+                    npgsql.MapEnum<SettingsApplyStatus>(
+                        "settings_apply_status",
+                        IntellinodeDbContext.SchemaName,
+                        nameTranslator: new NpgsqlNullNameTranslator());
                 })
             .UseSnakeCaseNamingConvention();
 

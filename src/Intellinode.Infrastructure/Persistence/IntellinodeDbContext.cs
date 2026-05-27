@@ -23,6 +23,12 @@ public sealed class IntellinodeDbContext : DbContext, IIntellinodeDbContext
     public DbSet<DeviceInventory> DeviceInventories => Set<DeviceInventory>();
     public DbSet<AgentEnrollmentToken> AgentEnrollmentTokens => Set<AgentEnrollmentToken>();
     public DbSet<AdminUser> AdminUsers => Set<AdminUser>();
+    public DbSet<TenantAgentDefaults> TenantAgentDefaults => Set<TenantAgentDefaults>();
+    public DbSet<DeviceRemoteSettings> DeviceRemoteSettings => Set<DeviceRemoteSettings>();
+    public DbSet<DeviceAgentAdvancedSettings> DeviceAgentAdvancedSettings => Set<DeviceAgentAdvancedSettings>();
+    public DbSet<GroupRemoteSettings> GroupRemoteSettings => Set<GroupRemoteSettings>();
+    public DbSet<GroupAgentAdvancedSettings> GroupAgentAdvancedSettings => Set<GroupAgentAdvancedSettings>();
+    public DbSet<DeviceSettingsApplyLog> DeviceSettingsApplyLogs => Set<DeviceSettingsApplyLog>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -37,6 +43,26 @@ public sealed class IntellinodeDbContext : DbContext, IIntellinodeDbContext
             "heartbeat_binding_kind",
             SchemaName,
             ["IpAddress", "HostName"]);
+        NpgsqlModelBuilderExtensions.HasPostgresEnum(
+            modelBuilder,
+            "agent_platform",
+            SchemaName,
+            ["Windows", "Linux"]);
+        NpgsqlModelBuilderExtensions.HasPostgresEnum(
+            modelBuilder,
+            "communication_type",
+            SchemaName,
+            ["HTTP", "HTTPS", "TCP"]);
+        NpgsqlModelBuilderExtensions.HasPostgresEnum(
+            modelBuilder,
+            "settings_kind",
+            SchemaName,
+            ["General", "Advanced"]);
+        NpgsqlModelBuilderExtensions.HasPostgresEnum(
+            modelBuilder,
+            "settings_apply_status",
+            SchemaName,
+            ["Pending", "Delivered", "Applied", "Failed"]);
 
         modelBuilder.Entity<Tenant>(entity =>
         {
@@ -100,6 +126,7 @@ public sealed class IntellinodeDbContext : DbContext, IIntellinodeDbContext
             entity.ToTable("agent_enrollment_tokens");
             entity.HasIndex(x => x.TokenHash).IsUnique();
             entity.Property(x => x.MacAddress).HasMaxLength(300);
+            entity.Property(x => x.Platform).HasColumnType("intellinode.agent_platform");
             entity.HasOne(x => x.Device)
                 .WithMany()
                 .HasForeignKey(x => x.DeviceId)
@@ -139,6 +166,159 @@ public sealed class IntellinodeDbContext : DbContext, IIntellinodeDbContext
         {
             entity.ToTable("agent_refresh_tokens");
             entity.HasIndex(x => x.TokenHash);
+        });
+
+        modelBuilder.Entity<TenantAgentDefaults>(entity =>
+        {
+            entity.ToTable("tenant_agent_defaults");
+            entity.HasKey(x => x.TenantId);
+            entity.Property(x => x.ServerBaseUrl).HasMaxLength(512);
+            entity.Property(x => x.ApiBaseUrl).HasMaxLength(512);
+            entity.Property(x => x.DefaultPollIntervalSeconds).HasDefaultValue(300);
+            entity.Property(x => x.DefaultCommunicationType)
+                .HasColumnType("intellinode.communication_type")
+                .HasDefaultValue(CommunicationType.HTTPS);
+            entity.Property(x => x.MinPollIntervalHttp).HasDefaultValue(30);
+            entity.HasOne(x => x.Tenant)
+                .WithOne(x => x.AgentDefaults)
+                .HasForeignKey<TenantAgentDefaults>(x => x.TenantId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<DeviceRemoteSettings>(entity =>
+        {
+            entity.ToTable("device_remote_settings");
+            entity.HasKey(x => x.DeviceId);
+            entity.Property(x => x.ServerHost).HasMaxLength(255);
+            entity.Property(x => x.ServerPort).HasDefaultValue(443);
+            entity.Property(x => x.PollIntervalSeconds).HasDefaultValue(300);
+            entity.Property(x => x.CommunicationType)
+                .HasColumnType("intellinode.communication_type")
+                .HasDefaultValue(CommunicationType.HTTPS);
+            entity.Property(x => x.AgentEnabled).HasDefaultValue(true);
+            entity.Property(x => x.DesiredGroupName).HasMaxLength(200);
+            entity.Property(x => x.AgentHostName).HasMaxLength(255);
+            entity.Property(x => x.SettingsVersion).HasDefaultValue(1L);
+            entity.Property(x => x.PendingApply).HasDefaultValue(false);
+            entity.Property(x => x.InheritFromGroup).HasDefaultValue(true);
+            entity.ToTable(t => t.HasCheckConstraint(
+                "ck_device_remote_settings_poll_interval_seconds",
+                "poll_interval_seconds >= 1"));
+            entity.HasOne(x => x.Device)
+                .WithOne(x => x.RemoteSettings)
+                .HasForeignKey<DeviceRemoteSettings>(x => x.DeviceId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<DeviceAgentAdvancedSettings>(entity =>
+        {
+            entity.ToTable("device_agent_advanced_settings");
+            entity.HasKey(x => x.DeviceId);
+            entity.Property(x => x.DebugLevel).HasDefaultValue(0);
+            entity.Property(x => x.HeartbeatIntervalSeconds).HasDefaultValue(300);
+            entity.Property(x => x.ApplicationIntervalSeconds).HasDefaultValue(60);
+            entity.Property(x => x.UsbLogsEnabled).HasDefaultValue(false);
+            entity.Property(x => x.ApplicationLogsEnabled).HasDefaultValue(false);
+            entity.Property(x => x.BootLogsEnabled).HasDefaultValue(false);
+            entity.Property(x => x.ScreensaverLogsEnabled).HasDefaultValue(false);
+            entity.Property(x => x.YumMonitorEnabled).HasDefaultValue(false);
+            entity.Property(x => x.SignalrMonitoringEnabled).HasDefaultValue(false);
+            entity.Property(x => x.ConnectionType)
+                .HasColumnType("intellinode.communication_type")
+                .HasDefaultValue(CommunicationType.HTTPS);
+            entity.Property(x => x.DhcpPollIntervalSeconds).HasDefaultValue(300);
+            entity.Property(x => x.AlwaysApply).HasDefaultValue(false);
+            entity.Property(x => x.ApplyOnNextReboot).HasDefaultValue(false);
+            entity.Property(x => x.InheritFromGroup).HasDefaultValue(true);
+            entity.Property(x => x.SettingsVersion).HasDefaultValue(1L);
+            entity.Property(x => x.PendingApply).HasDefaultValue(false);
+            entity.Property(x => x.ExtraJson).HasColumnType("jsonb");
+            entity.ToTable(t => t.HasCheckConstraint(
+                "ck_device_agent_advanced_settings_heartbeat_interval",
+                "heartbeat_interval_seconds >= 1"));
+            entity.ToTable(t => t.HasCheckConstraint(
+                "ck_device_agent_advanced_settings_application_interval",
+                "application_interval_seconds >= 1"));
+            entity.ToTable(t => t.HasCheckConstraint(
+                "ck_device_agent_advanced_settings_dhcp_poll_interval",
+                "dhcp_poll_interval_seconds >= 1"));
+            entity.HasOne(x => x.Device)
+                .WithOne(x => x.AgentAdvancedSettings)
+                .HasForeignKey<DeviceAgentAdvancedSettings>(x => x.DeviceId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<GroupRemoteSettings>(entity =>
+        {
+            entity.ToTable("group_remote_settings");
+            entity.HasKey(x => x.GroupId);
+            entity.Property(x => x.ServerHost).HasMaxLength(255).HasDefaultValue(string.Empty);
+            entity.Property(x => x.ServerPort).HasDefaultValue(443);
+            entity.Property(x => x.PollIntervalSeconds).HasDefaultValue(300);
+            entity.Property(x => x.CommunicationType)
+                .HasColumnType("intellinode.communication_type")
+                .HasDefaultValue(CommunicationType.HTTPS);
+            entity.Property(x => x.AgentEnabled).HasDefaultValue(true);
+            entity.Property(x => x.DesiredGroupName).HasMaxLength(200);
+            entity.Property(x => x.AgentHostName).HasMaxLength(255);
+            entity.Property(x => x.SettingsVersion).HasDefaultValue(1L);
+            entity.ToTable(t => t.HasCheckConstraint(
+                "ck_group_remote_settings_poll_interval_seconds",
+                "poll_interval_seconds >= 1"));
+            entity.HasOne(x => x.Group)
+                .WithOne(x => x.RemoteSettings)
+                .HasForeignKey<GroupRemoteSettings>(x => x.GroupId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<GroupAgentAdvancedSettings>(entity =>
+        {
+            entity.ToTable("group_agent_advanced_settings");
+            entity.HasKey(x => x.GroupId);
+            entity.Property(x => x.DebugLevel).HasDefaultValue(0);
+            entity.Property(x => x.HeartbeatIntervalSeconds).HasDefaultValue(300);
+            entity.Property(x => x.ApplicationIntervalSeconds).HasDefaultValue(60);
+            entity.Property(x => x.UsbLogsEnabled).HasDefaultValue(false);
+            entity.Property(x => x.ApplicationLogsEnabled).HasDefaultValue(false);
+            entity.Property(x => x.BootLogsEnabled).HasDefaultValue(false);
+            entity.Property(x => x.ScreensaverLogsEnabled).HasDefaultValue(false);
+            entity.Property(x => x.YumMonitorEnabled).HasDefaultValue(false);
+            entity.Property(x => x.SignalrMonitoringEnabled).HasDefaultValue(false);
+            entity.Property(x => x.ConnectionType)
+                .HasColumnType("intellinode.communication_type")
+                .HasDefaultValue(CommunicationType.HTTPS);
+            entity.Property(x => x.DhcpPollIntervalSeconds).HasDefaultValue(300);
+            entity.Property(x => x.AlwaysApply).HasDefaultValue(false);
+            entity.Property(x => x.ApplyOnNextReboot).HasDefaultValue(false);
+            entity.Property(x => x.SettingsVersion).HasDefaultValue(1L);
+            entity.ToTable(t => t.HasCheckConstraint(
+                "ck_group_agent_advanced_settings_heartbeat_interval",
+                "heartbeat_interval_seconds >= 1"));
+            entity.ToTable(t => t.HasCheckConstraint(
+                "ck_group_agent_advanced_settings_application_interval",
+                "application_interval_seconds >= 1"));
+            entity.ToTable(t => t.HasCheckConstraint(
+                "ck_group_agent_advanced_settings_dhcp_poll_interval",
+                "dhcp_poll_interval_seconds >= 1"));
+            entity.HasOne(x => x.Group)
+                .WithOne(x => x.AgentAdvancedSettings)
+                .HasForeignKey<GroupAgentAdvancedSettings>(x => x.GroupId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<DeviceSettingsApplyLog>(entity =>
+        {
+            entity.ToTable("device_settings_apply_log");
+            entity.Property(x => x.ApplyMode).HasMaxLength(20);
+            entity.Property(x => x.Message).HasMaxLength(500);
+            entity.Property(x => x.SettingsKind).HasColumnType("intellinode.settings_kind");
+            entity.Property(x => x.Status).HasColumnType("intellinode.settings_apply_status");
+            entity.HasIndex(x => new { x.DeviceId, x.CreatedUtc })
+                .IsDescending(false, true);
+            entity.HasOne(x => x.Device)
+                .WithMany()
+                .HasForeignKey(x => x.DeviceId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
     }
 }

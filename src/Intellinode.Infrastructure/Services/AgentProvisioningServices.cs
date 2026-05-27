@@ -2,7 +2,6 @@ using System.Security.Cryptography;
 using System.Text.Json;
 using Intellinode.Application.Contracts.Agents;
 using Intellinode.Application.Interfaces;
-using Intellinode.Domain;
 using Intellinode.Domain.Entities;
 using Intellinode.Domain.Enums;
 using Intellinode.Infrastructure.Options;
@@ -28,20 +27,17 @@ public sealed class AgentEnrollmentService : IAgentEnrollmentService
 {
     private readonly IntellinodeDbContext _dbContext;
     private readonly ITokenService _tokenService;
-    private readonly AgentCredentialIssuer _credentialIssuer;
     private readonly IAgentServerUrlProvider _urlProvider;
     private readonly AgentServerOptions _options;
 
     public AgentEnrollmentService(
         IntellinodeDbContext dbContext,
         ITokenService tokenService,
-        AgentCredentialIssuer credentialIssuer,
         IAgentServerUrlProvider urlProvider,
         IOptions<AgentServerOptions> agentServerOptions)
     {
         _dbContext = dbContext;
         _tokenService = tokenService;
-        _credentialIssuer = credentialIssuer;
         _urlProvider = urlProvider;
         _options = agentServerOptions.Value;
     }
@@ -61,6 +57,7 @@ public sealed class AgentEnrollmentService : IAgentEnrollmentService
         {
             TokenHash = _tokenService.HashToken(token),
             MacAddress = string.IsNullOrWhiteSpace(macAddress) ? null : macAddress.Trim(),
+            Platform = AgentPlatform.Windows,
             CreatedByAdminId = adminId,
             ExpiresUtc = expiresUtc
         });
@@ -73,86 +70,6 @@ public sealed class AgentEnrollmentService : IAgentEnrollmentService
             EnrollmentUrl = _urlProvider.BuildEnrollmentUrl(token),
             ExpiresUtc = expiresUtc
         };
-    }
-
-    public async Task<AgentEnrollResult> EnrollAsync(
-        AgentEnrollRequest request,
-        CancellationToken cancellationToken = default)
-    {
-        var tokenHash = _tokenService.HashToken(request.Token.Trim());
-        var enrollment = await _dbContext.AgentEnrollmentTokens
-            .FirstOrDefaultAsync(
-                t => t.TokenHash == tokenHash && t.ConsumedUtc == null,
-                cancellationToken);
-
-        if (enrollment is null || enrollment.ExpiresUtc < DateTime.UtcNow)
-        {
-            return AgentEnrollResult.Failure(
-                "InvalidEnrollmentToken",
-                "The enrollment token is invalid, expired, or has already been used.");
-        }
-
-        var (macAddress, macError) = ResolveMacAddress(request, enrollment);
-        if (macAddress is null)
-        {
-            return macError == "MacMismatch"
-                ? AgentEnrollResult.Failure(
-                    "MacMismatch",
-                    "The device identity does not match the MAC address bound to this enrollment token.")
-                : AgentEnrollResult.Failure(
-                    "InvalidEnrollmentToken",
-                    "A valid device identity is required to complete enrollment.");
-        }
-
-        var device = await _dbContext.Devices.FirstOrDefaultAsync(
-            d => d.TenantId == TenantDefaults.DefaultTenantId && d.MacAddress == macAddress,
-            cancellationToken);
-        if (device is null)
-        {
-            var defaultGroup = await _dbContext.DeviceGroups.FirstOrDefaultAsync(
-                g => g.TenantId == TenantDefaults.DefaultTenantId && g.IsDefault,
-                cancellationToken);
-            device = new Device
-            {
-                TenantId = TenantDefaults.DefaultTenantId,
-                MacAddress = macAddress,
-                IsRegistered = true,
-                EnrollmentState = EnrollmentState.PendingInventory,
-                GroupId = defaultGroup?.Id
-            };
-            _dbContext.Devices.Add(device);
-        }
-        else
-        {
-            device.IsRegistered = true;
-            device.UpdatedUtc = DateTime.UtcNow;
-        }
-
-        enrollment.ConsumedUtc = DateTime.UtcNow;
-        enrollment.DeviceId = device.Id;
-
-        var response = await _credentialIssuer.IssueAgentCredentialsAsync(device, cancellationToken);
-        await _dbContext.SaveChangesAsync(cancellationToken);
-        return AgentEnrollResult.Success(response);
-    }
-
-    private static (string? MacAddress, string? ErrorCode) ResolveMacAddress(
-        AgentEnrollRequest request,
-        AgentEnrollmentToken enrollment)
-    {
-        var requestedMac = request.DeviceIdentity?.Trim();
-        if (!string.IsNullOrWhiteSpace(enrollment.MacAddress))
-        {
-            if (!string.IsNullOrWhiteSpace(requestedMac) &&
-                !string.Equals(requestedMac, enrollment.MacAddress, StringComparison.OrdinalIgnoreCase))
-            {
-                return (null, "MacMismatch");
-            }
-
-            return (enrollment.MacAddress, null);
-        }
-
-        return string.IsNullOrWhiteSpace(requestedMac) ? (null, "InvalidEnrollmentToken") : (requestedMac, null);
     }
 }
 
@@ -170,27 +87,61 @@ public sealed class AgentInventoryService : IAgentInventoryService
         AgentInventoryRequest request,
         CancellationToken cancellationToken = default)
     {
-        var device = await _dbContext.Devices
-            .FirstOrDefaultAsync(d => d.Id == deviceId, cancellationToken);
+        var device = await FindDeviceAsync(deviceId, cancellationToken);
 
         if (device is null)
         {
             throw new InvalidOperationException($"Device '{deviceId}' is not registered.");
         }
 
+        ApplyInventory(device, request);
+        await _dbContext.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task ApplyInventoryAsync(
+        Guid deviceId,
+        AgentInventoryRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        var device = await FindDeviceAsync(deviceId, cancellationToken);
+
+        if (device is null)
+        {
+            throw new InvalidOperationException($"Device '{deviceId}' is not registered.");
+        }
+
+        ApplyInventory(device, request);
+    }
+
+    private async Task<Device?> FindDeviceAsync(Guid deviceId, CancellationToken cancellationToken)
+    {
+        var device = _dbContext.Devices.Local.FirstOrDefault(d => d.Id == deviceId);
+        if (device is not null)
+        {
+            return device;
+        }
+
+        return await _dbContext.Devices.FirstOrDefaultAsync(d => d.Id == deviceId, cancellationToken);
+    }
+
+    private void ApplyInventory(Device device, AgentInventoryRequest request)
+    {
         var hardware = ToJsonParameter(request.Hardware);
         var network = ToJsonParameter(request.Network);
         var osInfo = ToJsonParameter(request.OsInfo);
         var security = ToJsonParameter(request.Security);
 
-        var existing = await _dbContext.DeviceInventories
-            .FirstOrDefaultAsync(i => i.DeviceId == deviceId, cancellationToken);
+        var existing = _dbContext.DeviceInventories
+            .Local
+            .FirstOrDefault(i => i.DeviceId == device.Id)
+            ?? _dbContext.DeviceInventories
+            .FirstOrDefault(i => i.DeviceId == device.Id);
 
         if (existing is null)
         {
             _dbContext.DeviceInventories.Add(new DeviceInventory
             {
-                DeviceId = deviceId,
+                DeviceId = device.Id,
                 HardwareJson = hardware,
                 NetworkJson = network,
                 OsInfoJson = osInfo,
@@ -211,7 +162,6 @@ public sealed class AgentInventoryService : IAgentInventoryService
         device.IsRegistered = true;
         device.UpdatedUtc = DateTime.UtcNow;
         InventoryFieldMapper.ApplyToDevice(device, request);
-        await _dbContext.SaveChangesAsync(cancellationToken);
     }
 
     private static string? ToJsonParameter(JsonElement? element)

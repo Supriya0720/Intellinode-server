@@ -992,3 +992,261 @@ Content-Type: application/json
 
 # Expected: 401 { "error": "RefreshTokenRevoked", ... }
 
+
+
+### Phase 1 — Device remote settings (admin PUT/GET + agent config pull)
+
+# Prerequisite: device 00-11-22-33-44-55 exists (run agent enroll above) and admin is logged in (@adminToken).
+
+### Admin PUT remote settings (custom poll interval 120s)
+
+# @name putRemoteSettings
+
+PUT {{Intellinode.Api_HostAddress}}/api/v1/admin/devices/00-11-22-33-44-55/remote-settings
+
+Content-Type: application/json
+
+Authorization: Bearer {{adminToken}}
+
+
+
+{
+
+  "serverHost": "uem.example.com",
+
+  "serverPort": 443,
+
+  "pollIntervalSeconds": 120,
+
+  "communicationType": "HTTPS",
+
+  "agentEnabled": true,
+
+  "desiredGroupName": "Production",
+
+  "agentHostName": "WORKSTATION-01",
+
+  "useDhcpDiscovery": false,
+
+  "applyOnReboot": false
+
+}
+
+
+
+# Expected: 200 { "pollIntervalSeconds": 120, "settingsVersion": 1, "pendingApply": true, ... }
+
+
+
+### Admin GET remote settings — verify PUT persisted
+
+GET {{Intellinode.Api_HostAddress}}/api/v1/admin/devices/00-11-22-33-44-55/remote-settings
+
+Authorization: Bearer {{adminToken}}
+
+
+
+# Expected: 200 with pollIntervalSeconds 120 matching PUT above
+
+
+
+### Agent GET /config — effective settings for authenticated device
+
+GET {{Intellinode.Api_HostAddress}}/api/v1/agents/config
+
+Authorization: Bearer {{agentToken}}
+
+
+
+# Expected: 200 { "pollIntervalSeconds": 120, "settingsVersion": 1, "pendingApply": true, ... }
+
+
+
+### Agent auth — pollIntervalSeconds reflects admin remote settings
+
+POST {{Intellinode.Api_HostAddress}}/api/v1/agents/auth/token
+
+Content-Type: application/json
+
+
+
+{
+
+  "deviceIdentity": "00-11-22-33-44-55",
+
+  "isRegistered": 1
+
+}
+
+
+
+# Expected: 200 with pollIntervalSeconds 120 (not global appsettings default)
+
+
+
+### Validation — HTTP poll interval below 30 rejected
+
+PUT {{Intellinode.Api_HostAddress}}/api/v1/admin/devices/00-11-22-33-44-55/remote-settings
+
+Content-Type: application/json
+
+Authorization: Bearer {{adminToken}}
+
+
+
+{
+
+  "serverHost": "uem.example.com",
+
+  "serverPort": 443,
+
+  "pollIntervalSeconds": 15,
+
+  "communicationType": "HTTP",
+
+  "agentEnabled": true
+
+}
+
+
+
+# Expected: 400 validation error (poll interval must be >= 30 for HTTP/HTTPS)
+
+
+
+### Phase 2 — Group settings, inheritance, advanced config, ACK
+
+@defaultGroupId = 00000000-0000-0000-0000-000000000002
+
+### Phase 2 — PUT group remote settings
+
+PUT {{Intellinode.Api_HostAddress}}/api/v1/admin/groups/{{defaultGroupId}}/remote-settings
+
+Content-Type: application/json
+
+Authorization: Bearer {{adminToken}}
+
+
+
+{
+
+  "serverHost": "group-uem.example.com",
+
+  "serverPort": 443,
+
+  "pollIntervalSeconds": 180,
+
+  "communicationType": "HTTPS",
+
+  "agentEnabled": true
+
+}
+
+
+
+### Phase 2 — PUT group advanced settings
+
+PUT {{Intellinode.Api_HostAddress}}/api/v1/admin/groups/{{defaultGroupId}}/agent-advanced-settings
+
+Content-Type: application/json
+
+Authorization: Bearer {{adminToken}}
+
+
+
+{
+
+  "debugLevel": 1,
+
+  "heartbeatIntervalSeconds": 180,
+
+  "applicationIntervalSeconds": 60,
+
+  "connectionType": "HTTPS",
+
+  "usbLogsEnabled": true
+
+}
+
+
+
+### Phase 2 — GET device effective-settings (inherits group)
+
+GET {{Intellinode.Api_HostAddress}}/api/v1/admin/devices/00-11-22-33-44-55/effective-settings
+
+Authorization: Bearer {{adminToken}}
+
+
+
+# Expected: generalSource=group, pollIntervalSeconds=180, advanced heartbeatIntervalSeconds=180
+
+
+
+### Phase 2 — Device override (inheritFromGroup false)
+
+PUT {{Intellinode.Api_HostAddress}}/api/v1/admin/devices/00-11-22-33-44-55/remote-settings
+
+Content-Type: application/json
+
+Authorization: Bearer {{adminToken}}
+
+
+
+{
+
+  "serverHost": "device-override.example.com",
+
+  "serverPort": 443,
+
+  "pollIntervalSeconds": 90,
+
+  "communicationType": "HTTPS",
+
+  "agentEnabled": true
+
+}
+
+
+
+### Phase 2 — Agent GET /config (general + advanced)
+
+# @name phase2AgentConfig
+
+GET {{Intellinode.Api_HostAddress}}/api/v1/agents/config
+
+Authorization: Bearer {{agentToken}}
+
+
+
+@phase2SettingsVersion = {{phase2AgentConfig.response.body.settingsVersion}}
+
+@phase2AdvancedVersion = {{phase2AgentConfig.response.body.advanced.advancedSettingsVersion}}
+
+
+
+### Phase 2 — Agent POST /config/ack
+
+POST {{Intellinode.Api_HostAddress}}/api/v1/agents/config/ack
+
+Content-Type: application/json
+
+Authorization: Bearer {{agentToken}}
+
+
+
+{
+
+  "settingsVersion": {{phase2SettingsVersion}},
+
+  "advancedSettingsVersion": {{phase2AdvancedVersion}},
+
+  "generalApplied": true,
+
+  "advancedApplied": true
+
+}
+
+
+
+# Expected: 200 success=true; pendingApply cleared when versions match
+

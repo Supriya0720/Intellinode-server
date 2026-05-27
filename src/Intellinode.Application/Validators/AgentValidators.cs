@@ -1,5 +1,6 @@
 using FluentValidation;
 using Intellinode.Application.Contracts.Agents;
+using Intellinode.Domain.Enums;
 
 namespace Intellinode.Application.Validators;
 
@@ -46,12 +47,34 @@ public sealed class AdminLoginRequestValidator : AbstractValidator<AdminLoginReq
     }
 }
 
-public sealed class AgentEnrollRequestValidator : AbstractValidator<AgentEnrollRequest>
+public sealed class WindowsAgentEnrollRequestValidator : AbstractValidator<WindowsAgentEnrollRequest>
 {
-    public AgentEnrollRequestValidator()
+    public WindowsAgentEnrollRequestValidator()
     {
         RuleFor(x => x.Token).NotEmpty().MaximumLength(512);
         RuleFor(x => x.DeviceIdentity).MaximumLength(300);
+    }
+}
+
+public sealed class WindowsAgentRegisterRequestValidator : AbstractValidator<WindowsAgentRegisterRequest>
+{
+    public WindowsAgentRegisterRequestValidator()
+    {
+        RuleFor(x => x.Token).NotEmpty().MaximumLength(512);
+        RuleFor(x => x.DeviceIdentity).MaximumLength(300);
+        RuleFor(x => x.Inventory)
+            .NotNull()
+            .SetValidator(new WindowsAgentInventoryRequestValidator());
+    }
+}
+
+public sealed class WindowsAgentInventoryRequestValidator : AbstractValidator<WindowsAgentInventoryRequest>
+{
+    public WindowsAgentInventoryRequestValidator()
+    {
+        RuleFor(x => x)
+            .Must(x => x.Hardware.HasValue || x.Network.HasValue || x.OsInfo.HasValue || x.Security.HasValue)
+            .WithMessage("At least one inventory section is required.");
     }
 }
 
@@ -104,5 +127,83 @@ public sealed class AdminQueueTaskRequestValidator : AbstractValidator<AdminQueu
         RuleFor(x => x.LegacyTaskId).GreaterThanOrEqualTo(0);
         RuleFor(x => x.Signal).MaximumLength(512);
         RuleFor(x => x.ExtraData).MaximumLength(512);
+    }
+}
+
+public sealed class UpsertDeviceRemoteSettingsRequestValidator : AbstractValidator<UpsertDeviceRemoteSettingsRequest>
+{
+    public UpsertDeviceRemoteSettingsRequestValidator()
+    {
+        RuleFor(x => x.ServerHost).MaximumLength(255);
+        RuleFor(x => x.ServerPort).InclusiveBetween(1, 65535);
+        RuleFor(x => x.DesiredGroupName).MaximumLength(200);
+        RuleFor(x => x.AgentHostName).MaximumLength(255);
+        RuleFor(x => x.CommunicationType).IsInEnum();
+
+        RuleFor(x => x.PollIntervalSeconds)
+            .GreaterThanOrEqualTo(1)
+            .WithMessage("Poll interval must be at least 1 second.");
+
+        RuleFor(x => x)
+            .Must(x => x.CommunicationType == CommunicationType.TCP || x.PollIntervalSeconds >= 30)
+            .WithMessage("Poll interval must be at least 30 seconds for HTTP and HTTPS communication.");
+    }
+}
+
+public sealed class UpsertDeviceAgentAdvancedSettingsRequestValidator : AbstractValidator<UpsertDeviceAgentAdvancedSettingsRequest>
+{
+    public UpsertDeviceAgentAdvancedSettingsRequestValidator()
+    {
+        RuleFor(x => x.ApplicationIntervalSeconds).GreaterThanOrEqualTo(1);
+        RuleFor(x => x.DhcpPollIntervalSeconds).GreaterThanOrEqualTo(1);
+        RuleFor(x => x.HeartbeatIntervalSeconds).GreaterThanOrEqualTo(1);
+        RuleFor(x => x.ConnectionType).IsInEnum();
+        RuleFor(x => x)
+            .Must(x => x.ConnectionType == CommunicationType.TCP || x.HeartbeatIntervalSeconds >= 30)
+            .WithMessage("Heartbeat interval must be at least 30 seconds for HTTP and HTTPS communication.");
+    }
+}
+
+public sealed class UpsertGroupRemoteSettingsRequestValidator : AbstractValidator<UpsertGroupRemoteSettingsRequest>
+{
+    public UpsertGroupRemoteSettingsRequestValidator()
+    {
+        RuleFor(x => x.ServerHost).MaximumLength(255);
+        RuleFor(x => x.ServerPort).InclusiveBetween(1, 65535);
+        RuleFor(x => x.PollIntervalSeconds).GreaterThanOrEqualTo(1);
+        RuleFor(x => x)
+            .Must(x => x.CommunicationType == CommunicationType.TCP || x.PollIntervalSeconds >= 30)
+            .WithMessage("Poll interval must be at least 30 seconds for HTTP and HTTPS communication.");
+    }
+}
+
+public sealed class UpsertGroupAgentAdvancedSettingsRequestValidator : AbstractValidator<UpsertGroupAgentAdvancedSettingsRequest>
+{
+    public UpsertGroupAgentAdvancedSettingsRequestValidator()
+    {
+        RuleFor(x => x.ApplicationIntervalSeconds).GreaterThanOrEqualTo(1);
+        RuleFor(x => x.DhcpPollIntervalSeconds).GreaterThanOrEqualTo(1);
+        RuleFor(x => x.HeartbeatIntervalSeconds).GreaterThanOrEqualTo(1);
+        RuleFor(x => x)
+            .Must(x => x.ConnectionType == CommunicationType.TCP || x.HeartbeatIntervalSeconds >= 30)
+            .WithMessage("Heartbeat interval must be at least 30 seconds for HTTP and HTTPS communication.");
+    }
+}
+
+public sealed class AgentConfigAckRequestValidator : AbstractValidator<AgentConfigAckRequest>
+{
+    public AgentConfigAckRequestValidator()
+    {
+        RuleFor(x => x)
+            .Must(x => x.GeneralApplied || x.AdvancedApplied)
+            .WithMessage("At least one of generalApplied or advancedApplied must be true.");
+    }
+}
+
+public sealed class PatchDeviceSettingsInheritanceRequestValidator : AbstractValidator<PatchDeviceSettingsInheritanceRequest>
+{
+    public PatchDeviceSettingsInheritanceRequestValidator()
+    {
+        // bool field always valid
     }
 }

@@ -1,9 +1,12 @@
+using Intellinode.Domain.Enums;
+
 namespace Intellinode.Domain.Entities;
 
 public sealed class AgentEnrollmentToken
 {
     public Guid Id { get; set; } = Guid.NewGuid();
     public string TokenHash { get; set; } = string.Empty;
+    public AgentPlatform Platform { get; set; } = AgentPlatform.Windows;
     public string? MacAddress { get; set; }
     public Guid? DeviceId { get; set; }
     public Device? Device { get; set; }

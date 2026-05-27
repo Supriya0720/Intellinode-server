@@ -105,6 +105,7 @@ public sealed class AgentAuthService : IAgentAuthService
                 TenantId = TenantDefaults.DefaultTenantId,
                 MacAddress = macAddress,
                 IsRegistered = request.IsRegistered == 1,
+                Os = "Windows",
                 EnrollmentState = Domain.Enums.EnrollmentState.PendingInventory,
                 GroupId = defaultGroup?.Id
             };

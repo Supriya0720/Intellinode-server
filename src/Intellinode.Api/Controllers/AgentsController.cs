@@ -14,46 +14,49 @@ public sealed class AgentsController : ControllerBase
 {
     private readonly IAgentAuthService _agentAuthService;
     private readonly IAgentBootstrapService _bootstrapService;
-    private readonly IAgentEnrollmentService _enrollmentService;
     private readonly IAgentInventoryService _inventoryService;
     private readonly IHeartbeatService _heartbeatService;
     private readonly IAgentTaskService _agentTaskService;
+    private readonly IDeviceRemoteSettingsService _remoteSettingsService;
+    private readonly IEffectiveAgentSettingsResolver _effectiveSettingsResolver;
     private readonly IValidator<AgentAuthRequest> _authValidator;
     private readonly IValidator<AgentRefreshRequest> _refreshValidator;
     private readonly IValidator<AgentRevokeRequest> _revokeValidator;
     private readonly IValidator<AgentClientStatusRequest> _heartbeatValidator;
-    private readonly IValidator<AgentEnrollRequest> _enrollValidator;
     private readonly IValidator<AgentInventoryRequest> _inventoryValidator;
     private readonly IValidator<AgentTaskAckBatchRequest> _taskAckValidator;
+    private readonly IValidator<AgentConfigAckRequest> _configAckValidator;
 
     public AgentsController(
         IAgentAuthService agentAuthService,
         IAgentBootstrapService bootstrapService,
-        IAgentEnrollmentService enrollmentService,
         IAgentInventoryService inventoryService,
         IHeartbeatService heartbeatService,
         IAgentTaskService agentTaskService,
+        IDeviceRemoteSettingsService remoteSettingsService,
+        IEffectiveAgentSettingsResolver effectiveSettingsResolver,
         IValidator<AgentAuthRequest> authValidator,
         IValidator<AgentRefreshRequest> refreshValidator,
         IValidator<AgentRevokeRequest> revokeValidator,
         IValidator<AgentClientStatusRequest> heartbeatValidator,
-        IValidator<AgentEnrollRequest> enrollValidator,
         IValidator<AgentInventoryRequest> inventoryValidator,
-        IValidator<AgentTaskAckBatchRequest> taskAckValidator)
+        IValidator<AgentTaskAckBatchRequest> taskAckValidator,
+        IValidator<AgentConfigAckRequest> configAckValidator)
     {
         _agentAuthService = agentAuthService;
         _bootstrapService = bootstrapService;
-        _enrollmentService = enrollmentService;
         _inventoryService = inventoryService;
         _heartbeatService = heartbeatService;
         _agentTaskService = agentTaskService;
+        _remoteSettingsService = remoteSettingsService;
+        _effectiveSettingsResolver = effectiveSettingsResolver;
         _authValidator = authValidator;
         _refreshValidator = refreshValidator;
         _revokeValidator = revokeValidator;
         _heartbeatValidator = heartbeatValidator;
-        _enrollValidator = enrollValidator;
         _inventoryValidator = inventoryValidator;
         _taskAckValidator = taskAckValidator;
+        _configAckValidator = configAckValidator;
     }
 
     /// <summary>
@@ -65,8 +68,55 @@ public sealed class AgentsController : ControllerBase
         Ok(_bootstrapService.GetBootstrap());
 
     /// <summary>
+    /// Returns effective remote agent settings for the authenticated device (desired config pull).
+    /// Poll interval and server URLs reflect per-device settings or tenant defaults.
+    /// </summary>
+    [HttpGet("config")]
+    [Authorize(Roles = "Agent")]
+    public async Task<ActionResult<AgentConfigResponse>> GetConfig(CancellationToken cancellationToken)
+    {
+        var macAddress = User.FindFirst("mac")?.Value;
+        if (string.IsNullOrWhiteSpace(macAddress))
+        {
+            return Unauthorized();
+        }
+
+        var config = await _remoteSettingsService.GetAgentConfigAsync(macAddress, cancellationToken);
+        if (config is null)
+        {
+            return NotFound(new AgentErrorResponse
+            {
+                Error = "DeviceNotFound",
+                Message = "Device associated with this token was not found."
+            });
+        }
+
+        return Ok(config);
+    }
+
+    /// <summary>
+    /// Agent confirms applied general and/or advanced config versions.
+    /// </summary>
+    [HttpPost("config/ack")]
+    [Authorize(Roles = "Agent")]
+    public async Task<ActionResult<AgentConfigAckResponse>> AcknowledgeConfig(
+        [FromBody] AgentConfigAckRequest request,
+        CancellationToken cancellationToken)
+    {
+        await _configAckValidator.ValidateAndThrowAsync(request, cancellationToken);
+
+        if (!TryGetDeviceId(out var deviceId))
+        {
+            return Unauthorized();
+        }
+
+        var result = await _effectiveSettingsResolver.AcknowledgeConfigAsync(deviceId, request, cancellationToken);
+        return result.Success ? Ok(result) : BadRequest(result);
+    }
+
+    /// <summary>
     /// Bootstrap/reconnect for a known MAC address. Creates the device if missing (PendingInventory).
-    /// Does not consume enrollment tokens; use enroll for first-time provisioning with an admin one-time token.
+    /// Does not consume enrollment tokens; use POST /api/v1/agents/windows/enroll for first-time Windows provisioning.
     /// </summary>
     [HttpPost("auth/token")]
     [AllowAnonymous]
@@ -121,31 +171,6 @@ public sealed class AgentsController : ControllerBase
     }
 
     /// <summary>
-    /// First-time enrollment with an admin one-time token. Creates the device if missing (PendingInventory).
-    /// </summary>
-    [HttpPost("enroll")]
-    [AllowAnonymous]
-    public async Task<ActionResult<AgentAuthResponse>> Enroll(
-        [FromBody] AgentEnrollRequest request,
-        CancellationToken cancellationToken)
-    {
-        await _enrollValidator.ValidateAndThrowAsync(request, cancellationToken);
-        var result = await _enrollmentService.EnrollAsync(request, cancellationToken);
-        if (!result.IsSuccess)
-        {
-            return StatusCode(
-                StatusCodes.Status401Unauthorized,
-                new AgentErrorResponse
-                {
-                    Error = result.ErrorCode ?? "InvalidEnrollmentToken",
-                    Message = result.Message ?? "Enrollment failed."
-                });
-        }
-
-        return Ok(result.AuthResponse);
-    }
-
-    /// <summary>
     /// Uploads full device inventory after SDFT.
     /// </summary>
     [HttpPost("inventory")]
@@ -167,10 +192,12 @@ public sealed class AgentsController : ControllerBase
 
     /// <summary>
     /// Replaces legacy SendXP_Client_Message heartbeat SOAP call.
+    /// FusionX agents may request legacy plain-text via Accept: text/plain or ?format=legacy;
+    /// the response body is then only the autoDiscoverFlag string ("0", "1", "SDFT", etc.).
     /// </summary>
     [HttpPost("heartbeat")]
     [Authorize(Roles = "Agent")]
-    public async Task<ActionResult<HeartbeatResponse>> SendHeartbeat(
+    public async Task<IActionResult> SendHeartbeat(
         [FromBody] AgentClientStatusRequest request,
         CancellationToken cancellationToken)
     {
@@ -184,7 +211,29 @@ public sealed class AgentsController : ControllerBase
         }
 
         var response = await _heartbeatService.ProcessHeartbeatAsync(request, cancellationToken);
+        if (WantsLegacyHeartbeatResponse())
+        {
+            return Content(response.AutoDiscoverFlag, "text/plain");
+        }
+
         return Ok(response);
+    }
+
+    private bool WantsLegacyHeartbeatResponse()
+    {
+        var format = Request.Query["format"].ToString();
+        if (string.Equals(format, "json", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        if (string.Equals(format, "legacy", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        var accept = Request.Headers.Accept.ToString();
+        return accept.Contains("text/plain", StringComparison.OrdinalIgnoreCase);
     }
 
     /// <summary>

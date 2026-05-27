@@ -48,15 +48,27 @@ public interface IAgentEnrollmentService
         Guid adminId,
         string? macAddress,
         CancellationToken cancellationToken = default);
+}
 
+public interface IWindowsAgentEnrollmentService
+{
     Task<AgentEnrollResult> EnrollAsync(
-        AgentEnrollRequest request,
+        WindowsAgentEnrollRequest request,
+        CancellationToken cancellationToken = default);
+
+    Task<AgentEnrollResult> RegisterAsync(
+        WindowsAgentRegisterRequest request,
         CancellationToken cancellationToken = default);
 }
 
 public interface IAgentInventoryService
 {
     Task UpsertInventoryAsync(
+        Guid deviceId,
+        AgentInventoryRequest request,
+        CancellationToken cancellationToken = default);
+
+    Task ApplyInventoryAsync(
         Guid deviceId,
         AgentInventoryRequest request,
         CancellationToken cancellationToken = default);
@@ -67,6 +79,39 @@ public interface IAgentTaskService
     Task<AgentPendingTasksResponse> GetPendingTasksAsync(Guid deviceId, CancellationToken cancellationToken = default);
     Task AcknowledgeTasksAsync(Guid deviceId, AgentTaskAckBatchRequest request, CancellationToken cancellationToken = default);
     Task<AdminQueueTaskResponse?> QueueTaskForDeviceAsync(Guid tenantId, string macAddress, AdminQueueTaskRequest request, CancellationToken cancellationToken = default);
+}
+
+public interface IDeviceRemoteSettingsService
+{
+    Task<DeviceRemoteSettingsDto?> GetByMacAsync(string macAddress, CancellationToken cancellationToken = default);
+    Task<DeviceRemoteSettingsDto?> UpsertByMacAsync(string macAddress, UpsertDeviceRemoteSettingsRequest request, Guid? adminId = null, CancellationToken cancellationToken = default);
+    Task<DeviceRemoteSettingsDto?> PatchInheritanceAsync(string macAddress, PatchDeviceSettingsInheritanceRequest request, CancellationToken cancellationToken = default);
+    Task<EffectiveAgentSettings> ResolveEffectiveForDeviceAsync(Guid deviceId, CancellationToken cancellationToken = default);
+    Task<AgentConfigResponse?> GetAgentConfigAsync(string macAddress, CancellationToken cancellationToken = default);
+}
+
+public interface IDeviceAgentAdvancedSettingsService
+{
+    Task<DeviceAgentAdvancedSettingsDto?> GetByMacAsync(string macAddress, CancellationToken cancellationToken = default);
+    Task<DeviceAgentAdvancedSettingsDto?> UpsertByMacAsync(string macAddress, UpsertDeviceAgentAdvancedSettingsRequest request, Guid? adminId = null, CancellationToken cancellationToken = default);
+}
+
+public interface IGroupRemoteSettingsService
+{
+    Task<GroupRemoteSettingsDto?> GetGroupRemoteSettingsAsync(Guid groupId, CancellationToken cancellationToken = default);
+    Task<GroupRemoteSettingsDto?> UpsertGroupRemoteSettingsAsync(Guid groupId, UpsertGroupRemoteSettingsRequest request, Guid? adminId = null, CancellationToken cancellationToken = default);
+    Task<GroupAgentAdvancedSettingsDto?> GetGroupAdvancedSettingsAsync(Guid groupId, CancellationToken cancellationToken = default);
+    Task<GroupAgentAdvancedSettingsDto?> UpsertGroupAdvancedSettingsAsync(Guid groupId, UpsertGroupAgentAdvancedSettingsRequest request, Guid? adminId = null, CancellationToken cancellationToken = default);
+    Task<PropagateGroupSettingsResponse?> PropagatePendingApplyAsync(Guid groupId, Guid? adminId = null, CancellationToken cancellationToken = default);
+}
+
+public interface IEffectiveAgentSettingsResolver
+{
+    Task<EffectiveAgentSettings> ResolveEffectiveGeneralAsync(Guid deviceId, CancellationToken cancellationToken = default);
+    Task<AgentAdvancedConfigDto> ResolveEffectiveAdvancedAsync(Guid deviceId, CancellationToken cancellationToken = default);
+    Task<EffectiveDeviceSettingsDto?> ResolveEffectiveCombinedByMacAsync(string macAddress, CancellationToken cancellationToken = default);
+    Task<AgentConfigAckResponse> AcknowledgeConfigAsync(Guid deviceId, AgentConfigAckRequest request, CancellationToken cancellationToken = default);
+    Task<bool> HasPendingConfigAsync(Guid deviceId, CancellationToken cancellationToken = default);
 }
 
 public interface IIntellinodeDbContext

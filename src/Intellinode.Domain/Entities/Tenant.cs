@@ -10,4 +10,5 @@ public sealed class Tenant
 
     public ICollection<DeviceGroup> DeviceGroups { get; set; } = [];
     public ICollection<Device> Devices { get; set; } = [];
+    public TenantAgentDefaults? AgentDefaults { get; set; }
 }
