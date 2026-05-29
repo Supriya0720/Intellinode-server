@@ -1,5 +1,6 @@
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
+using Intellinode.Api.Http;
 using Intellinode.Application.Contracts.Agents;
 using Intellinode.Application.Interfaces;
 using Intellinode.Domain;
@@ -19,6 +20,8 @@ public sealed class AdminController : ControllerBase
     private readonly IDeviceRemoteSettingsService _remoteSettingsService;
     private readonly IDeviceAgentAdvancedSettingsService _advancedSettingsService;
     private readonly IEffectiveAgentSettingsResolver _effectiveSettingsResolver;
+    private readonly IExceptionLogWriter _exceptionLogWriter;
+    private readonly ILogger<AdminController> _logger;
     private readonly IValidator<AdminLoginRequest> _loginValidator;
     private readonly IValidator<AdminQueueTaskRequest> _queueTaskValidator;
     private readonly IValidator<UpsertDeviceRemoteSettingsRequest> _remoteSettingsValidator;
@@ -32,6 +35,8 @@ public sealed class AdminController : ControllerBase
         IDeviceRemoteSettingsService remoteSettingsService,
         IDeviceAgentAdvancedSettingsService advancedSettingsService,
         IEffectiveAgentSettingsResolver effectiveSettingsResolver,
+        IExceptionLogWriter exceptionLogWriter,
+        ILogger<AdminController> logger,
         IValidator<AdminLoginRequest> loginValidator,
         IValidator<AdminQueueTaskRequest> queueTaskValidator,
         IValidator<UpsertDeviceRemoteSettingsRequest> remoteSettingsValidator,
@@ -44,6 +49,8 @@ public sealed class AdminController : ControllerBase
         _remoteSettingsService = remoteSettingsService;
         _advancedSettingsService = advancedSettingsService;
         _effectiveSettingsResolver = effectiveSettingsResolver;
+        _exceptionLogWriter = exceptionLogWriter;
+        _logger = logger;
         _loginValidator = loginValidator;
         _queueTaskValidator = queueTaskValidator;
         _remoteSettingsValidator = remoteSettingsValidator;
@@ -57,9 +64,16 @@ public sealed class AdminController : ControllerBase
         [FromBody] AdminLoginRequest request,
         CancellationToken cancellationToken)
     {
-        await _loginValidator.ValidateAndThrowAsync(request, cancellationToken);
-        var response = await _adminAuthService.LoginAsync(request, cancellationToken);
-        return response is null ? Unauthorized() : Ok(response);
+        try
+        {
+            await _loginValidator.ValidateAndThrowAsync(request, cancellationToken);
+            var response = await _adminAuthService.LoginAsync(request, cancellationToken);
+            return response is null ? Unauthorized() : Ok(response);
+        }
+        catch (Exception ex)
+        {
+            return await HandleUnexpectedExceptionAsync(nameof(Login), ex, cancellationToken);
+        }
     }
 
     /// <summary>
@@ -71,18 +85,35 @@ public sealed class AdminController : ControllerBase
         [FromQuery] string? macAddress,
         CancellationToken cancellationToken)
     {
-        if (!TryGetAdminId(out var adminId))
+        try
         {
-            return Unauthorized();
-        }
+            if (!TryGetAdminId(out var adminId))
+            {
+                return Unauthorized();
+            }
 
-        var link = await _enrollmentService.CreateEnrollmentLinkAsync(adminId, macAddress, cancellationToken);
-        return Ok(link);
+            var link = await _enrollmentService.CreateEnrollmentLinkAsync(adminId, macAddress, cancellationToken);
+            return Ok(link);
+        }
+        catch (Exception ex)
+        {
+            return await HandleUnexpectedExceptionAsync(nameof(CreateEnrollmentLink), ex, cancellationToken);
+        }
     }
 
     [HttpGet("health")]
     [Authorize(Roles = "Admin")]
-    public IActionResult Health() => Ok(new { status = "ok", service = "Intellinode" });
+    public async Task<IActionResult> Health()
+    {
+        try
+        {
+            return Ok(new { status = "ok", service = "Intellinode" });
+        }
+        catch (Exception ex)
+        {
+            return await HandleUnexpectedExceptionAsync(nameof(Health), ex);
+        }
+    }
 
     /// <summary>
     /// Queues a device task (FusionX Task_Schedule_Details equivalent).
@@ -94,24 +125,39 @@ public sealed class AdminController : ControllerBase
         [FromBody] AdminQueueTaskRequest request,
         CancellationToken cancellationToken)
     {
-        await _queueTaskValidator.ValidateAndThrowAsync(request, cancellationToken);
-
-        var result = await _agentTaskService.QueueTaskForDeviceAsync(
-            TenantDefaults.DefaultTenantId,
-            macAddress,
-            request,
-            cancellationToken);
-
-        if (result is null)
+        try
         {
-            return NotFound(new AgentErrorResponse
-            {
-                Error = "DeviceNotFound",
-                Message = $"No device found with MAC address '{macAddress.Trim()}'."
-            });
-        }
+            await _queueTaskValidator.ValidateAndThrowAsync(request, cancellationToken);
 
-        return CreatedAtAction(nameof(QueueDeviceTask), new { macAddress }, result);
+            var result = await _agentTaskService.QueueTaskForDeviceAsync(
+                TenantDefaults.DefaultTenantId,
+                macAddress,
+                request,
+                cancellationToken);
+
+            if (result.IsSuccess)
+            {
+                return CreatedAtAction(nameof(QueueDeviceTask), new { macAddress }, result.Response);
+            }
+
+            return result.ErrorCode switch
+            {
+                "DevicePendingApproval" => Conflict(new AgentErrorResponse
+                {
+                    Error = result.ErrorCode,
+                    Message = result.Message ?? "Device is awaiting administrator approval."
+                }),
+                _ => NotFound(new AgentErrorResponse
+                {
+                    Error = result.ErrorCode ?? "DeviceNotFound",
+                    Message = result.Message ?? $"No device found with MAC address '{macAddress.Trim()}'."
+                })
+            };
+        }
+        catch (Exception ex)
+        {
+            return await HandleUnexpectedExceptionAsync(nameof(QueueDeviceTask), ex, cancellationToken);
+        }
     }
 
     /// <summary>
@@ -124,17 +170,24 @@ public sealed class AdminController : ControllerBase
         string macAddress,
         CancellationToken cancellationToken)
     {
-        var settings = await _remoteSettingsService.GetByMacAsync(macAddress, cancellationToken);
-        if (settings is null)
+        try
         {
-            return NotFound(new AgentErrorResponse
+            var settings = await _remoteSettingsService.GetByMacAsync(macAddress, cancellationToken);
+            if (settings is null)
             {
-                Error = "DeviceNotFound",
-                Message = $"No device found with MAC address '{macAddress.Trim()}'."
-            });
-        }
+                return NotFound(new AgentErrorResponse
+                {
+                    Error = "DeviceNotFound",
+                    Message = $"No device found with MAC address '{macAddress.Trim()}'."
+                });
+            }
 
-        return Ok(settings);
+            return Ok(settings);
+        }
+        catch (Exception ex)
+        {
+            return await HandleUnexpectedExceptionAsync(nameof(GetDeviceRemoteSettings), ex, cancellationToken);
+        }
     }
 
     /// <summary>
@@ -148,20 +201,27 @@ public sealed class AdminController : ControllerBase
         [FromBody] UpsertDeviceRemoteSettingsRequest request,
         CancellationToken cancellationToken)
     {
-        await _remoteSettingsValidator.ValidateAndThrowAsync(request, cancellationToken);
-        TryGetAdminId(out var adminId);
-
-        var settings = await _remoteSettingsService.UpsertByMacAsync(macAddress, request, adminId, cancellationToken);
-        if (settings is null)
+        try
         {
-            return NotFound(new AgentErrorResponse
-            {
-                Error = "DeviceNotFound",
-                Message = $"No device found with MAC address '{macAddress.Trim()}'."
-            });
-        }
+            await _remoteSettingsValidator.ValidateAndThrowAsync(request, cancellationToken);
+            TryGetAdminId(out var adminId);
 
-        return Ok(settings);
+            var settings = await _remoteSettingsService.UpsertByMacAsync(macAddress, request, adminId, cancellationToken);
+            if (settings is null)
+            {
+                return NotFound(new AgentErrorResponse
+                {
+                    Error = "DeviceNotFound",
+                    Message = $"No device found with MAC address '{macAddress.Trim()}'."
+                });
+            }
+
+            return Ok(settings);
+        }
+        catch (Exception ex)
+        {
+            return await HandleUnexpectedExceptionAsync(nameof(UpsertDeviceRemoteSettings), ex, cancellationToken);
+        }
     }
 
     [HttpGet("devices/{macAddress}/agent-advanced-settings")]
@@ -170,17 +230,24 @@ public sealed class AdminController : ControllerBase
         string macAddress,
         CancellationToken cancellationToken)
     {
-        var settings = await _advancedSettingsService.GetByMacAsync(macAddress, cancellationToken);
-        if (settings is null)
+        try
         {
-            return NotFound(new AgentErrorResponse
+            var settings = await _advancedSettingsService.GetByMacAsync(macAddress, cancellationToken);
+            if (settings is null)
             {
-                Error = "DeviceNotFound",
-                Message = $"No device found with MAC address '{macAddress.Trim()}'."
-            });
-        }
+                return NotFound(new AgentErrorResponse
+                {
+                    Error = "DeviceNotFound",
+                    Message = $"No device found with MAC address '{macAddress.Trim()}'."
+                });
+            }
 
-        return Ok(settings);
+            return Ok(settings);
+        }
+        catch (Exception ex)
+        {
+            return await HandleUnexpectedExceptionAsync(nameof(GetDeviceAgentAdvancedSettings), ex, cancellationToken);
+        }
     }
 
     [HttpPut("devices/{macAddress}/agent-advanced-settings")]
@@ -190,20 +257,27 @@ public sealed class AdminController : ControllerBase
         [FromBody] UpsertDeviceAgentAdvancedSettingsRequest request,
         CancellationToken cancellationToken)
     {
-        await _advancedSettingsValidator.ValidateAndThrowAsync(request, cancellationToken);
-        TryGetAdminId(out var adminId);
-
-        var settings = await _advancedSettingsService.UpsertByMacAsync(macAddress, request, adminId, cancellationToken);
-        if (settings is null)
+        try
         {
-            return NotFound(new AgentErrorResponse
-            {
-                Error = "DeviceNotFound",
-                Message = $"No device found with MAC address '{macAddress.Trim()}'."
-            });
-        }
+            await _advancedSettingsValidator.ValidateAndThrowAsync(request, cancellationToken);
+            TryGetAdminId(out var adminId);
 
-        return Ok(settings);
+            var settings = await _advancedSettingsService.UpsertByMacAsync(macAddress, request, adminId, cancellationToken);
+            if (settings is null)
+            {
+                return NotFound(new AgentErrorResponse
+                {
+                    Error = "DeviceNotFound",
+                    Message = $"No device found with MAC address '{macAddress.Trim()}'."
+                });
+            }
+
+            return Ok(settings);
+        }
+        catch (Exception ex)
+        {
+            return await HandleUnexpectedExceptionAsync(nameof(UpsertDeviceAgentAdvancedSettings), ex, cancellationToken);
+        }
     }
 
     [HttpPatch("devices/{macAddress}/remote-settings/inheritance")]
@@ -213,19 +287,26 @@ public sealed class AdminController : ControllerBase
         [FromBody] PatchDeviceSettingsInheritanceRequest request,
         CancellationToken cancellationToken)
     {
-        await _inheritanceValidator.ValidateAndThrowAsync(request, cancellationToken);
-
-        var settings = await _remoteSettingsService.PatchInheritanceAsync(macAddress, request, cancellationToken);
-        if (settings is null)
+        try
         {
-            return NotFound(new AgentErrorResponse
-            {
-                Error = "DeviceNotFound",
-                Message = $"No device found with MAC address '{macAddress.Trim()}'."
-            });
-        }
+            await _inheritanceValidator.ValidateAndThrowAsync(request, cancellationToken);
 
-        return Ok(settings);
+            var settings = await _remoteSettingsService.PatchInheritanceAsync(macAddress, request, cancellationToken);
+            if (settings is null)
+            {
+                return NotFound(new AgentErrorResponse
+                {
+                    Error = "DeviceNotFound",
+                    Message = $"No device found with MAC address '{macAddress.Trim()}'."
+                });
+            }
+
+            return Ok(settings);
+        }
+        catch (Exception ex)
+        {
+            return await HandleUnexpectedExceptionAsync(nameof(PatchDeviceSettingsInheritance), ex, cancellationToken);
+        }
     }
 
     [HttpGet("devices/{macAddress}/effective-settings")]
@@ -234,17 +315,39 @@ public sealed class AdminController : ControllerBase
         string macAddress,
         CancellationToken cancellationToken)
     {
-        var settings = await _effectiveSettingsResolver.ResolveEffectiveCombinedByMacAsync(macAddress, cancellationToken);
-        if (settings is null)
+        try
         {
-            return NotFound(new AgentErrorResponse
+            var settings = await _effectiveSettingsResolver.ResolveEffectiveCombinedByMacAsync(macAddress, cancellationToken);
+            if (settings is null)
             {
-                Error = "DeviceNotFound",
-                Message = $"No device found with MAC address '{macAddress.Trim()}'."
-            });
-        }
+                return NotFound(new AgentErrorResponse
+                {
+                    Error = "DeviceNotFound",
+                    Message = $"No device found with MAC address '{macAddress.Trim()}'."
+                });
+            }
 
-        return Ok(settings);
+            return Ok(settings);
+        }
+        catch (Exception ex)
+        {
+            return await HandleUnexpectedExceptionAsync(nameof(GetEffectiveDeviceSettings), ex, cancellationToken);
+        }
+    }
+
+    private async Task<ObjectResult> HandleUnexpectedExceptionAsync(
+        string actionName,
+        Exception ex,
+        CancellationToken cancellationToken = default)
+    {
+        Guid? adminId = TryGetAdminId(out var id) ? id : null;
+        return await this.HandleUnexpectedExceptionAsync(
+            _exceptionLogWriter,
+            _logger,
+            actionName,
+            ex,
+            adminId: adminId,
+            cancellationToken: cancellationToken);
     }
 
     private bool TryGetAdminId(out Guid adminId)

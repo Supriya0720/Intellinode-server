@@ -1,7 +1,7 @@
 using Intellinode.Application.Contracts.Agents;
 using Intellinode.Application.Interfaces;
-using Intellinode.Domain;
 using Intellinode.Domain.Entities;
+using Intellinode.Domain.Enums;
 using Intellinode.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -93,7 +93,7 @@ public sealed class AgentTaskService : IAgentTaskService
         await _dbContext.SaveChangesAsync(cancellationToken);
     }
 
-    public async Task<AdminQueueTaskResponse?> QueueTaskForDeviceAsync(
+    public async Task<AdminQueueTaskResult> QueueTaskForDeviceAsync(
         Guid tenantId,
         string macAddress,
         AdminQueueTaskRequest request,
@@ -107,7 +107,23 @@ public sealed class AgentTaskService : IAgentTaskService
 
         if (device is null)
         {
-            return null;
+            return AdminQueueTaskResult.Failure(
+                "DeviceNotFound",
+                $"No device found with MAC address '{normalizedMac}'.");
+        }
+
+        if (!DeviceEnrollmentGuard.IsManaged(device.EnrollmentState))
+        {
+            if (device.EnrollmentState == EnrollmentState.PendingApproval)
+            {
+                return AdminQueueTaskResult.Failure(
+                    "DevicePendingApproval",
+                    "Device is awaiting administrator approval before tasks can be queued.");
+            }
+
+            return AdminQueueTaskResult.Failure(
+                "DeviceNotManaged",
+                $"Device enrollment state '{device.EnrollmentState}' does not allow task queueing.");
         }
 
         var legacyTaskId = request.LegacyTaskId > 0
@@ -129,11 +145,11 @@ public sealed class AgentTaskService : IAgentTaskService
         _dbContext.DeviceTasks.Add(task);
         await _dbContext.SaveChangesAsync(cancellationToken);
 
-        return new AdminQueueTaskResponse
+        return AdminQueueTaskResult.Success(new AdminQueueTaskResponse
         {
             TaskId = task.Id,
             LegacyTaskId = task.LegacyTaskId
-        };
+        });
     }
 
     private static DeviceTask? ResolveTask(Device device, AgentTaskAckRequest ack)

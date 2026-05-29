@@ -1,4 +1,7 @@
+using Intellinode.Application.Contracts.Admin;
 using Intellinode.Application.Contracts.Agents;
+using Intellinode.Domain.Entities;
+using Intellinode.Domain.Enums;
 
 namespace Intellinode.Application.Interfaces;
 
@@ -61,16 +64,82 @@ public interface IWindowsAgentEnrollmentService
         CancellationToken cancellationToken = default);
 }
 
+public interface IDiscoverLookupWriter
+{
+    Task UpsertPendingFromInventoryAsync(
+        Device device,
+        AgentInventoryRequest request,
+        CancellationToken cancellationToken = default);
+
+    Task SyncPendingFromHeartbeatAsync(
+        Device device,
+        AgentClientStatusRequest request,
+        CancellationToken cancellationToken = default);
+}
+
+public interface IAgentCommunicationLogWriter
+{
+    Task LogAsync(
+        Guid? deviceId,
+        string? macAddress,
+        string direction,
+        string endpoint,
+        string? commandCode,
+        string? payloadSummary,
+        CancellationToken cancellationToken = default);
+}
+
+public interface IExceptionLogWriter
+{
+    Task LogAsync(
+        string source,
+        Exception exception,
+        Guid? deviceId = null,
+        Guid? adminId = null,
+        string? requestPath = null,
+        string? httpMethod = null,
+        CancellationToken cancellationToken = default);
+}
+
+public interface IDiscoverLookupService
+{
+    Task<PagedDiscoverLookupResponse> ListAsync(DiscoverLookupQuery query, CancellationToken cancellationToken = default);
+    Task<DiscoverLookupDetailDto?> GetByMacAsync(string macAddress, CancellationToken cancellationToken = default);
+    Task<DiscoverLookupStatsResponse> GetStatsAsync(CancellationToken cancellationToken = default);
+    Task<DiscoverLookupOperationResult<ApproveDiscoveryResponse>> ApproveAsync(
+        string macAddress,
+        Guid adminId,
+        ApproveDiscoveryRequest request,
+        CancellationToken cancellationToken = default);
+    Task<DiscoverLookupOperationResult<bool>> RejectAsync(
+        string macAddress,
+        Guid adminId,
+        RejectDiscoveryRequest request,
+        CancellationToken cancellationToken = default);
+    Task<BulkApproveDiscoveryResponse> BulkApproveAsync(
+        Guid adminId,
+        BulkApproveDiscoveryRequest request,
+        CancellationToken cancellationToken = default);
+
+    Task<DiscoverLookupOperationResult<bool>> DismissAsync(
+        string macAddress,
+        Guid adminId,
+        DismissDiscoveryRequest request,
+        CancellationToken cancellationToken = default);
+}
+
 public interface IAgentInventoryService
 {
-    Task UpsertInventoryAsync(
+    Task<AgentInventorySubmitResponse> UpsertInventoryAsync(
         Guid deviceId,
         AgentInventoryRequest request,
+        InventorySubmissionKind kind = InventorySubmissionKind.SelfDiscovery,
         CancellationToken cancellationToken = default);
 
     Task ApplyInventoryAsync(
         Guid deviceId,
         AgentInventoryRequest request,
+        InventorySubmissionKind kind = InventorySubmissionKind.TokenEnrollment,
         CancellationToken cancellationToken = default);
 }
 
@@ -78,7 +147,7 @@ public interface IAgentTaskService
 {
     Task<AgentPendingTasksResponse> GetPendingTasksAsync(Guid deviceId, CancellationToken cancellationToken = default);
     Task AcknowledgeTasksAsync(Guid deviceId, AgentTaskAckBatchRequest request, CancellationToken cancellationToken = default);
-    Task<AdminQueueTaskResponse?> QueueTaskForDeviceAsync(Guid tenantId, string macAddress, AdminQueueTaskRequest request, CancellationToken cancellationToken = default);
+    Task<AdminQueueTaskResult> QueueTaskForDeviceAsync(Guid tenantId, string macAddress, AdminQueueTaskRequest request, CancellationToken cancellationToken = default);
 }
 
 public interface IDeviceRemoteSettingsService

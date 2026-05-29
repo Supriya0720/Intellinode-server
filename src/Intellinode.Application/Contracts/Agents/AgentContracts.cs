@@ -247,3 +247,27 @@ public sealed class AdminQueueTaskResponse
     public Guid TaskId { get; set; }
     public int LegacyTaskId { get; set; }
 }
+
+public sealed class AdminQueueTaskResult
+{
+    public AdminQueueTaskResponse? Response { get; init; }
+    public string? ErrorCode { get; init; }
+    public string? Message { get; init; }
+
+    public bool IsSuccess => Response is not null;
+
+    public static AdminQueueTaskResult Success(AdminQueueTaskResponse response) =>
+        new() { Response = response };
+
+    public static AdminQueueTaskResult Failure(string errorCode, string message) =>
+        new() { ErrorCode = errorCode, Message = message };
+}
+
+public sealed class AgentInventorySubmitResponse
+{
+    public string Status { get; set; } = string.Empty;
+    public string Message { get; set; } = string.Empty;
+    public string? ErrorCode { get; set; }
+
+    public bool IsSuccess => string.IsNullOrEmpty(ErrorCode);
+}

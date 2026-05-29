@@ -13,15 +13,24 @@ public sealed class HeartbeatService : IHeartbeatService
 {
     private readonly IntellinodeDbContext _dbContext;
     private readonly IEffectiveAgentSettingsResolver _settingsResolver;
+    private readonly IDiscoverLookupWriter _discoverLookupWriter;
+    private readonly IAgentCommunicationLogWriter _communicationLogWriter;
+    private readonly IExceptionLogWriter _exceptionLogWriter;
     private readonly ILogger<HeartbeatService> _logger;
 
     public HeartbeatService(
         IntellinodeDbContext dbContext,
         IEffectiveAgentSettingsResolver settingsResolver,
+        IDiscoverLookupWriter discoverLookupWriter,
+        IAgentCommunicationLogWriter communicationLogWriter,
+        IExceptionLogWriter exceptionLogWriter,
         ILogger<HeartbeatService> logger)
     {
         _dbContext = dbContext;
         _settingsResolver = settingsResolver;
+        _discoverLookupWriter = discoverLookupWriter;
+        _communicationLogWriter = communicationLogWriter;
+        _exceptionLogWriter = exceptionLogWriter;
         _logger = logger;
     }
 
@@ -42,6 +51,16 @@ public sealed class HeartbeatService : IHeartbeatService
 
         if (device is null)
         {
+            await _communicationLogWriter.LogAsync(
+                null,
+                macAddress,
+                "Inbound",
+                "/api/v1/agents/heartbeat",
+                "SDFT",
+                "Unknown device",
+                cancellationToken);
+            await _dbContext.SaveChangesAsync(cancellationToken);
+
             return new HeartbeatResponse
             {
                 AutoDiscoverFlag = "SDFT",
@@ -153,6 +172,23 @@ public sealed class HeartbeatService : IHeartbeatService
 
         response.AutoDiscoverFlag = await ResolveAutoDiscoverFlagAsync(device, request, clientUpdateStatus, cancellationToken);
         await ProcessAgentAcknowledgementsAsync(device, request, clientStatus, cancellationToken);
+
+        try
+        {
+            await _discoverLookupWriter.SyncPendingFromHeartbeatAsync(device, request, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            await ExceptionLogHelper.SafeLogAsync(
+                _exceptionLogWriter,
+                _logger,
+                "HeartbeatService.SyncPendingFromHeartbeat",
+                ex,
+                device.Id,
+                cancellationToken: cancellationToken);
+        }
+
+        await LogDiscoveryHeartbeatAsync(device, response.AutoDiscoverFlag, cancellationToken);
 
         await _dbContext.SaveChangesAsync(cancellationToken);
         response.ConfigPending = await _settingsResolver.HasPendingConfigAsync(device.Id, cancellationToken);
@@ -386,79 +422,133 @@ public sealed class HeartbeatService : IHeartbeatService
 
         if (!string.Equals(request.CommunicationType, "HTTP", StringComparison.OrdinalIgnoreCase))
         {
-            return await ResolveDiscoverLookupFlagAsync(device, cancellationToken);
+            return await ResolveManagedDeviceFlagAsync(device, cancellationToken);
         }
 
         try
         {
-            if (await RequiresInventoryDiscoveryAsync(device, cancellationToken))
+            var enrollmentFlag = await ResolveEnrollmentHeartbeatFlagAsync(device, cancellationToken);
+            if (enrollmentFlag is "NOK" or "SDFT" or "exists")
             {
-                return "SDFT";
+                return enrollmentFlag;
             }
 
-            var pendingTasks = device.Tasks
-                .Where(t => t.Status is DeviceTaskStatus.Pending or DeviceTaskStatus.InProcess)
-                .ToList();
-
-            if (pendingTasks.Count > 0)
-            {
-                return "1";
-            }
-
-            var hasSpecialTasks = await _dbContext.DeviceTasks
-                .AnyAsync(
-                    t => t.DeviceId == device.Id &&
-                         (t.FunctionName == "Get_FBWF_UWF_Status" || t.Status == DeviceTaskStatus.InProcess),
-                    cancellationToken);
-
-            if (hasSpecialTasks)
-            {
-                return "1";
-            }
-
-            var discoverFlag = await ResolveDiscoverLookupFlagAsync(device, cancellationToken);
-            if (discoverFlag == "SDFT")
-            {
-                return "SDFT";
-            }
-
-            if (clientUpdateStatus == ClientUpdateStatus.NoChange)
-            {
-                device.IpAddress = request.IpAddress.Split(',')[0].Trim();
-            }
-
-            return "0";
+            return await ResolveManagedDeviceFlagAsync(device, request, clientUpdateStatus, cancellationToken);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to resolve autoDiscoverFlag for {MacAddress}", device.MacAddress);
+            await ExceptionLogHelper.SafeLogAsync(
+                _exceptionLogWriter,
+                _logger,
+                "HeartbeatService.ResolveAutoDiscoverFlag",
+                ex,
+                device.Id,
+                cancellationToken: cancellationToken);
             return "NOK";
         }
     }
 
-    private async Task<string> ResolveDiscoverLookupFlagAsync(
+    private async Task<string> ResolveManagedDeviceFlagAsync(
         Device device,
+        AgentClientStatusRequest request,
+        string? clientUpdateStatus,
         CancellationToken cancellationToken)
     {
-        if (await RequiresInventoryDiscoveryAsync(device, cancellationToken))
+        var pendingTasks = device.Tasks
+            .Where(t => t.Status is DeviceTaskStatus.Pending or DeviceTaskStatus.InProcess)
+            .ToList();
+
+        if (pendingTasks.Count > 0)
         {
-            return "SDFT";
+            return "1";
         }
 
-        return "exists";
+        var hasSpecialTasks = await _dbContext.DeviceTasks
+            .AnyAsync(
+                t => t.DeviceId == device.Id &&
+                     (t.FunctionName == "Get_FBWF_UWF_Status" || t.Status == DeviceTaskStatus.InProcess),
+                cancellationToken);
+
+        if (hasSpecialTasks)
+        {
+            return "1";
+        }
+
+        if (clientUpdateStatus == ClientUpdateStatus.NoChange)
+        {
+            device.IpAddress = request.IpAddress.Split(',')[0].Trim();
+        }
+
+        return "0";
     }
 
-    private async Task<bool> RequiresInventoryDiscoveryAsync(
+    private async Task<string> ResolveManagedDeviceFlagAsync(
         Device device,
         CancellationToken cancellationToken)
     {
-        if (!device.IsRegistered || device.EnrollmentState != EnrollmentState.Active)
+        var enrollmentFlag = await ResolveEnrollmentHeartbeatFlagAsync(device, cancellationToken);
+        if (enrollmentFlag is not null)
         {
-            return true;
+            return enrollmentFlag;
         }
 
-        return device.Inventory is null &&
-               !await _dbContext.DeviceInventories.AnyAsync(i => i.DeviceId == device.Id, cancellationToken);
+        var pendingTasks = device.Tasks
+            .Where(t => t.Status is DeviceTaskStatus.Pending or DeviceTaskStatus.InProcess)
+            .ToList();
+
+        if (pendingTasks.Count > 0)
+        {
+            return "1";
+        }
+
+        var hasSpecialTasks = await _dbContext.DeviceTasks
+            .AnyAsync(
+                t => t.DeviceId == device.Id &&
+                     (t.FunctionName == "Get_FBWF_UWF_Status" || t.Status == DeviceTaskStatus.InProcess),
+                cancellationToken);
+
+        return hasSpecialTasks ? "1" : "0";
+    }
+
+    private async Task<string?> ResolveEnrollmentHeartbeatFlagAsync(
+        Device device,
+        CancellationToken cancellationToken)
+    {
+        var hasInventory = device.Inventory is not null ||
+                           await _dbContext.DeviceInventories.AnyAsync(i => i.DeviceId == device.Id, cancellationToken);
+
+        return DeviceEnrollmentGuard.ResolveEnrollmentHeartbeatFlag(device.EnrollmentState, hasInventory);
+    }
+
+    private async Task LogDiscoveryHeartbeatAsync(
+        Device device,
+        string autoDiscoverFlag,
+        CancellationToken cancellationToken)
+    {
+        if (autoDiscoverFlag == "SDFT")
+        {
+            await _communicationLogWriter.LogAsync(
+                device.Id,
+                device.MacAddress,
+                "Inbound",
+                "/api/v1/agents/heartbeat",
+                "SDFT",
+                "Inventory required",
+                cancellationToken);
+            return;
+        }
+
+        if (autoDiscoverFlag == "exists" && device.EnrollmentState == EnrollmentState.PendingApproval)
+        {
+            await _communicationLogWriter.LogAsync(
+                device.Id,
+                device.MacAddress,
+                "Inbound",
+                "/api/v1/agents/heartbeat",
+                "exists",
+                "Awaiting admin approval",
+                cancellationToken);
+        }
     }
 
     private async Task ProcessAgentAcknowledgementsAsync(

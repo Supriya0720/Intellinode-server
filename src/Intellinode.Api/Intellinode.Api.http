@@ -1250,3 +1250,537 @@ Authorization: Bearer {{agentToken}}
 
 # Expected: 200 success=true; pendingApply cleared when versions match
 
+## PR2 — Self-discovery agent hooks
+
+# Scenario A — Self-discovery with RequireAdminApproval=true (default in appsettings.json)
+# Expected DB after inventory upload:
+#   devices.enrollment_state = PendingApproval
+#   devices.is_registered = false
+#   discover_lookup.status = Pending
+
+# @name pr2SelfDiscoveryAuth
+POST {{Intellinode.Api_HostAddress}}/api/v1/agents/auth/token
+Content-Type: application/json
+
+{
+  "deviceIdentity": "PR2-TEST-MAC-01",
+  "isRegistered": 1
+}
+
+@pr2AgentToken = {{pr2SelfDiscoveryAuth.response.body.accessToken}}
+
+### PR2 A1 — Heartbeat before inventory → autoDiscoverFlag SDFT
+POST {{Intellinode.Api_HostAddress}}/api/v1/agents/heartbeat
+Content-Type: application/json
+Authorization: Bearer {{pr2AgentToken}}
+
+{
+  "clientStatus": "ON",
+  "duration": "00:05:00",
+  "dhcp": true,
+  "hostName": "PR2-TEST-PC",
+  "macAddress": "PR2-TEST-MAC-01",
+  "ipAddress": "192.168.1.50",
+  "communicationIpAddress": "192.168.1.50",
+  "subnetMask": "255.255.255.0",
+  "gateway": "192.168.1.1",
+  "primaryDns": "8.8.8.8",
+  "secondaryDns": "8.8.4.4",
+  "primaryWins": "0.0.0.0",
+  "secondaryWins": "0.0.0.0",
+  "groupName": "Default",
+  "shutdownAck": "",
+  "loginUserName": "",
+  "pollInterval": 300,
+  "communicationType": "HTTP",
+  "domain": "CONTOSO",
+  "workgroup": "",
+  "isDomainJoined": true,
+  "userName": "user",
+  "password": "",
+  "license": "",
+  "agentUpTime": "00:10:00",
+  "taskId": 0,
+  "agentAction": 0
+}
+
+# Expected: 200 { "autoDiscoverFlag": "SDFT", ... }
+
+### PR2 A2 — Upload inventory (self-discovery)
+POST {{Intellinode.Api_HostAddress}}/api/v1/agents/inventory
+Content-Type: application/json
+Authorization: Bearer {{pr2AgentToken}}
+
+{
+  "hardware": { "cpu": "Intel Core i7" },
+  "network": {
+    "hostName": "PR2-TEST-PC",
+    "ipAddress": "192.168.1.50"
+  },
+  "osInfo": {
+    "name": "Windows 11",
+    "version": "23H2",
+    "agentVersion": "2.1.0"
+  },
+  "security": {}
+}
+
+# Expected: 200 { "status": "PendingApproval", "message": "Device discovered. Awaiting administrator approval." }
+
+### PR2 A3 — Heartbeat after inventory, before admin approve → autoDiscoverFlag exists (NOT SDFT)
+POST {{Intellinode.Api_HostAddress}}/api/v1/agents/heartbeat
+Content-Type: application/json
+Authorization: Bearer {{pr2AgentToken}}
+
+{
+  "clientStatus": "ON",
+  "duration": "00:05:00",
+  "dhcp": true,
+  "hostName": "PR2-TEST-PC",
+  "macAddress": "PR2-TEST-MAC-01",
+  "ipAddress": "192.168.1.50",
+  "communicationIpAddress": "192.168.1.50",
+  "subnetMask": "255.255.255.0",
+  "gateway": "192.168.1.1",
+  "primaryDns": "8.8.8.8",
+  "secondaryDns": "8.8.4.4",
+  "primaryWins": "0.0.0.0",
+  "secondaryWins": "0.0.0.0",
+  "groupName": "Default",
+  "shutdownAck": "",
+  "loginUserName": "",
+  "pollInterval": 300,
+  "communicationType": "HTTP",
+  "domain": "CONTOSO",
+  "workgroup": "",
+  "isDomainJoined": true,
+  "userName": "user",
+  "password": "",
+  "license": "",
+  "agentUpTime": "00:15:00",
+  "taskId": 0,
+  "agentAction": 0
+}
+
+# Expected: 200 { "autoDiscoverFlag": "exists", ... }
+
+### PR2 A3 legacy — Heartbeat pending approval, plain-text → wire body "2" (FusionX)
+POST {{Intellinode.Api_HostAddress}}/api/v1/agents/heartbeat?format=legacy
+Content-Type: application/json
+Accept: text/plain
+Authorization: Bearer {{pr2AgentToken}}
+
+{
+  "clientStatus": "ON",
+  "duration": "00:05:00",
+  "dhcp": true,
+  "hostName": "PR2-TEST-PC",
+  "macAddress": "PR2-TEST-MAC-01",
+  "ipAddress": "192.168.1.50",
+  "communicationIpAddress": "192.168.1.50",
+  "subnetMask": "255.255.255.0",
+  "gateway": "192.168.1.1",
+  "primaryDns": "8.8.8.8",
+  "secondaryDns": "8.8.4.4",
+  "primaryWins": "0.0.0.0",
+  "secondaryWins": "0.0.0.0",
+  "groupName": "Default",
+  "shutdownAck": "",
+  "loginUserName": "",
+  "pollInterval": 300,
+  "communicationType": "HTTP",
+  "domain": "CONTOSO",
+  "workgroup": "",
+  "isDomainJoined": true,
+  "userName": "user",
+  "password": "",
+  "license": "",
+  "agentUpTime": "00:15:00",
+  "taskId": 0,
+  "agentAction": 0
+}
+
+# Expected: 200 text/plain body: 2
+
+### PR2 A4 — Pending approval device blocked from tasks → 403 DevicePendingApproval
+GET {{Intellinode.Api_HostAddress}}/api/v1/agents/tasks/pending
+Authorization: Bearer {{pr2AgentToken}}
+
+# Expected: 403 { "error": "DevicePendingApproval", ... }
+
+### PR2 A5 — Pending approval device blocked from config → 403 DevicePendingApproval
+GET {{Intellinode.Api_HostAddress}}/api/v1/agents/config
+Authorization: Bearer {{pr2AgentToken}}
+
+# Expected: 403 { "error": "DevicePendingApproval", ... }
+
+### PR2 A6 — Admin cannot queue tasks for pending approval device → 409 DevicePendingApproval
+POST {{Intellinode.Api_HostAddress}}/api/v1/admin/devices/PR2-TEST-MAC-01/tasks
+Content-Type: application/json
+Authorization: Bearer {{adminToken}}
+
+{
+  "moduleName": "Power Management",
+  "functionName": "Shutdown",
+  "functionParameter": "",
+  "legacyTaskId": 0,
+  "signal": "&CD"
+}
+
+# Expected: 409 { "error": "DevicePendingApproval", ... }
+
+# Scenario B — Token enrollment still auto-activates (uses existing enrollment link flow above)
+# After POST /api/v1/agents/windows/register with inventory:
+#   devices.enrollment_state = Active
+#   heartbeat with communicationType HTTP → autoDiscoverFlag "0"
+
+## PR3 / S4 — Self-discovery admin approval (end-to-end)
+
+# Uses PR2-TEST-MAC-01 after PR2 scenario A (auth → heartbeat SDFT → inventory → heartbeat exists).
+# If not run yet, execute PR2 section first, or use fresh MAC PR3-TEST-MAC-01 with full PR2 agent flow.
+
+### S4 — List pending discoveries
+GET {{Intellinode.Api_HostAddress}}/api/v1/admin/discover?status=Pending
+Authorization: Bearer {{adminToken}}
+
+# Expected: 200 with items containing PR2-TEST-MAC-01, pendingCount >= 1
+
+### S4 — Discovery detail with inventory
+GET {{Intellinode.Api_HostAddress}}/api/v1/admin/discover/PR2-TEST-MAC-01
+Authorization: Bearer {{adminToken}}
+
+# Expected: 200 with inventory.hardware/network/osInfo sections
+
+### S4 — Discovery stats
+GET {{Intellinode.Api_HostAddress}}/api/v1/admin/discover/stats
+Authorization: Bearer {{adminToken}}
+
+# Expected: 200 { "pendingCount": >= 1, ... }
+
+### S4 — Approve discovery
+POST {{Intellinode.Api_HostAddress}}/api/v1/admin/discover/PR2-TEST-MAC-01/approve
+Content-Type: application/json
+Authorization: Bearer {{adminToken}}
+
+{
+  "groupId": null,
+  "notes": "Approved via API test"
+}
+
+# Expected: 200 { "enrollmentState": "Active", ... }
+# DB: devices.enrollment_state = Active, discover_lookup.status = Approved
+
+### S4 — Inventory resync after approve (must stay Active, not PendingApproval)
+POST {{Intellinode.Api_HostAddress}}/api/v1/agents/inventory
+Content-Type: application/json
+Authorization: Bearer {{pr2AgentToken}}
+
+{
+  "hardware": { "cpu": "Intel Core i7" },
+  "network": { "hostName": "PR2-TEST-PC", "ipAddress": "192.168.1.50" },
+  "osInfo": { "name": "Windows 11", "version": "23H2", "agentVersion": "2.1.0" }
+}
+
+# Expected: 200 { "status": "Active", "message": "Device inventory updated." }
+# DB: discover_lookup.status remains Approved (not reset to Pending)
+
+### S4 — Agent heartbeat after approve → autoDiscoverFlag "0"
+POST {{Intellinode.Api_HostAddress}}/api/v1/agents/heartbeat
+Content-Type: application/json
+Authorization: Bearer {{pr2AgentToken}}
+
+{
+  "clientStatus": "ON",
+  "duration": "00:20:00",
+  "dhcp": true,
+  "hostName": "PR2-TEST-PC",
+  "macAddress": "PR2-TEST-MAC-01",
+  "ipAddress": "192.168.1.50",
+  "communicationIpAddress": "192.168.1.50",
+  "subnetMask": "255.255.255.0",
+  "gateway": "192.168.1.1",
+  "primaryDns": "8.8.8.8",
+  "secondaryDns": "8.8.4.4",
+  "primaryWins": "0.0.0.0",
+  "secondaryWins": "0.0.0.0",
+  "groupName": "Default",
+  "shutdownAck": "",
+  "loginUserName": "",
+  "pollInterval": 300,
+  "communicationType": "HTTP",
+  "domain": "CONTOSO",
+  "workgroup": "",
+  "isDomainJoined": true,
+  "userName": "user",
+  "password": "",
+  "license": "",
+  "agentUpTime": "00:20:00",
+  "taskId": 0,
+  "agentAction": 0
+}
+
+# Expected: 200 { "autoDiscoverFlag": "0", ... }
+
+### S4 — Admin queue task after approve → 201 (was 409 before approve)
+POST {{Intellinode.Api_HostAddress}}/api/v1/admin/devices/PR2-TEST-MAC-01/tasks
+Content-Type: application/json
+Authorization: Bearer {{adminToken}}
+
+{
+  "moduleName": "Power Management",
+  "functionName": "Shutdown",
+  "functionParameter": "",
+  "legacyTaskId": 0,
+  "signal": "&CD"
+}
+
+# Expected: 201
+
+# --- Reject path (separate MAC) ---
+
+# @name pr3RejectAuth
+POST {{Intellinode.Api_HostAddress}}/api/v1/agents/auth/token
+Content-Type: application/json
+
+{
+  "deviceIdentity": "PR3-REJECT-MAC",
+  "isRegistered": 1
+}
+
+@pr3RejectAgentToken = {{pr3RejectAuth.response.body.accessToken}}
+
+POST {{Intellinode.Api_HostAddress}}/api/v1/agents/inventory
+Content-Type: application/json
+Authorization: Bearer {{pr3RejectAgentToken}}
+
+{
+  "hardware": { "cpu": "Intel Core i5" },
+  "network": { "hostName": "REJECT-PC", "ipAddress": "192.168.1.60" },
+  "osInfo": { "name": "Windows 11", "version": "23H2", "agentVersion": "2.1.0" },
+  "security": {}
+}
+
+### S4 — Reject discovery
+POST {{Intellinode.Api_HostAddress}}/api/v1/admin/discover/PR3-REJECT-MAC/reject
+Content-Type: application/json
+Authorization: Bearer {{adminToken}}
+
+{
+  "reason": "Unauthorized device"
+}
+
+# Expected: 204
+# DB: devices.enrollment_state = Rejected, discover_lookup.status = Rejected
+
+### S4 — Rejected device heartbeat → NOK
+POST {{Intellinode.Api_HostAddress}}/api/v1/agents/heartbeat
+Content-Type: application/json
+Authorization: Bearer {{pr3RejectAgentToken}}
+
+{
+  "clientStatus": "ON",
+  "duration": "00:05:00",
+  "dhcp": true,
+  "hostName": "REJECT-PC",
+  "macAddress": "PR3-REJECT-MAC",
+  "ipAddress": "192.168.1.60",
+  "communicationIpAddress": "192.168.1.60",
+  "subnetMask": "255.255.255.0",
+  "gateway": "192.168.1.1",
+  "primaryDns": "8.8.8.8",
+  "secondaryDns": "8.8.4.4",
+  "primaryWins": "0.0.0.0",
+  "secondaryWins": "0.0.0.0",
+  "groupName": "Default",
+  "shutdownAck": "",
+  "loginUserName": "",
+  "pollInterval": 300,
+  "communicationType": "HTTP",
+  "domain": "",
+  "workgroup": "",
+  "isDomainJoined": false,
+  "userName": "",
+  "password": "",
+  "license": "",
+  "agentUpTime": "00:05:00",
+  "taskId": 0,
+  "agentAction": 0
+}
+
+# Expected: 200 { "autoDiscoverFlag": "NOK", ... }
+
+### S4 — List rejected discoveries
+GET {{Intellinode.Api_HostAddress}}/api/v1/admin/discover?status=Rejected
+Authorization: Bearer {{adminToken}}
+
+# Expected: 200 with PR3-REJECT-MAC visible
+
+## PR4 — Production hardening
+
+### PR4-1 Re-discovery after reject (PR4-REDISCOVER-MAC)
+# @name pr4RediscoverAuth
+POST {{Intellinode.Api_HostAddress}}/api/v1/agents/auth/token
+Content-Type: application/json
+
+{
+  "deviceIdentity": "PR4-REDISCOVER-MAC",
+  "isRegistered": 1
+}
+
+@pr4RediscoverToken = {{pr4RediscoverAuth.response.body.accessToken}}
+
+POST {{Intellinode.Api_HostAddress}}/api/v1/agents/inventory
+Content-Type: application/json
+Authorization: Bearer {{pr4RediscoverToken}}
+
+{
+  "hardware": { "cpu": "Intel Core i5" },
+  "network": { "hostName": "REDISCOVER-PC", "ipAddress": "192.168.1.70" },
+  "osInfo": { "name": "Windows 11", "version": "23H2", "agentVersion": "2.1.0" },
+  "security": {}
+}
+
+POST {{Intellinode.Api_HostAddress}}/api/v1/admin/discover/PR4-REDISCOVER-MAC/reject
+Content-Type: application/json
+Authorization: Bearer {{adminToken}}
+
+{
+  "reason": "Initial rejection for re-discovery test"
+}
+
+# Re-auth and upload inventory again → PendingApproval
+# @name pr4RediscoverAuth2
+POST {{Intellinode.Api_HostAddress}}/api/v1/agents/auth/token
+Content-Type: application/json
+
+{
+  "deviceIdentity": "PR4-REDISCOVER-MAC",
+  "isRegistered": 1
+}
+
+@pr4RediscoverToken = {{pr4RediscoverAuth2.response.body.accessToken}}
+
+POST {{Intellinode.Api_HostAddress}}/api/v1/agents/inventory
+Content-Type: application/json
+Authorization: Bearer {{pr4RediscoverToken}}
+
+{
+  "hardware": { "cpu": "Intel Core i5" },
+  "network": { "hostName": "REDISCOVER-PC", "ipAddress": "192.168.1.70" },
+  "osInfo": { "name": "Windows 11", "version": "23H2", "agentVersion": "2.1.0" },
+  "security": {}
+}
+
+# Expected: 200 { "status": "PendingApproval" }
+
+GET {{Intellinode.Api_HostAddress}}/api/v1/admin/discover?status=Pending
+Authorization: Bearer {{adminToken}}
+
+POST {{Intellinode.Api_HostAddress}}/api/v1/admin/discover/PR4-REDISCOVER-MAC/approve
+Content-Type: application/json
+Authorization: Bearer {{adminToken}}
+
+{
+  "notes": "Re-discovered and approved"
+}
+
+POST {{Intellinode.Api_HostAddress}}/api/v1/agents/heartbeat
+Content-Type: application/json
+Authorization: Bearer {{pr4RediscoverToken}}
+
+{
+  "clientStatus": "ON",
+  "duration": "00:05:00",
+  "dhcp": true,
+  "hostName": "REDISCOVER-PC",
+  "macAddress": "PR4-REDISCOVER-MAC",
+  "ipAddress": "192.168.1.70",
+  "communicationIpAddress": "192.168.1.70",
+  "subnetMask": "255.255.255.0",
+  "gateway": "192.168.1.1",
+  "primaryDns": "8.8.8.8",
+  "secondaryDns": "8.8.4.4",
+  "primaryWins": "0.0.0.0",
+  "secondaryWins": "0.0.0.0",
+  "groupName": "Default",
+  "shutdownAck": "",
+  "loginUserName": "",
+  "pollInterval": 300,
+  "communicationType": "HTTP",
+  "domain": "",
+  "workgroup": "",
+  "isDomainJoined": false,
+  "userName": "",
+  "password": "",
+  "license": "",
+  "agentUpTime": "00:05:00",
+  "taskId": 0,
+  "agentAction": 0
+}
+
+# Expected: autoDiscoverFlag "0"
+
+### PR4-2 Dismiss rejected entry
+# Use PR3-REJECT-MAC after S4 reject flow, or reject PR4-DISMISS-MAC first:
+# @name pr4DismissAuth
+POST {{Intellinode.Api_HostAddress}}/api/v1/agents/auth/token
+Content-Type: application/json
+
+{
+  "deviceIdentity": "PR4-DISMISS-MAC",
+  "isRegistered": 1
+}
+
+POST {{Intellinode.Api_HostAddress}}/api/v1/agents/inventory
+Content-Type: application/json
+Authorization: Bearer {{pr4DismissAuth.response.body.accessToken}}
+
+{
+  "hardware": {},
+  "network": { "hostName": "DISMISS-PC", "ipAddress": "192.168.1.80" },
+  "osInfo": { "name": "Windows 11" },
+  "security": {}
+}
+
+POST {{Intellinode.Api_HostAddress}}/api/v1/admin/discover/PR4-DISMISS-MAC/reject
+Content-Type: application/json
+Authorization: Bearer {{adminToken}}
+
+{
+  "reason": "Dismiss test"
+}
+
+DELETE {{Intellinode.Api_HostAddress}}/api/v1/admin/discover/PR4-DISMISS-MAC
+Content-Type: application/json
+Authorization: Bearer {{adminToken}}
+
+{
+  "reason": "Admin cleanup"
+}
+
+# Expected: 204
+
+GET {{Intellinode.Api_HostAddress}}/api/v1/admin/discover/PR4-DISMISS-MAC
+Authorization: Bearer {{adminToken}}
+
+# Expected: 404 DiscoveryNotFound
+
+### PR4-3 Dismiss approved entry → 409
+DELETE {{Intellinode.Api_HostAddress}}/api/v1/admin/discover/PR2-TEST-MAC-01
+Content-Type: application/json
+Authorization: Bearer {{adminToken}}
+
+{
+  "reason": "Should fail"
+}
+
+# Expected: 409 DiscoveryAlreadyProcessed (device was approved in S4)
+
+### PR4-4 Heartbeat sync (manual)
+# After PR2 inventory for a pending device, send heartbeat with different hostName,
+# then GET /api/v1/admin/discover/{mac} — hostName in discover_lookup should match heartbeat.
+
+### PR4-5 Backfill verification (SQL)
+# SELECT COUNT(*) FROM intellinode.discover_lookup WHERE discovery_type = 'LegacyActive';
+# Run after migration 20260528120000_BackfillDiscoverLookupForActiveDevices on DB with pre-PR2 Active devices.
+

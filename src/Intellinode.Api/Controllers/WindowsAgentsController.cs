@@ -1,3 +1,4 @@
+using Intellinode.Api.Http;
 using Intellinode.Application.Contracts.Agents;
 using Intellinode.Application.Interfaces;
 using FluentValidation;
@@ -11,15 +12,21 @@ namespace Intellinode.Api.Controllers;
 public sealed class WindowsAgentsController : ControllerBase
 {
     private readonly IWindowsAgentEnrollmentService _enrollmentService;
+    private readonly IExceptionLogWriter _exceptionLogWriter;
+    private readonly ILogger<WindowsAgentsController> _logger;
     private readonly IValidator<WindowsAgentEnrollRequest> _enrollValidator;
     private readonly IValidator<WindowsAgentRegisterRequest> _registerValidator;
 
     public WindowsAgentsController(
         IWindowsAgentEnrollmentService enrollmentService,
+        IExceptionLogWriter exceptionLogWriter,
+        ILogger<WindowsAgentsController> logger,
         IValidator<WindowsAgentEnrollRequest> enrollValidator,
         IValidator<WindowsAgentRegisterRequest> registerValidator)
     {
         _enrollmentService = enrollmentService;
+        _exceptionLogWriter = exceptionLogWriter;
+        _logger = logger;
         _enrollValidator = enrollValidator;
         _registerValidator = registerValidator;
     }
@@ -33,20 +40,32 @@ public sealed class WindowsAgentsController : ControllerBase
         [FromBody] WindowsAgentEnrollRequest request,
         CancellationToken cancellationToken)
     {
-        await _enrollValidator.ValidateAndThrowAsync(request, cancellationToken);
-        var result = await _enrollmentService.EnrollAsync(request, cancellationToken);
-        if (!result.IsSuccess)
+        try
         {
-            return StatusCode(
-                StatusCodes.Status401Unauthorized,
-                new AgentErrorResponse
-                {
-                    Error = result.ErrorCode ?? "InvalidEnrollmentToken",
-                    Message = result.Message ?? "Enrollment failed."
-                });
-        }
+            await _enrollValidator.ValidateAndThrowAsync(request, cancellationToken);
+            var result = await _enrollmentService.EnrollAsync(request, cancellationToken);
+            if (!result.IsSuccess)
+            {
+                return StatusCode(
+                    StatusCodes.Status401Unauthorized,
+                    new AgentErrorResponse
+                    {
+                        Error = result.ErrorCode ?? "InvalidEnrollmentToken",
+                        Message = result.Message ?? "Enrollment failed."
+                    });
+            }
 
-        return Ok(result.AuthResponse);
+            return Ok(result.AuthResponse);
+        }
+        catch (Exception ex)
+        {
+            return await this.HandleUnexpectedExceptionAsync(
+                _exceptionLogWriter,
+                _logger,
+                nameof(Enroll),
+                ex,
+                cancellationToken: cancellationToken);
+        }
     }
 
     /// <summary>
@@ -59,19 +78,31 @@ public sealed class WindowsAgentsController : ControllerBase
         [FromBody] WindowsAgentRegisterRequest request,
         CancellationToken cancellationToken)
     {
-        await _registerValidator.ValidateAndThrowAsync(request, cancellationToken);
-        var result = await _enrollmentService.RegisterAsync(request, cancellationToken);
-        if (!result.IsSuccess)
+        try
         {
-            return StatusCode(
-                StatusCodes.Status401Unauthorized,
-                new AgentErrorResponse
-                {
-                    Error = result.ErrorCode ?? "InvalidEnrollmentToken",
-                    Message = result.Message ?? "Registration failed."
-                });
-        }
+            await _registerValidator.ValidateAndThrowAsync(request, cancellationToken);
+            var result = await _enrollmentService.RegisterAsync(request, cancellationToken);
+            if (!result.IsSuccess)
+            {
+                return StatusCode(
+                    StatusCodes.Status401Unauthorized,
+                    new AgentErrorResponse
+                    {
+                        Error = result.ErrorCode ?? "InvalidEnrollmentToken",
+                        Message = result.Message ?? "Registration failed."
+                    });
+            }
 
-        return Ok(result.AuthResponse);
+            return Ok(result.AuthResponse);
+        }
+        catch (Exception ex)
+        {
+            return await this.HandleUnexpectedExceptionAsync(
+                _exceptionLogWriter,
+                _logger,
+                nameof(Register),
+                ex,
+                cancellationToken: cancellationToken);
+        }
     }
 }

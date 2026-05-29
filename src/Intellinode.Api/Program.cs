@@ -2,6 +2,7 @@ using System.Text;
 using Intellinode.Application;
 using Intellinode.Infrastructure;
 using Intellinode.Infrastructure.Options;
+using Intellinode.Api.Middleware;
 using Intellinode.Infrastructure.Persistence;
 using FluentValidation;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -84,6 +85,7 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseSerilogRequestLogging();
+app.UseMiddleware<ExceptionHandlingMiddleware>();
 app.UseHttpsRedirection();
 app.UseAuthentication();
 app.UseAuthorization();

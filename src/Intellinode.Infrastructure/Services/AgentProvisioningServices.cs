@@ -76,15 +76,26 @@ public sealed class AgentEnrollmentService : IAgentEnrollmentService
 public sealed class AgentInventoryService : IAgentInventoryService
 {
     private readonly IntellinodeDbContext _dbContext;
+    private readonly IDiscoverLookupWriter _discoverLookupWriter;
+    private readonly IAgentCommunicationLogWriter _communicationLogWriter;
+    private readonly AgentDiscoveryOptions _discoveryOptions;
 
-    public AgentInventoryService(IntellinodeDbContext dbContext)
+    public AgentInventoryService(
+        IntellinodeDbContext dbContext,
+        IDiscoverLookupWriter discoverLookupWriter,
+        IAgentCommunicationLogWriter communicationLogWriter,
+        IOptions<AgentDiscoveryOptions> discoveryOptions)
     {
         _dbContext = dbContext;
+        _discoverLookupWriter = discoverLookupWriter;
+        _communicationLogWriter = communicationLogWriter;
+        _discoveryOptions = discoveryOptions.Value;
     }
 
-    public async Task UpsertInventoryAsync(
+    public async Task<AgentInventorySubmitResponse> UpsertInventoryAsync(
         Guid deviceId,
         AgentInventoryRequest request,
+        InventorySubmissionKind kind = InventorySubmissionKind.SelfDiscovery,
         CancellationToken cancellationToken = default)
     {
         var device = await FindDeviceAsync(deviceId, cancellationToken);
@@ -94,13 +105,15 @@ public sealed class AgentInventoryService : IAgentInventoryService
             throw new InvalidOperationException($"Device '{deviceId}' is not registered.");
         }
 
-        ApplyInventory(device, request);
+        var response = await ApplyInventoryToDeviceAsync(device, request, kind, cancellationToken);
         await _dbContext.SaveChangesAsync(cancellationToken);
+        return response;
     }
 
     public async Task ApplyInventoryAsync(
         Guid deviceId,
         AgentInventoryRequest request,
+        InventorySubmissionKind kind = InventorySubmissionKind.TokenEnrollment,
         CancellationToken cancellationToken = default)
     {
         var device = await FindDeviceAsync(deviceId, cancellationToken);
@@ -110,7 +123,7 @@ public sealed class AgentInventoryService : IAgentInventoryService
             throw new InvalidOperationException($"Device '{deviceId}' is not registered.");
         }
 
-        ApplyInventory(device, request);
+        await ApplyInventoryToDeviceAsync(device, request, kind, cancellationToken);
     }
 
     private async Task<Device?> FindDeviceAsync(Guid deviceId, CancellationToken cancellationToken)
@@ -124,7 +137,118 @@ public sealed class AgentInventoryService : IAgentInventoryService
         return await _dbContext.Devices.FirstOrDefaultAsync(d => d.Id == deviceId, cancellationToken);
     }
 
-    private void ApplyInventory(Device device, AgentInventoryRequest request)
+    private async Task<AgentInventorySubmitResponse> ApplyInventoryToDeviceAsync(
+        Device device,
+        AgentInventoryRequest request,
+        InventorySubmissionKind kind,
+        CancellationToken cancellationToken)
+    {
+        UpsertInventoryJson(device, request);
+        InventoryFieldMapper.ApplyToDevice(device, request);
+        device.UpdatedUtc = DateTime.UtcNow;
+
+        switch (kind)
+        {
+            case InventorySubmissionKind.SelfDiscovery when _discoveryOptions.RequireAdminApproval:
+                if (device.EnrollmentState == EnrollmentState.Rejected &&
+                    !_discoveryOptions.AllowReDiscoveryAfterReject)
+                {
+                    return new AgentInventorySubmitResponse
+                    {
+                        ErrorCode = "DeviceRejected",
+                        Message = "Device discovery was rejected and re-discovery is disabled."
+                    };
+                }
+
+                if (DeviceEnrollmentGuard.IsManaged(device.EnrollmentState))
+                {
+                    await _discoverLookupWriter.UpsertPendingFromInventoryAsync(device, request, cancellationToken);
+
+                    await _communicationLogWriter.LogAsync(
+                        device.Id,
+                        device.MacAddress,
+                        "Inbound",
+                        "/api/v1/agents/inventory",
+                        device.EnrollmentState.ToString(),
+                        "Inventory resync for managed device",
+                        cancellationToken);
+
+                    return new AgentInventorySubmitResponse
+                    {
+                        Status = device.EnrollmentState.ToString(),
+                        Message = "Device inventory updated."
+                    };
+                }
+
+                if (device.EnrollmentState == EnrollmentState.PendingApproval)
+                {
+                    await _discoverLookupWriter.UpsertPendingFromInventoryAsync(device, request, cancellationToken);
+
+                    await _communicationLogWriter.LogAsync(
+                        device.Id,
+                        device.MacAddress,
+                        "Inbound",
+                        "/api/v1/agents/inventory",
+                        "PendingApproval",
+                        "Self-discovery inventory refresh",
+                        cancellationToken);
+
+                    return new AgentInventorySubmitResponse
+                    {
+                        Status = "PendingApproval",
+                        Message = "Device discovered. Awaiting administrator approval."
+                    };
+                }
+
+                var isReDiscovery = device.EnrollmentState == EnrollmentState.Rejected;
+                device.EnrollmentState = EnrollmentState.PendingApproval;
+                device.IsRegistered = false;
+                await _discoverLookupWriter.UpsertPendingFromInventoryAsync(device, request, cancellationToken);
+
+                await _communicationLogWriter.LogAsync(
+                    device.Id,
+                    device.MacAddress,
+                    "Inbound",
+                    "/api/v1/agents/inventory",
+                    "PendingApproval",
+                    isReDiscovery ? "Re-discovery inventory" : "Self-discovery inventory",
+                    cancellationToken);
+
+                return new AgentInventorySubmitResponse
+                {
+                    Status = "PendingApproval",
+                    Message = "Device discovered. Awaiting administrator approval."
+                };
+
+            case InventorySubmissionKind.SelfDiscovery:
+                device.EnrollmentState = EnrollmentState.Active;
+                device.IsRegistered = true;
+                return new AgentInventorySubmitResponse
+                {
+                    Status = "Active",
+                    Message = "Device inventory recorded and activated."
+                };
+
+            case InventorySubmissionKind.TokenEnrollment:
+                device.EnrollmentState = EnrollmentState.Active;
+                device.IsRegistered = true;
+                return new AgentInventorySubmitResponse
+                {
+                    Status = "Active",
+                    Message = "Device enrolled and activated."
+                };
+
+            case InventorySubmissionKind.Resync:
+            default:
+                return new AgentInventorySubmitResponse
+                {
+                    Status = device.EnrollmentState.ToString(),
+                    Message = "Device inventory updated."
+                };
+        }
+    }
+
+    private void UpsertInventoryJson(Device device, AgentInventoryRequest request)
     {
         var hardware = ToJsonParameter(request.Hardware);
         var network = ToJsonParameter(request.Network);
@@ -135,7 +259,7 @@ public sealed class AgentInventoryService : IAgentInventoryService
             .Local
             .FirstOrDefault(i => i.DeviceId == device.Id)
             ?? _dbContext.DeviceInventories
-            .FirstOrDefault(i => i.DeviceId == device.Id);
+                .FirstOrDefault(i => i.DeviceId == device.Id);
 
         if (existing is null)
         {
@@ -157,11 +281,6 @@ public sealed class AgentInventoryService : IAgentInventoryService
             existing.CollectedUtc = DateTime.UtcNow;
             existing.Version += 1;
         }
-
-        device.EnrollmentState = EnrollmentState.Active;
-        device.IsRegistered = true;
-        device.UpdatedUtc = DateTime.UtcNow;
-        InventoryFieldMapper.ApplyToDevice(device, request);
     }
 
     private static string? ToJsonParameter(JsonElement? element)

@@ -5,5 +5,7 @@ public enum EnrollmentState
     PendingInventory,
     Active,
     Unlicensed,
-    Disabled
+    Disabled,
+    PendingApproval,
+    Rejected
 }

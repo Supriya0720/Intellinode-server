@@ -132,7 +132,142 @@ Returned by `fn_process_heartbeat` and related functions (legacy Windows agent c
 | `0` | No pending work |
 | `1` | Tasks/commands pending — agent should fetch work |
 | `SDFT` | Send Data First Time — upload full inventory |
+| `2` | Legacy pending approval wire code (plain-text heartbeat only; FusionX Discover_Lookup_SDFT_ACK) |
+| `exists` | Modern JSON pending approval — inventory received, awaiting admin approval |
 | `NOK` | Error |
+
+## Enrollment states (`intellinode.enrollment_state`)
+
+Used on `devices.enrollment_state` and referenced by agent self-discovery flows:
+
+| Value | Meaning |
+|-------|---------|
+| `PendingInventory` | Device enrolled; awaiting first inventory upload (SDFT) |
+| `Active` | Device is licensed and operational |
+| `Unlicensed` | Device exceeds license capacity |
+| `Disabled` | Device administratively disabled |
+| `PendingApproval` | Inventory received; awaiting admin approval (self-discovery) |
+| `Rejected` | Admin rejected self-discovery for this device |
+
+## Discover lookup (`intellinode.discover_lookup`)
+
+Queue table for agent self-discovery. One row per tenant/MAC pair (unique on `tenant_id`, `mac_address`).
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `id` | UUID | Primary key |
+| `tenant_id` | UUID | Owning tenant |
+| `device_id` | UUID? | Linked device after registration |
+| `mac_address` | VARCHAR(300) | Agent MAC address |
+| `host_name` | VARCHAR(255) | Reported hostname |
+| `ip_address` | VARCHAR(64) | Reported IP |
+| `domain` | VARCHAR(255) | Reported domain |
+| `os_name` | VARCHAR(64) | OS name |
+| `os_version` | VARCHAR(64) | OS version |
+| `agent_version` | VARCHAR(64) | Agent version |
+| `discovery_type` | VARCHAR(64) | Discovery source (default `AgentSelfDiscovery`) |
+| `status` | `discover_lookup_status` | Approval state (see below) |
+| `discovered_utc` | TIMESTAMPTZ | When the device was first discovered |
+| `updated_utc` | TIMESTAMPTZ | Last update timestamp |
+| `approved_by_admin_id` | UUID? | Admin who approved |
+| `approved_utc` | TIMESTAMPTZ? | Approval timestamp |
+| `rejected_by_admin_id` | UUID? | Admin who rejected |
+| `rejected_utc` | TIMESTAMPTZ? | Rejection timestamp |
+| `rejection_reason` | VARCHAR(500)? | Reason for rejection |
+| `notes` | VARCHAR(1000)? | Admin notes |
+
+### Discover lookup status (`intellinode.discover_lookup_status`)
+
+| Value | Meaning |
+|-------|---------|
+| `Pending` | Awaiting admin review |
+| `Approved` | Admin approved; device may proceed to active enrollment |
+| `Rejected` | Admin rejected self-discovery |
+
+Legacy SQL setup used a `lookup_status` VARCHAR column (`Pending`, `Registered`). Migrations and the setup script map `Registered` → `Approved`.
+
+Legacy Active devices enrolled before self-discovery PRs are backfilled by migration `20260528120000_BackfillDiscoverLookupForActiveDevices` with `discovery_type = 'LegacyActive'` and `status = Approved`.
+
+## Admin discover REST API
+
+All endpoints require admin JWT (`Authorization: Bearer {accessToken}`) with role `Admin`. Base path: `/api/v1/admin/discover`.
+
+### Enrollment flow (self-discovery)
+
+```mermaid
+stateDiagram-v2
+    [*] --> PendingInventory: auth/token (new device)
+    PendingInventory --> PendingApproval: inventory upload
+    PendingApproval --> Active: admin approve
+    PendingApproval --> Rejected: admin reject
+    Rejected --> PendingApproval: re-discovery inventory (if enabled)
+    PendingApproval --> Disabled: admin dismiss (pending)
+    Rejected --> [*]: admin dismiss (queue cleanup)
+    Active --> [*]: managed device (heartbeat 0/1)
+```
+
+| Step | Agent action | Server state | Heartbeat flag |
+|------|--------------|--------------|----------------|
+| 1 | `POST /agents/auth/token` | `PendingInventory` | — |
+| 2 | `POST /agents/heartbeat` | no inventory | `SDFT` |
+| 3 | `POST /agents/inventory` | `PendingApproval` + `discover_lookup.Pending` | — |
+| 4 | `POST /agents/heartbeat` | awaiting admin | `exists` |
+| 5 | Admin `POST .../approve` | `Active` + `discover_lookup.Approved` | — |
+| 6 | `POST /agents/heartbeat` | managed | `0` or `1` |
+
+Token enrollment (`POST /agents/windows/register`) skips the queue and sets `Active` immediately.
+
+### Endpoints
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/api/v1/admin/discover` | Paginated list (`status`, `search`, `page`, `pageSize`, `sortBy`, `sortDir`) |
+| `GET` | `/api/v1/admin/discover/stats` | Pending count and today’s approved/rejected counts |
+| `GET` | `/api/v1/admin/discover/{macAddress}` | Detail with parsed inventory JSON |
+| `POST` | `/api/v1/admin/discover/{macAddress}/approve` | Approve pending discovery → device `Active` |
+| `POST` | `/api/v1/admin/discover/{macAddress}/reject` | Reject pending discovery → device `Rejected`, revoke tokens |
+| `POST` | `/api/v1/admin/discover/bulk-approve` | Batch approve by MAC list |
+| `DELETE` | `/api/v1/admin/discover/{macAddress}` | Dismiss queue entry (Pending or Rejected only) |
+
+### Error codes
+
+| HTTP | `error` | When |
+|------|---------|------|
+| 404 | `DiscoveryNotFound` | No `discover_lookup` row for MAC |
+| 404 | `GroupNotFound` | Approve with invalid `groupId` |
+| 409 | `DiscoveryAlreadyProcessed` | Approve/reject/dismiss on non-pending, or dismiss on Approved |
+| 409 | `InventoryMissing` | Approve before inventory uploaded |
+| 403 | `DeviceRejected` | Inventory on rejected device when `AllowReDiscoveryAfterReject=false` |
+| 403 | `DevicePendingApproval` | Agent config/tasks while awaiting approval |
+
+### Dismiss behavior
+
+- **Pending**: deletes `discover_lookup` row, sets device `Disabled`, revokes refresh tokens
+- **Rejected**: deletes `discover_lookup` row only (device stays `Rejected`)
+- **Approved**: not allowed (409)
+
+### Audit logging
+
+Discovery lifecycle events are written to `intellinode.agent_communication_logs` (`command_code`: `SDFT`, `exists`, `PendingApproval`, `Approved`, `Rejected`, `Dismissed`). Normal Active heartbeats (`0`/`1`) are not logged.
+
+### Exception logging
+
+Unexpected API and infrastructure errors are persisted to `intellinode.exception_logs` (`source`, `message`, `stack_trace`, optional `request_path` / `http_method`, optional `device_id` / `admin_id`, `logged_utc`). Serilog also records the same events. Query recent rows:
+
+```sql
+SELECT source, message, logged_utc
+FROM intellinode.exception_logs
+ORDER BY logged_utc DESC
+LIMIT 20;
+```
+
+### Configuration (`AgentDiscovery` in appsettings)
+
+| Setting | Default | Purpose |
+|---------|---------|---------|
+| `RequireAdminApproval` | `true` | Self-discovery inventory enters pending queue |
+| `AllowReDiscoveryAfterReject` | `true` | Rejected devices may upload inventory again |
+| `PendingDiscoveryRetentionDays` | `90` | Retention hint for future stale-row cleanup |
 
 ## Quick function tests
 

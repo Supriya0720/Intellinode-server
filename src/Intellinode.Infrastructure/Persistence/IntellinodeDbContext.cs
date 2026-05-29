@@ -29,6 +29,9 @@ public sealed class IntellinodeDbContext : DbContext, IIntellinodeDbContext
     public DbSet<GroupRemoteSettings> GroupRemoteSettings => Set<GroupRemoteSettings>();
     public DbSet<GroupAgentAdvancedSettings> GroupAgentAdvancedSettings => Set<GroupAgentAdvancedSettings>();
     public DbSet<DeviceSettingsApplyLog> DeviceSettingsApplyLogs => Set<DeviceSettingsApplyLog>();
+    public DbSet<DiscoverLookup> DiscoverLookups => Set<DiscoverLookup>();
+    public DbSet<AgentCommunicationLog> AgentCommunicationLogs => Set<AgentCommunicationLog>();
+    public DbSet<ExceptionLog> ExceptionLogs => Set<ExceptionLog>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -37,7 +40,12 @@ public sealed class IntellinodeDbContext : DbContext, IIntellinodeDbContext
             modelBuilder,
             "enrollment_state",
             SchemaName,
-            ["PendingInventory", "Active", "Unlicensed", "Disabled"]);
+            ["PendingInventory", "Active", "Unlicensed", "Disabled", "PendingApproval", "Rejected"]);
+        NpgsqlModelBuilderExtensions.HasPostgresEnum(
+            modelBuilder,
+            "discover_lookup_status",
+            SchemaName,
+            ["Pending", "Approved", "Rejected"]);
         NpgsqlModelBuilderExtensions.HasPostgresEnum(
             modelBuilder,
             "heartbeat_binding_kind",
@@ -319,6 +327,69 @@ public sealed class IntellinodeDbContext : DbContext, IIntellinodeDbContext
                 .WithMany()
                 .HasForeignKey(x => x.DeviceId)
                 .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<DiscoverLookup>(entity =>
+        {
+            entity.ToTable("discover_lookup");
+            entity.HasIndex(x => new { x.TenantId, x.MacAddress }).IsUnique();
+            entity.HasIndex(x => new { x.TenantId, x.Status, x.DiscoveredUtc });
+            entity.Property(x => x.MacAddress).HasMaxLength(300);
+            entity.Property(x => x.HostName).HasMaxLength(255);
+            entity.Property(x => x.IpAddress).HasMaxLength(64);
+            entity.Property(x => x.Domain).HasMaxLength(255);
+            entity.Property(x => x.OsName).HasMaxLength(64);
+            entity.Property(x => x.OsVersion).HasMaxLength(64);
+            entity.Property(x => x.AgentVersion).HasMaxLength(64);
+            entity.Property(x => x.DiscoveryType).HasMaxLength(64).HasDefaultValue("AgentSelfDiscovery");
+            entity.Property(x => x.Status)
+                .HasColumnType("intellinode.discover_lookup_status")
+                .HasDefaultValue(DiscoverLookupStatus.Pending);
+            entity.Property(x => x.RejectionReason).HasMaxLength(500);
+            entity.Property(x => x.Notes).HasMaxLength(1000);
+            entity.HasOne(x => x.Tenant)
+                .WithMany()
+                .HasForeignKey(x => x.TenantId)
+                .OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(x => x.Device)
+                .WithMany()
+                .HasForeignKey(x => x.DeviceId)
+                .OnDelete(DeleteBehavior.SetNull);
+            entity.HasOne(x => x.ApprovedByAdmin)
+                .WithMany()
+                .HasForeignKey(x => x.ApprovedByAdminId)
+                .OnDelete(DeleteBehavior.SetNull);
+            entity.HasOne(x => x.RejectedByAdmin)
+                .WithMany()
+                .HasForeignKey(x => x.RejectedByAdminId)
+                .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        modelBuilder.Entity<AgentCommunicationLog>(entity =>
+        {
+            entity.ToTable("agent_communication_logs");
+            entity.Property(x => x.MacAddress).HasMaxLength(300);
+            entity.Property(x => x.Direction).HasMaxLength(16);
+            entity.Property(x => x.Endpoint).HasMaxLength(256);
+            entity.Property(x => x.CommandCode).HasMaxLength(16);
+            entity.HasIndex(x => new { x.DeviceId, x.CreatedUtc })
+                .IsDescending(false, true);
+            entity.HasOne(x => x.Device)
+                .WithMany()
+                .HasForeignKey(x => x.DeviceId)
+                .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        modelBuilder.Entity<ExceptionLog>(entity =>
+        {
+            entity.ToTable("exception_logs");
+            entity.Property(x => x.Source).HasMaxLength(256);
+            entity.Property(x => x.Message).HasColumnType("text");
+            entity.Property(x => x.StackTrace).HasColumnType("text");
+            entity.Property(x => x.RequestPath).HasMaxLength(512);
+            entity.Property(x => x.HttpMethod).HasMaxLength(16);
+            entity.HasIndex(x => x.LoggedUtc)
+                .IsDescending(true);
         });
     }
 }

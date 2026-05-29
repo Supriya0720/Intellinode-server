@@ -113,13 +113,21 @@ public sealed class WindowsAgentEnrollmentService : IWindowsAgentEnrollmentServi
             (device.EnrollmentState == EnrollmentState.Active ||
              await _enrollmentCore.DeviceHasInventoryAsync(device.Id, cancellationToken)))
         {
-            await _inventoryService.ApplyInventoryAsync(device.Id, inventory, cancellationToken);
+            await _inventoryService.ApplyInventoryAsync(
+                device.Id,
+                inventory,
+                InventorySubmissionKind.Resync,
+                cancellationToken);
             var resyncResponse = await _credentialIssuer.IssueAgentCredentialsAsync(device, cancellationToken);
             await _dbContext.SaveChangesAsync(cancellationToken);
             return AgentEnrollResult.Success(resyncResponse);
         }
 
-        await _inventoryService.ApplyInventoryAsync(device.Id, inventory, cancellationToken);
+        await _inventoryService.ApplyInventoryAsync(
+            device.Id,
+            inventory,
+            InventorySubmissionKind.TokenEnrollment,
+            cancellationToken);
         EnrollmentCoreService.CompleteEnrollment(enrollment, device);
 
         var response = await _credentialIssuer.IssueAgentCredentialsAsync(device, cancellationToken);

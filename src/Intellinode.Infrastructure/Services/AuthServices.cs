@@ -104,13 +104,19 @@ public sealed class AgentAuthService : IAgentAuthService
             {
                 TenantId = TenantDefaults.DefaultTenantId,
                 MacAddress = macAddress,
-                IsRegistered = request.IsRegistered == 1,
+                IsRegistered = false,
                 Os = "Windows",
                 EnrollmentState = Domain.Enums.EnrollmentState.PendingInventory,
                 GroupId = defaultGroup?.Id
             };
             _dbContext.Devices.Add(device);
             await _dbContext.SaveChangesAsync(cancellationToken);
+        }
+        else if (device.EnrollmentState is Domain.Enums.EnrollmentState.PendingApproval
+                 or Domain.Enums.EnrollmentState.Active
+                 or Domain.Enums.EnrollmentState.Rejected)
+        {
+            device.UpdatedUtc = DateTime.UtcNow;
         }
         else
         {

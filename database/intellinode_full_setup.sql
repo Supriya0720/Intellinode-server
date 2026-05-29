@@ -40,8 +40,14 @@ BEGIN
     IF NOT EXISTS (SELECT 1 FROM pg_type t JOIN pg_namespace n ON n.oid = t.typnamespace
                    WHERE t.typname = 'enrollment_state' AND n.nspname = 'intellinode') THEN
         CREATE TYPE intellinode.enrollment_state AS ENUM (
-            'PendingInventory', 'Active', 'Unlicensed', 'Disabled'
+            'PendingInventory', 'Active', 'Unlicensed', 'Disabled',
+            'PendingApproval', 'Rejected'
         );
+    END IF;
+
+    IF NOT EXISTS (SELECT 1 FROM pg_type t JOIN pg_namespace n ON n.oid = t.typnamespace
+                   WHERE t.typname = 'discover_lookup_status' AND n.nspname = 'intellinode') THEN
+        CREATE TYPE intellinode.discover_lookup_status AS ENUM ('Pending', 'Approved', 'Rejected');
     END IF;
 
     IF NOT EXISTS (SELECT 1 FROM pg_type t JOIN pg_namespace n ON n.oid = t.typnamespace
@@ -58,6 +64,9 @@ BEGIN
         );
     END IF;
 END $$;
+
+ALTER TYPE intellinode.enrollment_state ADD VALUE IF NOT EXISTS 'PendingApproval';
+ALTER TYPE intellinode.enrollment_state ADD VALUE IF NOT EXISTS 'Rejected';
 
 -- ============================================================
 -- Step 6: Tables
@@ -198,14 +207,85 @@ CREATE TABLE IF NOT EXISTS intellinode.device_network_history (
 );
 
 CREATE TABLE IF NOT EXISTS intellinode.discover_lookup (
-    id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    mac_address   VARCHAR(300) NOT NULL,
-    tenant_id     UUID NOT NULL REFERENCES intellinode.tenants(id),
-    lookup_status VARCHAR(32) NOT NULL DEFAULT 'Pending',
-    created_utc   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_utc   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    id                    UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id             UUID NOT NULL REFERENCES intellinode.tenants(id) ON DELETE CASCADE,
+    device_id             UUID REFERENCES intellinode.devices(id) ON DELETE SET NULL,
+    mac_address           VARCHAR(300) NOT NULL,
+    host_name             VARCHAR(255) NOT NULL DEFAULT '',
+    ip_address            VARCHAR(64) NOT NULL DEFAULT '',
+    domain                VARCHAR(255) NOT NULL DEFAULT '',
+    os_name               VARCHAR(64) NOT NULL DEFAULT '',
+    os_version            VARCHAR(64) NOT NULL DEFAULT '',
+    agent_version         VARCHAR(64) NOT NULL DEFAULT '',
+    discovery_type        VARCHAR(64) NOT NULL DEFAULT 'AgentSelfDiscovery',
+    status                intellinode.discover_lookup_status NOT NULL DEFAULT 'Pending',
+    discovered_utc        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_utc           TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    approved_by_admin_id  UUID,
+    approved_utc          TIMESTAMPTZ,
+    rejected_by_admin_id  UUID,
+    rejected_utc          TIMESTAMPTZ,
+    rejection_reason      VARCHAR(500),
+    notes                 VARCHAR(1000),
     UNIQUE (tenant_id, mac_address)
 );
+
+ALTER TABLE intellinode.discover_lookup ADD COLUMN IF NOT EXISTS device_id UUID;
+ALTER TABLE intellinode.discover_lookup ADD COLUMN IF NOT EXISTS host_name VARCHAR(255) NOT NULL DEFAULT '';
+ALTER TABLE intellinode.discover_lookup ADD COLUMN IF NOT EXISTS ip_address VARCHAR(64) NOT NULL DEFAULT '';
+ALTER TABLE intellinode.discover_lookup ADD COLUMN IF NOT EXISTS domain VARCHAR(255) NOT NULL DEFAULT '';
+ALTER TABLE intellinode.discover_lookup ADD COLUMN IF NOT EXISTS os_name VARCHAR(64) NOT NULL DEFAULT '';
+ALTER TABLE intellinode.discover_lookup ADD COLUMN IF NOT EXISTS os_version VARCHAR(64) NOT NULL DEFAULT '';
+ALTER TABLE intellinode.discover_lookup ADD COLUMN IF NOT EXISTS agent_version VARCHAR(64) NOT NULL DEFAULT '';
+ALTER TABLE intellinode.discover_lookup ADD COLUMN IF NOT EXISTS discovery_type VARCHAR(64) NOT NULL DEFAULT 'AgentSelfDiscovery';
+ALTER TABLE intellinode.discover_lookup ADD COLUMN IF NOT EXISTS discovered_utc TIMESTAMPTZ NOT NULL DEFAULT NOW();
+ALTER TABLE intellinode.discover_lookup ADD COLUMN IF NOT EXISTS approved_by_admin_id UUID;
+ALTER TABLE intellinode.discover_lookup ADD COLUMN IF NOT EXISTS approved_utc TIMESTAMPTZ;
+ALTER TABLE intellinode.discover_lookup ADD COLUMN IF NOT EXISTS rejected_by_admin_id UUID;
+ALTER TABLE intellinode.discover_lookup ADD COLUMN IF NOT EXISTS rejected_utc TIMESTAMPTZ;
+ALTER TABLE intellinode.discover_lookup ADD COLUMN IF NOT EXISTS rejection_reason VARCHAR(500);
+ALTER TABLE intellinode.discover_lookup ADD COLUMN IF NOT EXISTS notes VARCHAR(1000);
+
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+         WHERE table_schema = 'intellinode' AND table_name = 'discover_lookup' AND column_name = 'status'
+    ) THEN
+        ALTER TABLE intellinode.discover_lookup
+            ADD COLUMN status intellinode.discover_lookup_status NOT NULL DEFAULT 'Pending';
+    END IF;
+END $$;
+
+DO $$
+BEGIN
+    IF EXISTS (
+        SELECT 1 FROM information_schema.columns
+         WHERE table_schema = 'intellinode' AND table_name = 'discover_lookup' AND column_name = 'created_utc'
+    ) THEN
+        UPDATE intellinode.discover_lookup
+           SET discovered_utc = created_utc
+         WHERE discovered_utc IS NULL;
+    END IF;
+END $$;
+
+DO $$
+BEGIN
+    IF EXISTS (
+        SELECT 1 FROM information_schema.columns
+         WHERE table_schema = 'intellinode' AND table_name = 'discover_lookup' AND column_name = 'lookup_status'
+    ) THEN
+        UPDATE intellinode.discover_lookup
+           SET status = CASE lookup_status
+               WHEN 'Registered' THEN 'Approved'::intellinode.discover_lookup_status
+               WHEN 'Rejected' THEN 'Rejected'::intellinode.discover_lookup_status
+               ELSE 'Pending'::intellinode.discover_lookup_status
+           END;
+        ALTER TABLE intellinode.discover_lookup DROP COLUMN lookup_status;
+    END IF;
+END $$;
+
+ALTER TABLE intellinode.discover_lookup DROP COLUMN IF EXISTS created_utc;
 
 CREATE TABLE IF NOT EXISTS intellinode.agent_communication_logs (
     id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -216,6 +296,18 @@ CREATE TABLE IF NOT EXISTS intellinode.agent_communication_logs (
     payload_summary TEXT,
     command_code    VARCHAR(16),
     created_utc     TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS intellinode.exception_logs (
+    id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    source       VARCHAR(256) NOT NULL,
+    message      TEXT NOT NULL,
+    stack_trace  TEXT,
+    request_path VARCHAR(512),
+    http_method  VARCHAR(16),
+    device_id    UUID,
+    admin_id     UUID,
+    logged_utc   TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 CREATE TABLE IF NOT EXISTS intellinode.admin_users (
@@ -235,6 +327,25 @@ CREATE TABLE IF NOT EXISTS intellinode.admin_sessions (
     revoked_utc   TIMESTAMPTZ,
     created_utc   TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conname = 'fk_discover_lookup_admin_users_approved_by_admin_id'
+    ) THEN
+        ALTER TABLE intellinode.discover_lookup
+            ADD CONSTRAINT fk_discover_lookup_admin_users_approved_by_admin_id
+            FOREIGN KEY (approved_by_admin_id) REFERENCES intellinode.admin_users(id) ON DELETE SET NULL;
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conname = 'fk_discover_lookup_admin_users_rejected_by_admin_id'
+    ) THEN
+        ALTER TABLE intellinode.discover_lookup
+            ADD CONSTRAINT fk_discover_lookup_admin_users_rejected_by_admin_id
+            FOREIGN KEY (rejected_by_admin_id) REFERENCES intellinode.admin_users(id) ON DELETE SET NULL;
+    END IF;
+END $$;
 
 -- ============================================================
 -- Step 7: Indexes
@@ -275,11 +386,17 @@ CREATE INDEX IF NOT EXISTS ix_agent_refresh_tokens_token_hash
 CREATE INDEX IF NOT EXISTS ix_heartbeat_binding_changes_device_id
     ON intellinode.heartbeat_binding_changes (device_id);
 
-CREATE INDEX IF NOT EXISTS ix_discover_lookup_mac
+CREATE INDEX IF NOT EXISTS ix_discover_lookup_tenant_id_mac_address
     ON intellinode.discover_lookup (tenant_id, mac_address);
+
+CREATE INDEX IF NOT EXISTS ix_discover_lookup_tenant_id_status_discovered_utc
+    ON intellinode.discover_lookup (tenant_id, status, discovered_utc);
 
 CREATE INDEX IF NOT EXISTS ix_agent_communication_logs_device_id
     ON intellinode.agent_communication_logs (device_id, created_utc DESC);
+
+CREATE INDEX IF NOT EXISTS ix_exception_logs_logged_utc
+    ON intellinode.exception_logs (logged_utc DESC);
 
 -- ============================================================
 -- Step 8: Triggers (updated_utc)
@@ -846,8 +963,8 @@ BEGIN
     )
     RETURNING id INTO v_device_id;
 
-    INSERT INTO intellinode.discover_lookup (mac_address, tenant_id, lookup_status)
-    VALUES (TRIM(p_mac_address), p_tenant_id, 'Pending')
+    INSERT INTO intellinode.discover_lookup (mac_address, tenant_id, status, discovered_utc)
+    VALUES (TRIM(p_mac_address), p_tenant_id, 'Pending', NOW())
     ON CONFLICT (tenant_id, mac_address) DO NOTHING;
 
     RETURN v_device_id;
@@ -924,7 +1041,7 @@ BEGIN
      WHERE id = p_device_id;
 
     UPDATE intellinode.discover_lookup
-       SET lookup_status = 'Registered',
+       SET status = 'Approved',
            updated_utc = NOW()
      WHERE mac_address = (SELECT mac_address FROM intellinode.devices WHERE id = p_device_id);
 END;

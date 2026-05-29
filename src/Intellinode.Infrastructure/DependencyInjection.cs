@@ -1,13 +1,11 @@
 using Intellinode.Application.Interfaces;
-using Intellinode.Domain.Enums;
 using Intellinode.Infrastructure.Options;
 using Intellinode.Infrastructure.Persistence;
 using Intellinode.Infrastructure.Services;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Npgsql.NameTranslation;
+using Npgsql;
 
 namespace Intellinode.Infrastructure;
 
@@ -17,44 +15,18 @@ public static class DependencyInjection
     {
         services.Configure<JwtOptions>(configuration.GetSection(JwtOptions.SectionName));
         services.Configure<AgentServerOptions>(configuration.GetSection(AgentServerOptions.SectionName));
+        services.Configure<AgentDiscoveryOptions>(configuration.GetSection(AgentDiscoveryOptions.SectionName));
 
-        services.AddDbContext<IntellinodeDbContext>(options =>
-            options
-                .ConfigureWarnings(w =>
-                    w.Ignore(RelationalEventId.PendingModelChangesWarning))
-                .UseNpgsql(
-                    configuration.GetConnectionString("DefaultConnection"),
-                    npgsql =>
-                    {
-                        npgsql.MigrationsHistoryTable(
-                            "__EFMigrationsHistory",
-                            IntellinodeDbContext.SchemaName);
-                        npgsql.MapEnum<EnrollmentState>(
-                            "enrollment_state",
-                            IntellinodeDbContext.SchemaName,
-                            nameTranslator: new NpgsqlNullNameTranslator());
-                        npgsql.MapEnum<HeartbeatBindingKind>(
-                            "heartbeat_binding_kind",
-                            IntellinodeDbContext.SchemaName,
-                            nameTranslator: new NpgsqlNullNameTranslator());
-                        npgsql.MapEnum<AgentPlatform>(
-                            "agent_platform",
-                            IntellinodeDbContext.SchemaName,
-                            nameTranslator: new NpgsqlNullNameTranslator());
-                        npgsql.MapEnum<CommunicationType>(
-                            "communication_type",
-                            IntellinodeDbContext.SchemaName,
-                            nameTranslator: new NpgsqlNullNameTranslator());
-                        npgsql.MapEnum<SettingsKind>(
-                            "settings_kind",
-                            IntellinodeDbContext.SchemaName,
-                            nameTranslator: new NpgsqlNullNameTranslator());
-                        npgsql.MapEnum<SettingsApplyStatus>(
-                            "settings_apply_status",
-                            IntellinodeDbContext.SchemaName,
-                            nameTranslator: new NpgsqlNullNameTranslator());
-                    })
-                .UseSnakeCaseNamingConvention());
+        var connectionString = configuration.GetConnectionString("DefaultConnection")
+            ?? throw new InvalidOperationException("Connection string 'DefaultConnection' is not configured.");
+
+        services.AddSingleton(IntellinodeNpgsqlConfiguration.BuildDataSource(connectionString));
+
+        services.AddDbContext<IntellinodeDbContext>(
+            (sp, options) => IntellinodeNpgsqlConfiguration.ConfigureDbContextOptions(
+                options,
+                sp.GetRequiredService<NpgsqlDataSource>()),
+            optionsLifetime: ServiceLifetime.Singleton);
 
         services.AddSingleton<IAgentServerUrlProvider, AgentServerUrlProvider>();
         services.AddScoped<IIntellinodeDbContext>(sp => sp.GetRequiredService<IntellinodeDbContext>());
@@ -67,6 +39,10 @@ public static class DependencyInjection
         services.AddScoped<EnrollmentCoreService>();
         services.AddScoped<IWindowsAgentEnrollmentService, WindowsAgentEnrollmentService>();
         services.AddScoped<IAgentInventoryService, AgentInventoryService>();
+        services.AddScoped<IDiscoverLookupWriter, DiscoverLookupWriter>();
+        services.AddScoped<IDiscoverLookupService, DiscoverLookupService>();
+        services.AddScoped<IAgentCommunicationLogWriter, AgentCommunicationLogWriter>();
+        services.AddScoped<IExceptionLogWriter, ExceptionLogWriter>();
         services.AddScoped<IAgentTaskService, AgentTaskService>();
         services.AddScoped<IDeviceRemoteSettingsService, DeviceRemoteSettingsService>();
         services.AddScoped<IDeviceAgentAdvancedSettingsService, DeviceAgentAdvancedSettingsService>();
