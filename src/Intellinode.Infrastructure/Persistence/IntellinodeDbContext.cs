@@ -82,12 +82,22 @@ public sealed class IntellinodeDbContext : DbContext, IIntellinodeDbContext
         modelBuilder.Entity<DeviceGroup>(entity =>
         {
             entity.ToTable("device_groups");
-            entity.HasIndex(x => new { x.TenantId, x.Name }).IsUnique();
+            entity.HasIndex(x => new { x.TenantId, x.Name })
+                .IsUnique()
+                .HasFilter("parent_group_id IS NULL");
+            entity.HasIndex(x => new { x.TenantId, x.ParentGroupId, x.Name })
+                .IsUnique()
+                .HasFilter("parent_group_id IS NOT NULL");
             entity.Property(x => x.Name).HasMaxLength(200);
+            entity.Property(x => x.SortOrder).HasDefaultValue(0);
             entity.HasOne(x => x.Tenant)
                 .WithMany(x => x.DeviceGroups)
                 .HasForeignKey(x => x.TenantId)
                 .OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(x => x.ParentGroup)
+                .WithMany(x => x.ChildGroups)
+                .HasForeignKey(x => x.ParentGroupId)
+                .OnDelete(DeleteBehavior.Restrict);
         });
 
         modelBuilder.Entity<Device>(entity =>

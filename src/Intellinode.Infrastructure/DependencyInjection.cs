@@ -41,6 +41,7 @@ public static class DependencyInjection
         services.AddScoped<IAgentInventoryService, AgentInventoryService>();
         services.AddScoped<IDiscoverLookupWriter, DiscoverLookupWriter>();
         services.AddScoped<IDiscoverLookupService, DiscoverLookupService>();
+        services.AddScoped<IDeviceManagerService, DeviceManagerService>();
         services.AddScoped<IAgentCommunicationLogWriter, AgentCommunicationLogWriter>();
         services.AddScoped<IExceptionLogWriter, ExceptionLogWriter>();
         services.AddScoped<IAgentTaskService, AgentTaskService>();

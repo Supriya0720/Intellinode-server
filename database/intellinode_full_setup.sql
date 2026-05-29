@@ -81,13 +81,48 @@ CREATE TABLE IF NOT EXISTS intellinode.tenants (
 );
 
 CREATE TABLE IF NOT EXISTS intellinode.device_groups (
-    id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    tenant_id   UUID NOT NULL REFERENCES intellinode.tenants(id),
-    name        VARCHAR(200) NOT NULL,
-    is_default  BOOLEAN NOT NULL DEFAULT FALSE,
-    created_utc TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    UNIQUE (tenant_id, name)
+    id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id        UUID NOT NULL REFERENCES intellinode.tenants(id),
+    parent_group_id  UUID REFERENCES intellinode.device_groups(id),
+    name             VARCHAR(200) NOT NULL,
+    sort_order       INT NOT NULL DEFAULT 0,
+    is_default       BOOLEAN NOT NULL DEFAULT FALSE,
+    created_utc      TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+-- When device_groups already exists, CREATE TABLE is skipped; apply hierarchy columns/indexes here.
+ALTER TABLE intellinode.device_groups
+    ADD COLUMN IF NOT EXISTS parent_group_id UUID;
+ALTER TABLE intellinode.device_groups
+    ADD COLUMN IF NOT EXISTS sort_order INT NOT NULL DEFAULT 0;
+
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint
+        WHERE conname = 'fk_device_groups_device_groups_parent_group_id'
+    ) THEN
+        ALTER TABLE intellinode.device_groups
+            ADD CONSTRAINT fk_device_groups_device_groups_parent_group_id
+            FOREIGN KEY (parent_group_id) REFERENCES intellinode.device_groups(id);
+    END IF;
+END $$;
+
+DROP INDEX IF EXISTS intellinode.ix_device_groups_tenant_id_name;
+DROP INDEX IF EXISTS intellinode.ix_device_groups_tenant_id_name_root;
+ALTER TABLE intellinode.device_groups
+    DROP CONSTRAINT IF EXISTS device_groups_tenant_id_name_key;
+
+CREATE UNIQUE INDEX IF NOT EXISTS ix_device_groups_tenant_id_name
+    ON intellinode.device_groups (tenant_id, name)
+    WHERE parent_group_id IS NULL;
+
+CREATE UNIQUE INDEX IF NOT EXISTS ix_device_groups_tenant_id_parent_group_id_name
+    ON intellinode.device_groups (tenant_id, parent_group_id, name)
+    WHERE parent_group_id IS NOT NULL;
+
+CREATE INDEX IF NOT EXISTS ix_device_groups_parent_group_id
+    ON intellinode.device_groups (parent_group_id);
 
 CREATE TABLE IF NOT EXISTS intellinode.devices (
     id                       UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -1131,14 +1166,16 @@ INSERT INTO intellinode.tenants (id, name, host_name)
 VALUES ('00000000-0000-0000-0000-000000000001', 'Default', 'localhost')
 ON CONFLICT (id) DO NOTHING;
 
-INSERT INTO intellinode.device_groups (id, tenant_id, name, is_default)
+INSERT INTO intellinode.device_groups (id, tenant_id, parent_group_id, name, sort_order, is_default)
 VALUES (
     '00000000-0000-0000-0000-000000000002',
     '00000000-0000-0000-0000-000000000001',
+    NULL,
     'Root',
+    0,
     TRUE
 )
-ON CONFLICT (tenant_id, name) DO NOTHING;
+ON CONFLICT (id) DO NOTHING;
 
 INSERT INTO intellinode.admin_users (user_name, password_hash, display_name)
 VALUES (

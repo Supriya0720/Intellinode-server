@@ -101,6 +101,13 @@ public interface IExceptionLogWriter
         CancellationToken cancellationToken = default);
 }
 
+public interface IDeviceManagerService
+{
+    Task<DeviceTreeResponse> GetTreeAsync(DeviceTreeQuery query, CancellationToken cancellationToken = default);
+    Task<DeviceManagerGroupInfoDto?> GetGroupInfoAsync(Guid groupId, CancellationToken cancellationToken = default);
+    Task<DeviceManagerDeviceInfoDto?> GetDeviceInfoAsync(Guid deviceId, CancellationToken cancellationToken = default);
+}
+
 public interface IDiscoverLookupService
 {
     Task<PagedDiscoverLookupResponse> ListAsync(DiscoverLookupQuery query, CancellationToken cancellationToken = default);

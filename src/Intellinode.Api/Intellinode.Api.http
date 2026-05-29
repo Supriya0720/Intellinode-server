@@ -1784,3 +1784,31 @@ Authorization: Bearer {{adminToken}}
 # SELECT COUNT(*) FROM intellinode.discover_lookup WHERE discovery_type = 'LegacyActive';
 # Run after migration 20260528120000_BackfillDiscoverLookupForActiveDevices on DB with pre-PR2 Active devices.
 
+### Device Manager — tree (all devices and groups)
+GET {{Intellinode.Api_HostAddress}}/api/v1/admin/device-manager/tree
+Authorization: Bearer {{adminToken}}
+
+# Expected: 200 with nested group/device tree, totalDeviceCount, filteredDeviceCount
+
+### Device Manager — tree with search and status filter
+GET {{Intellinode.Api_HostAddress}}/api/v1/admin/device-manager/tree?search=HOST&status=Online
+Authorization: Bearer {{adminToken}}
+
+# Expected: 200 with pruned tree matching search; devices filtered to Online status
+
+### Device Manager — group info (click group row)
+# Replace with a group id from the tree response (not the Unassigned synthetic folder).
+@groupId = 00000000-0000-0000-0000-000000000002
+GET {{Intellinode.Api_HostAddress}}/api/v1/admin/device-manager/groups/{{groupId}}
+Authorization: Bearer {{adminToken}}
+
+# Expected: 200 DeviceManagerGroupInfoDto with breadcrumb, childGroups, counts, recentDevices
+
+### Device Manager — device info (click device row)
+# Replace with a device id from the tree response.
+@deviceId = 00000000-0000-0000-0000-000000000000
+GET {{Intellinode.Api_HostAddress}}/api/v1/admin/device-manager/devices/{{deviceId}}
+Authorization: Bearer {{adminToken}}
+
+# Expected: 200 DeviceManagerDeviceInfoDto, or 404 DeviceNotFound if id is invalid
+
