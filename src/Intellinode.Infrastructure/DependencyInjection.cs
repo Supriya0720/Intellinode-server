@@ -2,6 +2,7 @@ using Intellinode.Application.Interfaces;
 using Intellinode.Infrastructure.Options;
 using Intellinode.Infrastructure.Persistence;
 using Intellinode.Infrastructure.Services;
+using Intellinode.Infrastructure.Services.DeviceManager;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -42,6 +43,9 @@ public static class DependencyInjection
         services.AddScoped<IDiscoverLookupWriter, DiscoverLookupWriter>();
         services.AddScoped<IDiscoverLookupService, DiscoverLookupService>();
         services.AddScoped<IDeviceManagerService, DeviceManagerService>();
+        services.AddScoped<IDeviceManagerRootsService, DeviceManagerRootsService>();
+        services.AddScoped<IDeviceManagerGroupChildrenService, DeviceManagerGroupChildrenService>();
+        services.AddScoped<IDeviceManagerGroupDevicesService, DeviceManagerGroupDevicesService>();
         services.AddScoped<IAgentCommunicationLogWriter, AgentCommunicationLogWriter>();
         services.AddScoped<IExceptionLogWriter, ExceptionLogWriter>();
         services.AddScoped<IAgentTaskService, AgentTaskService>();

@@ -15,17 +15,110 @@ namespace Intellinode.Api.Controllers;
 public sealed class AdminDeviceManagerController : ControllerBase
 {
     private readonly IDeviceManagerService _deviceManagerService;
+    private readonly IDeviceManagerRootsService _rootsService;
+    private readonly IDeviceManagerGroupChildrenService _groupChildrenService;
+    private readonly IDeviceManagerGroupDevicesService _groupDevicesService;
     private readonly IExceptionLogWriter _exceptionLogWriter;
     private readonly ILogger<AdminDeviceManagerController> _logger;
 
     public AdminDeviceManagerController(
         IDeviceManagerService deviceManagerService,
+        IDeviceManagerRootsService rootsService,
+        IDeviceManagerGroupChildrenService groupChildrenService,
+        IDeviceManagerGroupDevicesService groupDevicesService,
         IExceptionLogWriter exceptionLogWriter,
         ILogger<AdminDeviceManagerController> logger)
     {
         _deviceManagerService = deviceManagerService;
+        _rootsService = rootsService;
+        _groupChildrenService = groupChildrenService;
+        _groupDevicesService = groupDevicesService;
         _exceptionLogWriter = exceptionLogWriter;
         _logger = logger;
+    }
+
+    [HttpGet("roots")]
+    public async Task<ActionResult<DeviceManagerRootsResponse>> GetRoots(
+        [FromQuery] DeviceManagerRootsQuery query,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var response = await _rootsService.GetRootsAsync(query, cancellationToken);
+            return Ok(response);
+        }
+        catch (Exception ex)
+        {
+            return await HandleUnexpectedExceptionAsync(nameof(GetRoots), ex, cancellationToken);
+        }
+    }
+
+    [HttpGet("groups/{groupId:guid}/children/groups")]
+    public async Task<ActionResult<DeviceManagerChildGroupsResponse>> GetChildGroups(
+        Guid groupId,
+        [FromQuery] DeviceManagerGroupChildrenQuery query,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var response = await _groupChildrenService.GetChildGroupsAsync(groupId, query, cancellationToken);
+            if (response is null)
+            {
+                return NotFound(new AgentErrorResponse
+                {
+                    Error = "GroupNotFound",
+                    Message = $"No group found with id '{groupId}'."
+                });
+            }
+
+            return Ok(response);
+        }
+        catch (Exception ex)
+        {
+            return await HandleUnexpectedExceptionAsync(nameof(GetChildGroups), ex, cancellationToken);
+        }
+    }
+
+    [HttpGet("groups/{groupId:guid}/devices")]
+    public async Task<ActionResult<PagedDeviceManagerDevicesResponse>> GetGroupDevices(
+        Guid groupId,
+        [FromQuery] DeviceManagerGroupDevicesQuery query,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var response = await _groupDevicesService.GetGroupDevicesAsync(groupId, query, cancellationToken);
+            if (response is null)
+            {
+                return NotFound(new AgentErrorResponse
+                {
+                    Error = "GroupNotFound",
+                    Message = $"No group found with id '{groupId}'."
+                });
+            }
+
+            return Ok(response);
+        }
+        catch (Exception ex)
+        {
+            return await HandleUnexpectedExceptionAsync(nameof(GetGroupDevices), ex, cancellationToken);
+        }
+    }
+
+    [HttpGet("unassigned/devices")]
+    public async Task<ActionResult<PagedDeviceManagerDevicesResponse>> GetUnassignedDevices(
+        [FromQuery] DeviceManagerGroupDevicesQuery query,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var response = await _groupDevicesService.GetUnassignedDevicesAsync(query, cancellationToken);
+            return Ok(response);
+        }
+        catch (Exception ex)
+        {
+            return await HandleUnexpectedExceptionAsync(nameof(GetUnassignedDevices), ex, cancellationToken);
+        }
     }
 
     [HttpGet("tree")]

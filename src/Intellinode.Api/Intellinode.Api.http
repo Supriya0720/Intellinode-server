@@ -1796,9 +1796,53 @@ Authorization: Bearer {{adminToken}}
 
 # Expected: 200 with pruned tree matching search; devices filtered to Online status
 
-### Device Manager — group info (click group row)
-# Replace with a group id from the tree response (not the Unassigned synthetic folder).
+### Device Manager — lazy load: roots (initial load)
+# @name deviceManagerRoots
+GET {{Intellinode.Api_HostAddress}}/api/v1/admin/device-manager/roots?includeUnassigned=true
+Authorization: Bearer {{adminToken}}
+
+# Expected: 200 DeviceManagerRootsResponse — top-level group summaries + optional Unassigned node (no nested children)
+
+### Device Manager — lazy load: roots with search and status filter
+GET {{Intellinode.Api_HostAddress}}/api/v1/admin/device-manager/roots?search=HOST&status=Online&includeUnassigned=false
+Authorization: Bearer {{adminToken}}
+
+# Expected: 200 with roots visible when self or subtree matches search; counts reflect status filter
+
+### Device Manager — lazy load: child groups (expand a group)
+# Replace @groupId with a root or parent group id from /roots response.
 @groupId = 00000000-0000-0000-0000-000000000002
+GET {{Intellinode.Api_HostAddress}}/api/v1/admin/device-manager/groups/{{groupId}}/children/groups
+Authorization: Bearer {{adminToken}}
+
+# Expected: 200 DeviceManagerChildGroupsResponse — direct sub-groups only, ordered by SortOrder then Name
+
+### Device Manager — lazy load: child groups with filters
+GET {{Intellinode.Api_HostAddress}}/api/v1/admin/device-manager/groups/{{groupId}}/children/groups?search=team&status=Online
+Authorization: Bearer {{adminToken}}
+
+# Expected: 200 with filtered child group summaries
+
+### Device Manager — lazy load: paginated direct devices for a group
+GET {{Intellinode.Api_HostAddress}}/api/v1/admin/device-manager/groups/{{groupId}}/devices?page=1&pageSize=25&sortBy=HostName&sortDir=asc
+Authorization: Bearer {{adminToken}}
+
+# Expected: 200 PagedDeviceManagerDevicesResponse — direct devices only (not nested sub-group devices)
+
+### Device Manager — lazy load: paginated direct devices with status filter
+GET {{Intellinode.Api_HostAddress}}/api/v1/admin/device-manager/groups/{{groupId}}/devices?page=1&pageSize=25&status=Online&search=00-11
+Authorization: Bearer {{adminToken}}
+
+# Expected: 200 with DB-paginated device rows matching status and search
+
+### Device Manager — lazy load: unassigned devices
+GET {{Intellinode.Api_HostAddress}}/api/v1/admin/device-manager/unassigned/devices?page=1&pageSize=25
+Authorization: Bearer {{adminToken}}
+
+# Expected: 200 PagedDeviceManagerDevicesResponse — devices with GroupId null; GroupId in response is 00000000-0000-0000-0000-000000000000
+
+### Device Manager — group info (click group row)
+# Replace with a group id from the tree or /roots response (not the Unassigned synthetic folder).
 GET {{Intellinode.Api_HostAddress}}/api/v1/admin/device-manager/groups/{{groupId}}
 Authorization: Bearer {{adminToken}}
 
