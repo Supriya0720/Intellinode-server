@@ -36,8 +36,9 @@ public sealed class AgentsController : ControllerBase
     private readonly IValidator<AgentInventoryRequest> _inventoryValidator;
     private readonly IValidator<AgentTaskAckBatchRequest> _taskAckValidator;
     private readonly IValidator<AgentConfigAckRequest> _configAckValidator;
-    private readonly AgentDiscoveryOptions _agentDiscoveryOptions;
-
+    private readonly AgentDiscoveryOptions _agentDiscoveryOptions;
+    private readonly IValidator<WindowsAgentEnrollRequest> _enrollValidator;
+    private readonly IWindowsAgentEnrollmentService _enrollmentService;
     public AgentsController(
         IAgentAuthService agentAuthService,
         IAgentBootstrapService bootstrapService,
@@ -56,7 +57,7 @@ public sealed class AgentsController : ControllerBase
         IValidator<AgentInventoryRequest> inventoryValidator,
         IValidator<AgentTaskAckBatchRequest> taskAckValidator,
         IValidator<AgentConfigAckRequest> configAckValidator,
-        IOptions<AgentDiscoveryOptions> agentDiscoveryOptions)
+        IOptions<AgentDiscoveryOptions> agentDiscoveryOptions, IValidator<WindowsAgentEnrollRequest> enrollValidator, IWindowsAgentEnrollmentService enrollmentService)
     {
         _agentAuthService = agentAuthService;
         _bootstrapService = bootstrapService;
@@ -75,7 +76,8 @@ public sealed class AgentsController : ControllerBase
         _inventoryValidator = inventoryValidator;
         _taskAckValidator = taskAckValidator;
         _configAckValidator = configAckValidator;
-        _agentDiscoveryOptions = agentDiscoveryOptions.Value;
+        _agentDiscoveryOptions = agentDiscoveryOptions.Value;        _enrollValidator = enrollValidator;
+        _enrollmentService = enrollmentService;
     }
 
     /// <summary>
@@ -139,7 +141,41 @@ public sealed class AgentsController : ControllerBase
             return await HandleUnexpectedExceptionAsync(nameof(GetConfig), ex, cancellationToken);
         }
     }
-
+    /// First-time Windows enrollment with an admin one-time token. Creates the device if missing (PendingInventory).
+    /// </summary>
+    [HttpPost("enroll")]
+    [AllowAnonymous]
+    public async Task<ActionResult<AgentAuthResponse>> Enroll(
+        [FromBody] WindowsAgentEnrollRequest request,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            await _enrollValidator.ValidateAndThrowAsync(request, cancellationToken);
+            var result = await _enrollmentService.EnrollAsync(request, cancellationToken);
+            if (!result.IsSuccess)
+            {
+                return StatusCode(
+                    StatusCodes.Status401Unauthorized,
+                    new AgentErrorResponse
+                    {
+                        Error = result.ErrorCode ?? "InvalidEnrollmentToken",
+                        Message = result.Message ?? "Enrollment failed."
+                    });
+            }
+
+            return Ok(result.AuthResponse);
+        }
+        catch (Exception ex)
+        {
+            return await this.HandleUnexpectedExceptionAsync(
+                _exceptionLogWriter,
+                _logger,
+                nameof(Enroll),
+                ex,
+                cancellationToken: cancellationToken);
+        }
+    }
     /// <summary>
     /// Agent confirms applied general and/or advanced config versions.
     /// </summary>
