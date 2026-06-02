@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using Intellinode.Domain.Enums;
 
 namespace Intellinode.Application.Contracts.Admin;
@@ -21,8 +22,9 @@ public enum DeviceManagerNodeType
 public sealed class DeviceTreeNodeDto
 {
     public Guid Id { get; set; }
-    public DeviceManagerNodeType NodeType { get; set; }
-    public string Name { get; set; } = string.Empty;
+    public string NodeType { get; set; } = string.Empty;
+    [JsonPropertyName("node-name")]
+    public string NodeName { get; set; } = string.Empty;
     public Guid? ParentId { get; set; }
     public int Depth { get; set; }
     public int SortOrder { get; set; }
@@ -39,7 +41,7 @@ public sealed class DeviceTreeNodeDto
     public bool? IsOnline { get; set; }
     public DateTime? LastHeartbeatUtc { get; set; }
     public EnrollmentState? EnrollmentState { get; set; }
-    public IReadOnlyList<DeviceTreeNodeDto>? Children { get; set; }
+    public IReadOnlyList<DeviceTreeNodeDto>? subRow { get; set; }
 }
 
 public sealed class DeviceTreeResponse

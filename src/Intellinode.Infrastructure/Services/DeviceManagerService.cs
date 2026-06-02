@@ -11,6 +11,9 @@ namespace Intellinode.Infrastructure.Services;
 public sealed class DeviceManagerService : IDeviceManagerService
 {
     private const string ServiceSource = nameof(DeviceManagerService);
+    private const string GroupNodeType = "group";
+    private const string SubgroupNodeType = "subgroup";
+    private const string DeviceNodeType = "device";
 
     /// <summary>Synthetic root id for devices without a group (<see cref="Guid.Empty"/>).</summary>
     public static readonly Guid UnassignedNodeId = Guid.Empty;
@@ -576,8 +579,8 @@ public sealed class DeviceManagerService : IDeviceManagerService
         return new DeviceTreeNodeDto
         {
             Id = group.Id,
-            NodeType = DeviceManagerNodeType.Group,
-            Name = group.Name,
+            NodeType = parentId is null ? GroupNodeType : SubgroupNodeType,
+            NodeName = group.Name,
             ParentId = parentId,
             Depth = depth,
             SortOrder = group.SortOrder,
@@ -586,7 +589,7 @@ public sealed class DeviceManagerService : IDeviceManagerService
             OnlineCount = aggregates.OnlineCount,
             OfflineCount = aggregates.OfflineCount,
             MaintenanceCount = aggregates.MaintenanceCount,
-            Children = children
+            subRow = children
         };
     }
 
@@ -596,8 +599,8 @@ public sealed class DeviceManagerService : IDeviceManagerService
         return new DeviceTreeNodeDto
         {
             Id = device.Id,
-            NodeType = DeviceManagerNodeType.Device,
-            Name = device.HostName,
+            NodeType = DeviceNodeType,
+            NodeName = device.HostName,
             ParentId = parentId,
             Depth = depth,
             SortOrder = 0,
@@ -625,8 +628,8 @@ public sealed class DeviceManagerService : IDeviceManagerService
         return new DeviceTreeNodeDto
         {
             Id = UnassignedNodeId,
-            NodeType = DeviceManagerNodeType.Unassigned,
-            Name = "Unassigned",
+            NodeType = GroupNodeType,
+            NodeName = "Unassigned",
             ParentId = null,
             Depth = depth,
             SortOrder = int.MaxValue,
@@ -635,7 +638,7 @@ public sealed class DeviceManagerService : IDeviceManagerService
             OnlineCount = aggregates.OnlineCount,
             OfflineCount = aggregates.OfflineCount,
             MaintenanceCount = aggregates.MaintenanceCount,
-            Children = children
+            subRow = children
         };
     }
 
@@ -649,7 +652,7 @@ public sealed class DeviceManagerService : IDeviceManagerService
 
         foreach (var child in children)
         {
-            if (child.NodeType == DeviceManagerNodeType.Device)
+            if (child.NodeType == DeviceNodeType)
             {
                 deviceCount++;
                 switch (child.Status)
@@ -696,15 +699,15 @@ public sealed class DeviceManagerService : IDeviceManagerService
 
     private static DeviceTreeNodeDto? PruneNode(DeviceTreeNodeDto node, string searchTerm)
     {
-        if (node.NodeType == DeviceManagerNodeType.Device)
+        if (node.NodeType == DeviceNodeType)
         {
             return NodeMatchesSearch(node, searchTerm) ? node : null;
         }
 
         var prunedChildren = new List<DeviceTreeNodeDto>();
-        if (node.Children is not null)
+        if (node.subRow is not null)
         {
-            foreach (var child in node.Children)
+            foreach (var child in node.subRow)
             {
                 var prunedChild = PruneNode(child, searchTerm);
                 if (prunedChild is not null)
@@ -739,7 +742,7 @@ public sealed class DeviceManagerService : IDeviceManagerService
         {
             Id = node.Id,
             NodeType = node.NodeType,
-            Name = node.Name,
+            NodeName = node.NodeName,
             ParentId = node.ParentId,
             Depth = node.Depth,
             SortOrder = node.SortOrder,
@@ -748,13 +751,13 @@ public sealed class DeviceManagerService : IDeviceManagerService
             OnlineCount = stats.OnlineCount,
             OfflineCount = stats.OfflineCount,
             MaintenanceCount = stats.MaintenanceCount,
-            Children = children
+            subRow = children
         };
     }
 
     private static bool NodeMatchesSearch(DeviceTreeNodeDto node, string searchTerm)
     {
-        return ContainsIgnoreCase(node.Name, searchTerm) ||
+        return ContainsIgnoreCase(node.NodeName, searchTerm) ||
                (node.MacAddress is not null && ContainsIgnoreCase(node.MacAddress, searchTerm));
     }
 
