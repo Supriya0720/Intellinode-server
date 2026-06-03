@@ -589,7 +589,7 @@ public sealed class DeviceManagerService : IDeviceManagerService
             OnlineCount = aggregates.OnlineCount,
             OfflineCount = aggregates.OfflineCount,
             MaintenanceCount = aggregates.MaintenanceCount,
-            subRow = children
+            subRows = children
         };
     }
 
@@ -638,7 +638,7 @@ public sealed class DeviceManagerService : IDeviceManagerService
             OnlineCount = aggregates.OnlineCount,
             OfflineCount = aggregates.OfflineCount,
             MaintenanceCount = aggregates.MaintenanceCount,
-            subRow = children
+            subRows = children
         };
     }
 
@@ -705,9 +705,9 @@ public sealed class DeviceManagerService : IDeviceManagerService
         }
 
         var prunedChildren = new List<DeviceTreeNodeDto>();
-        if (node.subRow is not null)
+        if (node.subRows is not null)
         {
-            foreach (var child in node.subRow)
+            foreach (var child in node.subRows)
             {
                 var prunedChild = PruneNode(child, searchTerm);
                 if (prunedChild is not null)
@@ -751,7 +751,7 @@ public sealed class DeviceManagerService : IDeviceManagerService
             OnlineCount = stats.OnlineCount,
             OfflineCount = stats.OfflineCount,
             MaintenanceCount = stats.MaintenanceCount,
-            subRow = children
+            subRows = children
         };
     }
 

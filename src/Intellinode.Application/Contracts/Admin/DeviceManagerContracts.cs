@@ -41,7 +41,7 @@ public sealed class DeviceTreeNodeDto
     public bool? IsOnline { get; set; }
     public DateTime? LastHeartbeatUtc { get; set; }
     public EnrollmentState? EnrollmentState { get; set; }
-    public IReadOnlyList<DeviceTreeNodeDto>? subRow { get; set; }
+    public IReadOnlyList<DeviceTreeNodeDto>? subRows { get; set; }
 }
 
 public sealed class DeviceTreeResponse
