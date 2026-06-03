@@ -11,7 +11,7 @@ namespace Intellinode.Api.Controllers;
 
 [ApiController]
 [Route("api/v1/admin/device-manager")]
-[Authorize(Roles = "Admin")]
+//[Authorize(Roles = "Admin")]
 public sealed class AdminDeviceManagerController : ControllerBase
 {
     private readonly IDeviceManagerService _deviceManagerService;
