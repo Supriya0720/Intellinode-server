@@ -17,6 +17,8 @@ public static class DependencyInjection
         services.Configure<JwtOptions>(configuration.GetSection(JwtOptions.SectionName));
         services.Configure<AgentServerOptions>(configuration.GetSection(AgentServerOptions.SectionName));
         services.Configure<AgentDiscoveryOptions>(configuration.GetSection(AgentDiscoveryOptions.SectionName));
+        services.Configure<SystemSettingOptions>(configuration.GetSection(SystemSettingOptions.SectionName));
+        services.Configure<KeyboardOptions>(configuration.GetSection(KeyboardOptions.SectionName));
 
         var connectionString = configuration.GetConnectionString("DefaultConnection")
             ?? throw new InvalidOperationException("Connection string 'DefaultConnection' is not configured.");
@@ -48,10 +50,13 @@ public static class DependencyInjection
         services.AddScoped<IDeviceManagerGroupDevicesService, DeviceManagerGroupDevicesService>();
         services.AddScoped<IAgentCommunicationLogWriter, AgentCommunicationLogWriter>();
         services.AddScoped<IExceptionLogWriter, ExceptionLogWriter>();
+        services.AddScoped<KeyboardTaskAckHandler>();
         services.AddScoped<IAgentTaskService, AgentTaskService>();
         services.AddScoped<IDeviceRemoteSettingsService, DeviceRemoteSettingsService>();
         services.AddScoped<IDeviceAgentAdvancedSettingsService, DeviceAgentAdvancedSettingsService>();
         services.AddScoped<IGroupRemoteSettingsService, GroupRemoteSettingsService>();
+        services.AddScoped<ISystemSettingService, SystemSettingService>();
+        services.AddScoped<IKeyboardSettingsService, KeyboardSettingsService>();
         services.AddScoped<EffectiveAgentSettingsResolver>();
         services.AddScoped<IEffectiveAgentSettingsResolver>(sp => sp.GetRequiredService<EffectiveAgentSettingsResolver>());
         services.AddSingleton<ITokenService, TokenService>();

@@ -48,5 +48,6 @@ public class Device
     public ICollection<AgentRefreshToken> RefreshTokens { get; set; } = [];
     public DeviceInventory? Inventory { get; set; }
     public DeviceRemoteSettings? RemoteSettings { get; set; }
+    public DeviceKeyboardSettings? KeyboardSettings { get; set; }
     public DeviceAgentAdvancedSettings? AgentAdvancedSettings { get; set; }
 }

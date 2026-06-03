@@ -5,4 +5,7 @@
     <Project Path="src/Intellinode.Domain/Intellinode.Domain.csproj" />
     <Project Path="src/Intellinode.Infrastructure/Intellinode.Infrastructure.csproj" />
   </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Intellinode.Infrastructure.Tests/Intellinode.Infrastructure.Tests.csproj" />
+  </Folder>
 </Solution>

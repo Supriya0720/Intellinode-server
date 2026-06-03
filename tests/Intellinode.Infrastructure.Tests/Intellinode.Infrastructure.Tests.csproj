@@ -19,6 +19,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\..\src\Intellinode.Api\Intellinode.Api.csproj" />
     <ProjectReference Include="..\..\src\Intellinode.Infrastructure\Intellinode.Infrastructure.csproj" />
     <ProjectReference Include="..\..\src\Intellinode.Application\Intellinode.Application.csproj" />
     <ProjectReference Include="..\..\src\Intellinode.Domain\Intellinode.Domain.csproj" />

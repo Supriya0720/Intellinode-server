@@ -16,11 +16,16 @@ public sealed class AgentTaskService : IAgentTaskService
     private const bool MarkFirstPendingAsInProcess = true;
 
     private readonly IntellinodeDbContext _dbContext;
+    private readonly KeyboardTaskAckHandler _keyboardTaskAckHandler;
     private readonly ILogger<AgentTaskService> _logger;
 
-    public AgentTaskService(IntellinodeDbContext dbContext, ILogger<AgentTaskService> logger)
+    public AgentTaskService(
+        IntellinodeDbContext dbContext,
+        KeyboardTaskAckHandler keyboardTaskAckHandler,
+        ILogger<AgentTaskService> logger)
     {
         _dbContext = dbContext;
+        _keyboardTaskAckHandler = keyboardTaskAckHandler;
         _logger = logger;
     }
 
@@ -40,6 +45,7 @@ public sealed class AgentTaskService : IAgentTaskService
             if (firstPending is not null)
             {
                 firstPending.Status = DeviceTaskStatus.InProcess;
+                // Delivered apply log on InProcess for Keyboard is deferred (PR3); terminal ack writes Applied/Failed.
                 await _dbContext.SaveChangesAsync(cancellationToken);
             }
         }
@@ -57,6 +63,7 @@ public sealed class AgentTaskService : IAgentTaskService
     {
         var device = await _dbContext.Devices
             .Include(d => d.Tasks)
+            .Include(d => d.KeyboardSettings)
             .FirstOrDefaultAsync(d => d.Id == deviceId, cancellationToken);
 
         if (device is null)
@@ -75,17 +82,29 @@ public sealed class AgentTaskService : IAgentTaskService
 
             var status = DeviceTaskOperations.ParseAckStatus(ack.Status);
             DeviceTaskOperations.SetCompletion(task, status);
+
+            if (KeyboardTaskAckHandler.IsKeyboardTask(task))
+            {
+                await _keyboardTaskAckHandler.ApplyAckAsync(
+                    device,
+                    task,
+                    status,
+                    ack.Reason,
+                    cancellationToken);
+            }
+
             DeviceTaskOperations.ApplyDeviceStateAfterCompletion(device, task, status);
 
-            if (!string.IsNullOrWhiteSpace(ack.AckCode))
+            if (!string.IsNullOrWhiteSpace(ack.AckCode) || !string.IsNullOrWhiteSpace(ack.Reason))
             {
                 _logger.LogInformation(
-                    "Task {TaskId} (legacy {LegacyTaskId}) acknowledged with code {AckCode} as {Status} for device {DeviceId}",
+                    "Task {TaskId} (legacy {LegacyTaskId}) acknowledged as {Status} for device {DeviceId} (ackCode={AckCode}, reason={Reason})",
                     task.Id,
                     task.LegacyTaskId,
-                    ack.AckCode,
                     ack.Status,
-                    deviceId);
+                    deviceId,
+                    ack.AckCode ?? string.Empty,
+                    ack.Reason ?? string.Empty);
             }
         }
 

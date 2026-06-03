@@ -1,4 +1,5 @@
 using FluentValidation;
+using Intellinode.Application.Contracts.Admin;
 using Intellinode.Application.Contracts.Agents;
 using Intellinode.Domain.Enums;
 
@@ -102,6 +103,7 @@ public sealed class AgentTaskAckRequestValidator : AbstractValidator<AgentTaskAc
             .WithMessage("Status must be 'Completed' or 'Failed'.");
 
         RuleFor(x => x.AckCode).MaximumLength(32);
+        RuleFor(x => x.Reason).MaximumLength(500);
     }
 }
 
@@ -205,5 +207,260 @@ public sealed class PatchDeviceSettingsInheritanceRequestValidator : AbstractVal
     public PatchDeviceSettingsInheritanceRequestValidator()
     {
         // bool field always valid
+    }
+}
+
+public sealed class SystemSettingExecuteNowRequestValidator : AbstractValidator<SystemSettingExecuteNowRequest>
+{
+    public SystemSettingExecuteNowRequestValidator()
+    {
+        RuleFor(x => x.Target).SetValidator(new SystemSettingTargetRequestValidator());
+        RuleFor(x => x.Settings).SetValidator(new SystemSettingRemoteSettingsRequestValidator());
+        RuleFor(x => x.Execution).SetValidator(new SystemSettingExecutionRequestValidator("InstantApply"));
+    }
+
+    internal static string? ExtractOsSuffix(string macAddress)
+    {
+        if (string.IsNullOrWhiteSpace(macAddress))
+        {
+            return null;
+        }
+
+        var trimmed = macAddress.Trim();
+        var idx = trimmed.LastIndexOf(':');
+        if (idx < 0 || idx == trimmed.Length - 1)
+        {
+            return null;
+        }
+
+        return trimmed[(idx + 1)..].ToUpperInvariant();
+    }
+
+    private static bool HaveSupportedOsSuffix(string macAddress)
+    {
+        var suffix = ExtractOsSuffix(macAddress);
+        return suffix is "XP" or "LX" or "CE";
+    }
+
+    private static bool MatchMacSuffixAndOsType(SystemSettingExecuteNowRequest request)
+    {
+        var suffix = ExtractOsSuffix(request.Target.MacAddress);
+        if (suffix is null || string.IsNullOrWhiteSpace(request.Target.OsType))
+        {
+            return false;
+        }
+
+        return suffix == request.Target.OsType.Trim().ToUpperInvariant();
+    }
+}
+
+public sealed class SystemSettingExecuteNowBulkRequestValidator : AbstractValidator<SystemSettingExecuteNowBulkRequest>
+{
+    public SystemSettingExecuteNowBulkRequestValidator()
+    {
+        RuleFor(x => x.Targets)
+            .NotEmpty()
+            .WithMessage("At least one target is required.");
+
+        RuleForEach(x => x.Targets).SetValidator(new SystemSettingTargetRequestValidator());
+        RuleFor(x => x.Settings).SetValidator(new SystemSettingRemoteSettingsRequestValidator());
+        RuleFor(x => x.Execution).SetValidator(new SystemSettingExecutionRequestValidator("InstantApply"));
+
+        RuleFor(x => x.Targets)
+            .Must(HaveSingleOsType)
+            .WithMessage("All targets must share the same osType.");
+    }
+
+    private static bool HaveSingleOsType(List<SystemSettingTargetRequest> targets)
+    {
+        var osTypes = targets
+            .Select(t => t.OsType.Trim().ToUpperInvariant())
+            .Where(t => !string.IsNullOrWhiteSpace(t))
+            .Distinct()
+            .ToList();
+
+        return osTypes.Count <= 1;
+    }
+}
+
+public sealed class SystemSettingQueueRequestValidator : AbstractValidator<SystemSettingQueueRequest>
+{
+    public SystemSettingQueueRequestValidator()
+    {
+        RuleFor(x => x.Target).SetValidator(new SystemSettingTargetRequestValidator());
+        RuleFor(x => x.Settings).SetValidator(new SystemSettingRemoteSettingsRequestValidator());
+        RuleFor(x => x.Execution).SetValidator(new SystemSettingExecutionRequestValidator("Queue"));
+    }
+}
+
+public sealed class SystemSettingTemplateQueueRequestValidator : AbstractValidator<SystemSettingTemplateQueueRequest>
+{
+    public SystemSettingTemplateQueueRequestValidator()
+    {
+        RuleFor(x => x.Target).SetValidator(new SystemSettingTargetRequestValidator());
+        RuleFor(x => x.Settings).SetValidator(new SystemSettingRemoteSettingsRequestValidator());
+        RuleFor(x => x.Execution).SetValidator(new SystemSettingExecutionRequestValidator("QueueTemplate"));
+
+        RuleFor(x => x.Execution.TemplateId)
+            .NotNull()
+            .GreaterThan(0)
+            .WithMessage("templateId must be greater than 0.");
+
+        RuleFor(x => x.Execution.TemplateName)
+            .NotEmpty()
+            .WithMessage("templateName is required.");
+    }
+}
+
+public sealed class SystemSettingTargetRequestValidator : AbstractValidator<SystemSettingTargetRequest>
+{
+    public SystemSettingTargetRequestValidator()
+    {
+        RuleFor(x => x.MacAddress)
+            .NotEmpty()
+            .MaximumLength(300)
+            .Must(HaveSupportedOsSuffix)
+            .WithMessage("macAddress must include a supported suffix (:XP, :LX, :CE).");
+
+        RuleFor(x => x.OsType)
+            .NotEmpty()
+            .Must(os => os.Trim().ToUpperInvariant() is "XP" or "LX" or "CE")
+            .WithMessage("osType must be one of XP, LX, or CE.");
+
+        RuleFor(x => x)
+            .Must(x =>
+            {
+                var suffix = SystemSettingExecuteNowRequestValidator.ExtractOsSuffix(x.MacAddress);
+                return suffix is not null && suffix == x.OsType.Trim().ToUpperInvariant();
+            })
+            .WithMessage("target.osType must match macAddress suffix.");
+    }
+
+    private static bool HaveSupportedOsSuffix(string macAddress)
+    {
+        var suffix = SystemSettingExecuteNowRequestValidator.ExtractOsSuffix(macAddress);
+        return suffix is "XP" or "LX" or "CE";
+    }
+}
+
+public sealed class SystemSettingRemoteSettingsRequestValidator : AbstractValidator<SystemSettingRemoteSettingsRequest>
+{
+    public SystemSettingRemoteSettingsRequestValidator()
+    {
+        RuleFor(x => x.ServerIpOrHost).NotEmpty().MaximumLength(255);
+        RuleFor(x => x.PortNo).InclusiveBetween(1, 65535);
+        RuleFor(x => x.HeartbeatIntervalSeconds).InclusiveBetween(30, 86400);
+        RuleFor(x => x.CommunicationType)
+            .Must(t => t is CommunicationType.HTTP or CommunicationType.HTTPS)
+            .WithMessage("communicationType must be HTTP or HTTPS.");
+    }
+}
+
+internal sealed class SystemSettingExecutionRequestValidator : AbstractValidator<SystemSettingExecutionRequest>
+{
+    public SystemSettingExecutionRequestValidator(string scheduleType)
+    {
+        RuleFor(x => x.ScheduleType)
+            .Equal(scheduleType)
+            .WithMessage($"scheduleType must be {scheduleType} for this endpoint.");
+    }
+}
+
+public sealed class SystemSettingHistoryQueryValidator : AbstractValidator<SystemSettingHistoryQuery>
+{
+    public SystemSettingHistoryQueryValidator()
+    {
+        RuleFor(x => x.Page).GreaterThanOrEqualTo(1);
+        RuleFor(x => x.PageSize).InclusiveBetween(1, 100);
+
+        RuleFor(x => x.Status)
+            .Must(s => string.IsNullOrWhiteSpace(s) || s is "Pending" or "Delivered" or "Applied" or "Failed")
+            .WithMessage("status must be one of Pending, Delivered, Applied, Failed.");
+
+        RuleFor(x => x)
+            .Must(x => !x.FromUtc.HasValue || !x.ToUtc.HasValue || x.FromUtc <= x.ToUtc)
+            .WithMessage("fromUtc must be less than or equal to toUtc.");
+    }
+}
+
+public sealed class KeyboardExecuteNowRequestValidator : AbstractValidator<KeyboardExecuteNowRequest>
+{
+    public KeyboardExecuteNowRequestValidator()
+    {
+        RuleFor(x => x.Target).SetValidator(new KeyboardTargetRequestValidator());
+        RuleFor(x => x.Settings).SetValidator(new KeyboardSettingsRequestValidator());
+        RuleFor(x => x.Execution)
+            .Must(e => string.Equals(e.ScheduleType?.Trim(), "InstantApply", StringComparison.OrdinalIgnoreCase))
+            .WithMessage("scheduleType must be InstantApply for this endpoint.");
+    }
+}
+
+public sealed class KeyboardQueueRequestValidator : AbstractValidator<KeyboardQueueRequest>
+{
+    public KeyboardQueueRequestValidator()
+    {
+        RuleFor(x => x.Target).SetValidator(new KeyboardTargetRequestValidator());
+        RuleFor(x => x.Settings).SetValidator(new KeyboardSettingsRequestValidator());
+        RuleFor(x => x.Execution)
+            .Must(e => string.Equals(e.ScheduleType?.Trim(), "Queue", StringComparison.OrdinalIgnoreCase))
+            .WithMessage("scheduleType must be Queue for this endpoint.");
+    }
+}
+
+public sealed class KeyboardTargetRequestValidator : AbstractValidator<KeyboardTargetRequest>
+{
+    public KeyboardTargetRequestValidator()
+    {
+        RuleFor(x => x.MacAddress)
+            .NotEmpty()
+            .MaximumLength(300)
+            .Must(HaveSupportedOsSuffix)
+            .WithMessage("macAddress must include a supported suffix (:XP, :LX, :CE).");
+
+        RuleFor(x => x.OsType)
+            .NotEmpty()
+            .Must(os => os.Trim().ToUpperInvariant() is "XP" or "LX" or "CE")
+            .WithMessage("osType must be one of XP, LX, or CE.");
+
+        RuleFor(x => x)
+            .Must(x =>
+            {
+                var suffix = SystemSettingExecuteNowRequestValidator.ExtractOsSuffix(x.MacAddress);
+                return suffix is not null && suffix == x.OsType.Trim().ToUpperInvariant();
+            })
+            .WithMessage("target.osType must match macAddress suffix.");
+    }
+
+    private static bool HaveSupportedOsSuffix(string macAddress)
+    {
+        var suffix = SystemSettingExecuteNowRequestValidator.ExtractOsSuffix(macAddress);
+        return suffix is "XP" or "LX" or "CE";
+    }
+}
+
+public sealed class KeyboardSettingsRequestValidator : AbstractValidator<KeyboardSettingsRequest>
+{
+    public KeyboardSettingsRequestValidator()
+    {
+        RuleFor(x => x.Delay).GreaterThanOrEqualTo(0);
+        RuleFor(x => x.RepeatRate).InclusiveBetween(0, 31);
+        RuleFor(x => x.KeyboardLocale).NotEmpty().MaximumLength(100);
+    }
+}
+
+public sealed class KeyboardHistoryQueryValidator : AbstractValidator<KeyboardHistoryQuery>
+{
+    public KeyboardHistoryQueryValidator()
+    {
+        RuleFor(x => x.Page).GreaterThanOrEqualTo(1);
+        RuleFor(x => x.PageSize).InclusiveBetween(1, 100);
+
+        RuleFor(x => x.Status)
+            .Must(s => string.IsNullOrWhiteSpace(s) || s is "Pending" or "Delivered" or "Applied" or "Failed")
+            .WithMessage("status must be one of Pending, Delivered, Applied, Failed.");
+
+        RuleFor(x => x)
+            .Must(x => !x.FromUtc.HasValue || !x.ToUtc.HasValue || x.FromUtc <= x.ToUtc)
+            .WithMessage("fromUtc must be less than or equal to toUtc.");
     }
 }

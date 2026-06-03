@@ -13,5 +13,8 @@ public sealed class DeviceSettingsApplyLog
     public SettingsApplyStatus Status { get; set; }
     public Guid? InitiatedBy { get; set; }
     public string? Message { get; set; }
+    public Guid? TaskId { get; set; }
+    public int? LegacyTaskId { get; set; }
+    public DeviceTask? Task { get; set; }
     public DateTime CreatedUtc { get; set; } = DateTime.UtcNow;
 }

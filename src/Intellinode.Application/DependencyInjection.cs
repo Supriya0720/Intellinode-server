@@ -1,5 +1,4 @@
 using FluentValidation;
-using Intellinode.Application.Interfaces;
 using Intellinode.Application.Validators;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -9,7 +8,8 @@ public static class DependencyInjection
 {
     public static IServiceCollection AddApplication(this IServiceCollection services)
     {
-        services.AddValidatorsFromAssemblyContaining<AgentClientStatusRequestValidator>();
+        services.AddValidatorsFromAssemblyContaining<AgentClientStatusRequestValidator>(
+            filter: scan => scan.ValidatorType != typeof(SystemSettingExecutionRequestValidator));
         return services;
     }
 }

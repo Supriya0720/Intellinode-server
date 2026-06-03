@@ -1856,3 +1856,310 @@ Authorization: Bearer {{adminToken}}
 
 # Expected: 200 DeviceManagerDeviceInfoDto, or 404 DeviceNotFound if id is invalid
 
+
+### SystemSetting Compatibility APIs (Phase 1/2/3)
+
+@systemSettingMac = 00-11-22-33-44-55:XP
+
+### Phase 1 — SystemSetting Execute Now (single device)
+# @name systemSettingExecuteNow
+POST {{Intellinode.Api_HostAddress}}/api/v1/admin/systemsetting/remote-settings/execute-now
+Content-Type: application/json
+Authorization: Bearer {{adminToken}}
+
+{
+  "target": {
+    "macAddress": "{{systemSettingMac}}",
+    "osType": "XP"
+  },
+  "settings": {
+    "serverIpOrHost": "10.10.20.5",
+    "portNo": 443,
+    "heartbeatIntervalSeconds": 300,
+    "communicationType": "HTTP",
+    "clientStatus": true,
+    "groupName": "Sales",
+    "hostName": "sales-gw-01"
+  },
+  "execution": {
+    "agentAction": "0",
+    "expiryDurationSeconds": 60,
+    "moduleType": "SetRemoteSettings",
+    "moduleName": "",
+    "operation": "Update",
+    "status": "Pending",
+    "scheduleType": "InstantApply"
+  },
+  "options": {
+    "dryRun": false,
+    "returnLegacySummary": true,
+    "correlationId": "11111111-1111-1111-1111-111111111111"
+  }
+}
+
+# Expected: 200 with success=true, data.taskId, data.execution.scheduleType=InstantApply
+
+
+### Phase 2 — SystemSetting Execute Now (bulk)
+# @name systemSettingExecuteNowBulk
+POST {{Intellinode.Api_HostAddress}}/api/v1/admin/systemsetting/remote-settings/execute-now/bulk
+Content-Type: application/json
+Authorization: Bearer {{adminToken}}
+
+{
+  "targets": [
+    { "macAddress": "00-11-22-33-44-55:XP", "osType": "XP" },
+    { "macAddress": "00-11-22-33-44-66:XP", "osType": "XP" }
+  ],
+  "settings": {
+    "serverIpOrHost": "10.10.20.5",
+    "portNo": 443,
+    "heartbeatIntervalSeconds": 300,
+    "communicationType": "HTTP",
+    "clientStatus": true,
+    "groupName": "Sales",
+    "hostName": "sales-gw-01"
+  },
+  "execution": {
+    "agentAction": "0",
+    "expiryDurationSeconds": 60,
+    "moduleType": "SetRemoteSettings",
+    "moduleName": "",
+    "operation": "Update",
+    "status": "Pending",
+    "scheduleType": "InstantApply"
+  },
+  "options": {
+    "dryRun": false,
+    "returnLegacySummary": true,
+    "correlationId": "22222222-2222-2222-2222-222222222222"
+  }
+}
+
+# Expected: 200 with data.totalTargets, data.accepted, data.blocked, data.results[]
+
+
+### Phase 2 — SystemSetting Queue (execute later)
+# @name systemSettingQueue
+POST {{Intellinode.Api_HostAddress}}/api/v1/admin/systemsetting/remote-settings/queue
+Content-Type: application/json
+Authorization: Bearer {{adminToken}}
+
+{
+  "target": {
+    "macAddress": "{{systemSettingMac}}",
+    "osType": "XP"
+  },
+  "settings": {
+    "serverIpOrHost": "10.10.20.5",
+    "portNo": 443,
+    "heartbeatIntervalSeconds": 300,
+    "communicationType": "HTTP",
+    "clientStatus": true,
+    "groupName": "Sales",
+    "hostName": "sales-gw-01"
+  },
+  "execution": {
+    "agentAction": "0",
+    "expiryDurationSeconds": 60,
+    "moduleType": "SetRemoteSettings",
+    "moduleName": "",
+    "operation": "Update",
+    "status": "Pending",
+    "scheduleType": "Queue"
+  },
+  "options": {
+    "dryRun": false,
+    "returnLegacySummary": true,
+    "correlationId": "33333333-3333-3333-3333-333333333333"
+  }
+}
+
+# Expected: 200 with success=true, data.taskId, data.execution.scheduleType=Queue
+
+
+### Phase 2 — SystemSetting Template Queue
+# @name systemSettingTemplateQueue
+POST {{Intellinode.Api_HostAddress}}/api/v1/admin/systemsetting/remote-settings/template-queue
+Content-Type: application/json
+Authorization: Bearer {{adminToken}}
+
+{
+  "target": {
+    "macAddress": "{{systemSettingMac}}",
+    "osType": "XP"
+  },
+  "settings": {
+    "serverIpOrHost": "10.10.20.5",
+    "portNo": 443,
+    "heartbeatIntervalSeconds": 300,
+    "communicationType": "HTTP",
+    "clientStatus": true,
+    "groupName": "Sales",
+    "hostName": "sales-gw-01"
+  },
+  "execution": {
+    "agentAction": "0",
+    "expiryDurationSeconds": 60,
+    "moduleType": "SetRemoteSettings",
+    "moduleName": "",
+    "operation": "Update",
+    "status": "Pending",
+    "scheduleType": "QueueTemplate",
+    "templateId": 101,
+    "templateName": "BranchTemplateA"
+  },
+  "options": {
+    "dryRun": false,
+    "returnLegacySummary": true,
+    "correlationId": "44444444-4444-4444-4444-444444444444"
+  }
+}
+
+# Expected: 200 with data.execution.scheduleType=QueueTemplate and data.template populated
+
+
+### Phase 3 — SystemSetting Get Current by MAC
+# @name systemSettingGetCurrent
+GET {{Intellinode.Api_HostAddress}}/api/v1/admin/systemsetting/remote-settings/{{systemSettingMac}}
+Authorization: Bearer {{adminToken}}
+
+# Expected: 200 with current/effective SystemSetting payload for target device
+
+
+### Phase 3 — SystemSetting Apply History by MAC
+# @name systemSettingGetHistory
+GET {{Intellinode.Api_HostAddress}}/api/v1/admin/systemsetting/remote-settings/apply-history/{{systemSettingMac}}?page=1&pageSize=20
+Authorization: Bearer {{adminToken}}
+
+# Expected: 200 with paginated history items and status/timeline metadata
+
+
+### Keyboard settings APIs (PR2)
+
+@keyboardMac = 00-11-22-33-44-55:XP
+
+### Keyboard — Get current by MAC
+# @name keyboardGetCurrent
+GET {{Intellinode.Api_HostAddress}}/api/v1/admin/device-config/keyboard/{{keyboardMac}}
+Authorization: Bearer {{adminToken}}
+
+# Expected: 200 with delay/repeatRate/keyboardLocale and settingsVersion
+
+
+### Keyboard — Execute now (instant apply)
+# @name keyboardExecuteNow
+POST {{Intellinode.Api_HostAddress}}/api/v1/admin/device-config/keyboard/execute-now
+Content-Type: application/json
+Authorization: Bearer {{adminToken}}
+
+{
+  "target": {
+    "macAddress": "{{keyboardMac}}",
+    "osType": "XP"
+  },
+  "settings": {
+    "delay": 2,
+    "repeatRate": 31,
+    "keyboardLocale": "English (United States)",
+    "replaceExistingKeyboard": false
+  },
+  "execution": {
+    "agentAction": "0",
+    "scheduleType": "InstantApply"
+  },
+  "options": {
+    "dryRun": false,
+    "returnLegacySummary": true,
+    "correlationId": "33333333-3333-3333-3333-333333333333"
+  }
+}
+
+# Expected: 200 success=true, data.taskId, data.execution.scheduleType=InstantApply
+# Task: ModuleName=Keyboard, FunctionName=Now (FusionX instant apply, not InstantApply)
+
+
+### Keyboard — Queue (scheduled / execute later)
+# @name keyboardQueue
+POST {{Intellinode.Api_HostAddress}}/api/v1/admin/device-config/keyboard/queue
+Content-Type: application/json
+Authorization: Bearer {{adminToken}}
+
+{
+  "target": {
+    "macAddress": "{{keyboardMac}}",
+    "osType": "XP"
+  },
+  "settings": {
+    "delay": 2,
+    "repeatRate": 31,
+    "keyboardLocale": "English (United States)",
+    "replaceExistingKeyboard": false
+  },
+  "execution": {
+    "agentAction": "0",
+    "scheduleType": "Queue"
+  },
+  "options": {
+    "dryRun": false,
+    "returnLegacySummary": true,
+    "correlationId": "44444444-4444-4444-4444-444444444444"
+  }
+}
+
+# Expected: 200 Queue accepted; task FunctionName=Update, apply log applyMode=queued
+
+@keyboardTaskId = {{keyboardExecuteNow.response.body.data.taskId}}
+@keyboardLegacyTaskId = 1
+
+
+### Keyboard — agent ack completed
+POST {{Intellinode.Api_HostAddress}}/api/v1/agents/tasks/ack
+Content-Type: application/json
+Authorization: Bearer {{agentToken}}
+
+{
+  "acknowledgements": [
+    {
+      "taskId": "{{keyboardTaskId}}",
+      "legacyTaskId": {{keyboardLegacyTaskId}},
+      "status": "Completed"
+    }
+  ]
+}
+
+# Expected: 204 No Content; device_keyboard_settings.lastApplyStatus=Applied, pendingApply=false
+
+
+### Keyboard — agent ack failed (FusionX Reason parity)
+POST {{Intellinode.Api_HostAddress}}/api/v1/agents/tasks/ack
+Content-Type: application/json
+Authorization: Bearer {{agentToken}}
+
+{
+  "acknowledgements": [
+    {
+      "taskId": "{{keyboardTaskId}}",
+      "legacyTaskId": {{keyboardLegacyTaskId}},
+      "status": "Failed",
+      "reason": "Failed to set keyboard layout: 0x80070057"
+    }
+  ]
+}
+
+# Expected: 204 No Content; lastApplyStatus=Failed, lastApplyMessage matches reason; desired delay/locale unchanged
+
+
+### Keyboard — Apply history (all)
+# @name keyboardGetApplyHistory
+GET {{Intellinode.Api_HostAddress}}/api/v1/admin/device-config/keyboard/apply-history/{{keyboardMac}}?page=1&pageSize=20
+Authorization: Bearer {{adminToken}}
+
+# Expected: 200 with keyboard-scoped tasks + apply logs (may include task+log pairs per apply)
+
+
+### Keyboard — Apply history (failed only — FusionX UnSuccessful / Reason)
+GET {{Intellinode.Api_HostAddress}}/api/v1/admin/device-config/keyboard/apply-history/{{keyboardMac}}?status=Failed&page=1&pageSize=20
+Authorization: Bearer {{adminToken}}
+
+# Expected: after execute-now → ack Failed, items with applyStatus=Failed and message containing layout error
