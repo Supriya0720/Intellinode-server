@@ -23,7 +23,7 @@ public sealed class DeviceTreeNodeDto
 {
     public Guid Id { get; set; }
     public string NodeType { get; set; } = string.Empty;
-    [JsonPropertyName("node-name")]
+    [JsonPropertyName("nodename")]
     public string NodeName { get; set; } = string.Empty;
     public Guid? ParentId { get; set; }
     public int Depth { get; set; }
