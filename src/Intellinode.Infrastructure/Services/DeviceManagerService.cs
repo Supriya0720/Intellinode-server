@@ -319,6 +319,7 @@ public sealed class DeviceManagerService : IDeviceManagerService
                 d.ClientStatus,
                 d.EnrollmentState,
                 d.LastHeartbeatUtc,
+                d.IpAddress,
                 d.Inventory != null ? d.Inventory.HardwareJson : null))
             .ToListAsync(cancellationToken);
 
@@ -612,7 +613,8 @@ public sealed class DeviceManagerService : IDeviceManagerService
             OsPlatform = device.Os,
             IsOnline = DeviceManagerStatusHelper.IsDeviceOnline(device.IsOnline, device.ClientStatus),
             LastHeartbeatUtc = device.LastHeartbeatUtc,
-            EnrollmentState = device.EnrollmentState
+            EnrollmentState = device.EnrollmentState,
+            IpAddress = device.IpAddress
         };
     }
 
@@ -845,5 +847,6 @@ public sealed class DeviceManagerService : IDeviceManagerService
         string ClientStatus,
         EnrollmentState EnrollmentState,
         DateTime? LastHeartbeatUtc,
+        string? IpAddress,
         string? HardwareJson);
 }

@@ -34,6 +34,7 @@ public sealed class DeviceTreeNodeDto
     public int? OfflineCount { get; set; }
     public int? MaintenanceCount { get; set; }
     public string? MacAddress { get; set; }
+    public string? IpAddress { get; set; }
     public string? Status { get; set; }
     public int? BatteryPercent { get; set; }
     public string? AgentType { get; set; }
