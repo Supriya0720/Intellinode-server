@@ -235,6 +235,50 @@ public interface IKeyboardSettingsService
         CancellationToken cancellationToken = default);
 }
 
+public interface IMouseSettingsService
+{
+    Task<MouseExecuteNowResult> ExecuteNowAsync(
+        MouseExecuteNowRequest request,
+        Guid? adminId = null,
+        CancellationToken cancellationToken = default);
+
+    Task<MouseQueueResult> QueueAsync(
+        MouseQueueRequest request,
+        Guid? adminId = null,
+        CancellationToken cancellationToken = default);
+
+    Task<MouseCurrentResult> GetCurrentAsync(
+        string macAddress,
+        CancellationToken cancellationToken = default);
+
+    Task<MouseHistoryResult> GetApplyHistoryAsync(
+        string macAddress,
+        MouseHistoryQuery query,
+        CancellationToken cancellationToken = default);
+}
+
+public interface IDisplaySettingsService
+{
+    Task<DisplayExecuteNowResult> ExecuteNowAsync(
+        DisplayExecuteNowRequest request,
+        Guid? adminId = null,
+        CancellationToken cancellationToken = default);
+
+    Task<DisplayQueueResult> QueueAsync(
+        DisplayQueueRequest request,
+        Guid? adminId = null,
+        CancellationToken cancellationToken = default);
+
+    Task<DisplayCurrentResult> GetCurrentAsync(
+        string macAddress,
+        CancellationToken cancellationToken = default);
+
+    Task<DisplayHistoryResult> GetApplyHistoryAsync(
+        string macAddress,
+        DisplayHistoryQuery query,
+        CancellationToken cancellationToken = default);
+}
+
 public interface IEffectiveAgentSettingsResolver
 {
     Task<EffectiveAgentSettings> ResolveEffectiveGeneralAsync(Guid deviceId, CancellationToken cancellationToken = default);

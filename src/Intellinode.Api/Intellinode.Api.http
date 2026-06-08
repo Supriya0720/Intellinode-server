@@ -2163,3 +2163,91 @@ GET {{Intellinode.Api_HostAddress}}/api/v1/admin/device-config/keyboard/apply-hi
 Authorization: Bearer {{adminToken}}
 
 # Expected: after execute-now → ack Failed, items with applyStatus=Failed and message containing layout error
+
+
+### Mouse settings APIs
+
+@mouseMac = 00-11-22-33-44-55:XP
+
+### Mouse — Get current by MAC
+GET {{Intellinode.Api_HostAddress}}/api/v1/admin/device-config/mouse/{{mouseMac}}
+Authorization: Bearer {{adminToken}}
+
+### Mouse — Execute now (instant apply)
+POST {{Intellinode.Api_HostAddress}}/api/v1/admin/device-config/mouse/execute-now
+Content-Type: application/json
+Authorization: Bearer {{adminToken}}
+
+{
+  "target": { "macAddress": "{{mouseMac}}", "osType": "XP" },
+  "settings": { "swap": false, "pointerSpeed": 10, "doubleClickSpeed": 500 },
+  "execution": { "agentAction": "0", "scheduleType": "InstantApply" },
+  "options": { "dryRun": false, "returnLegacySummary": true, "correlationId": null }
+}
+
+# Task: ModuleName=Mouse, FunctionName=Now
+
+### Mouse — Queue
+POST {{Intellinode.Api_HostAddress}}/api/v1/admin/device-config/mouse/queue
+Content-Type: application/json
+Authorization: Bearer {{adminToken}}
+
+{
+  "target": { "macAddress": "{{mouseMac}}", "osType": "XP" },
+  "settings": { "swap": false, "pointerSpeed": 10, "doubleClickSpeed": 500 },
+  "execution": { "agentAction": "0", "scheduleType": "Queue" },
+  "options": { "dryRun": false, "returnLegacySummary": true, "correlationId": null }
+}
+
+### Mouse — Apply history
+GET {{Intellinode.Api_HostAddress}}/api/v1/admin/device-config/mouse/apply-history/{{mouseMac}}?page=1&pageSize=20
+Authorization: Bearer {{adminToken}}
+
+
+### Display settings APIs
+
+@displayMac = 00-11-22-33-44-55:XP
+
+### Display — Get current by MAC
+GET {{Intellinode.Api_HostAddress}}/api/v1/admin/device-config/display/{{displayMac}}
+Authorization: Bearer {{adminToken}}
+
+### Display — Execute now (instant apply)
+POST {{Intellinode.Api_HostAddress}}/api/v1/admin/device-config/display/execute-now
+Content-Type: application/json
+Authorization: Bearer {{adminToken}}
+
+{
+  "target": { "macAddress": "{{displayMac}}", "osType": "XP" },
+  "settings": {
+    "resolution": "1. 1920 x 1080 59 Hz True Color",
+    "colorDepth": "True Color (32-bit)",
+    "dualDisplayOption": "Extend",
+    "secondaryRotation": "0"
+  },
+  "execution": { "agentAction": "0", "scheduleType": "InstantApply" },
+  "options": { "dryRun": false, "returnLegacySummary": true, "correlationId": null }
+}
+
+# Task: ModuleName=Display, FunctionName=Now
+
+### Display — Queue
+POST {{Intellinode.Api_HostAddress}}/api/v1/admin/device-config/display/queue
+Content-Type: application/json
+Authorization: Bearer {{adminToken}}
+
+{
+  "target": { "macAddress": "{{displayMac}}", "osType": "XP" },
+  "settings": {
+    "resolution": "1. 1920 x 1080 59 Hz True Color",
+    "colorDepth": "True Color (32-bit)",
+    "dualDisplayOption": "Extend",
+    "secondaryRotation": "0"
+  },
+  "execution": { "agentAction": "0", "scheduleType": "Queue" },
+  "options": { "dryRun": false, "returnLegacySummary": true, "correlationId": null }
+}
+
+### Display — Apply history
+GET {{Intellinode.Api_HostAddress}}/api/v1/admin/device-config/display/apply-history/{{displayMac}}?page=1&pageSize=20
+Authorization: Bearer {{adminToken}}

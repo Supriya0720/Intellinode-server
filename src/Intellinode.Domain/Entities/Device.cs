@@ -49,5 +49,7 @@ public class Device
     public DeviceInventory? Inventory { get; set; }
     public DeviceRemoteSettings? RemoteSettings { get; set; }
     public DeviceKeyboardSettings? KeyboardSettings { get; set; }
+    public DeviceMouseSettings? MouseSettings { get; set; }
+    public DeviceDisplaySettings? DisplaySettings { get; set; }
     public DeviceAgentAdvancedSettings? AgentAdvancedSettings { get; set; }
 }

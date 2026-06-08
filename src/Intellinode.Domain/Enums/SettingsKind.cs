@@ -5,5 +5,9 @@ public enum SettingsKind
     General,
     Advanced,
     /// <summary>FusionX ModuleType "Keyboard".</summary>
-    Keyboard
+    Keyboard,
+    /// <summary>FusionX ModuleType "Mouse".</summary>
+    Mouse,
+    /// <summary>FusionX ModuleType "Display".</summary>
+    Display
 }

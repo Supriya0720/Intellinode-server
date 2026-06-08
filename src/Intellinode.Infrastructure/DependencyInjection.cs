@@ -19,6 +19,8 @@ public static class DependencyInjection
         services.Configure<AgentDiscoveryOptions>(configuration.GetSection(AgentDiscoveryOptions.SectionName));
         services.Configure<SystemSettingOptions>(configuration.GetSection(SystemSettingOptions.SectionName));
         services.Configure<KeyboardOptions>(configuration.GetSection(KeyboardOptions.SectionName));
+        services.Configure<MouseOptions>(configuration.GetSection(MouseOptions.SectionName));
+        services.Configure<DisplayOptions>(configuration.GetSection(DisplayOptions.SectionName));
 
         var connectionString = configuration.GetConnectionString("DefaultConnection")
             ?? throw new InvalidOperationException("Connection string 'DefaultConnection' is not configured.");
@@ -51,12 +53,16 @@ public static class DependencyInjection
         services.AddScoped<IAgentCommunicationLogWriter, AgentCommunicationLogWriter>();
         services.AddScoped<IExceptionLogWriter, ExceptionLogWriter>();
         services.AddScoped<KeyboardTaskAckHandler>();
+        services.AddScoped<MouseTaskAckHandler>();
+        services.AddScoped<DisplayTaskAckHandler>();
         services.AddScoped<IAgentTaskService, AgentTaskService>();
         services.AddScoped<IDeviceRemoteSettingsService, DeviceRemoteSettingsService>();
         services.AddScoped<IDeviceAgentAdvancedSettingsService, DeviceAgentAdvancedSettingsService>();
         services.AddScoped<IGroupRemoteSettingsService, GroupRemoteSettingsService>();
         services.AddScoped<ISystemSettingService, SystemSettingService>();
         services.AddScoped<IKeyboardSettingsService, KeyboardSettingsService>();
+        services.AddScoped<IMouseSettingsService, MouseSettingsService>();
+        services.AddScoped<IDisplaySettingsService, DisplaySettingsService>();
         services.AddScoped<EffectiveAgentSettingsResolver>();
         services.AddScoped<IEffectiveAgentSettingsResolver>(sp => sp.GetRequiredService<EffectiveAgentSettingsResolver>());
         services.AddSingleton<ITokenService, TokenService>();

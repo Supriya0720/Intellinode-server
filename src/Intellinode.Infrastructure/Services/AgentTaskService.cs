@@ -17,15 +17,21 @@ public sealed class AgentTaskService : IAgentTaskService
 
     private readonly IntellinodeDbContext _dbContext;
     private readonly KeyboardTaskAckHandler _keyboardTaskAckHandler;
+    private readonly MouseTaskAckHandler _mouseTaskAckHandler;
+    private readonly DisplayTaskAckHandler _displayTaskAckHandler;
     private readonly ILogger<AgentTaskService> _logger;
 
     public AgentTaskService(
         IntellinodeDbContext dbContext,
         KeyboardTaskAckHandler keyboardTaskAckHandler,
+        MouseTaskAckHandler mouseTaskAckHandler,
+        DisplayTaskAckHandler displayTaskAckHandler,
         ILogger<AgentTaskService> logger)
     {
         _dbContext = dbContext;
         _keyboardTaskAckHandler = keyboardTaskAckHandler;
+        _mouseTaskAckHandler = mouseTaskAckHandler;
+        _displayTaskAckHandler = displayTaskAckHandler;
         _logger = logger;
     }
 
@@ -64,6 +70,8 @@ public sealed class AgentTaskService : IAgentTaskService
         var device = await _dbContext.Devices
             .Include(d => d.Tasks)
             .Include(d => d.KeyboardSettings)
+            .Include(d => d.MouseSettings)
+            .Include(d => d.DisplaySettings)
             .FirstOrDefaultAsync(d => d.Id == deviceId, cancellationToken);
 
         if (device is null)
@@ -86,6 +94,26 @@ public sealed class AgentTaskService : IAgentTaskService
             if (KeyboardTaskAckHandler.IsKeyboardTask(task))
             {
                 await _keyboardTaskAckHandler.ApplyAckAsync(
+                    device,
+                    task,
+                    status,
+                    ack.Reason,
+                    cancellationToken);
+            }
+
+            if (MouseTaskAckHandler.IsMouseTask(task))
+            {
+                await _mouseTaskAckHandler.ApplyAckAsync(
+                    device,
+                    task,
+                    status,
+                    ack.Reason,
+                    cancellationToken);
+            }
+
+            if (DisplayTaskAckHandler.IsDisplayTask(task))
+            {
+                await _displayTaskAckHandler.ApplyAckAsync(
                     device,
                     task,
                     status,
