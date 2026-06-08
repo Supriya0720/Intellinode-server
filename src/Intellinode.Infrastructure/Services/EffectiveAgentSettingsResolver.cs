@@ -289,7 +289,9 @@ public sealed class EffectiveAgentSettingsResolver : IEffectiveAgentSettingsReso
         SettingsApplyStatus status,
         Guid? adminId,
         string? message,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        Guid? taskId = null,
+        int? legacyTaskId = null)
     {
         _dbContext.DeviceSettingsApplyLogs.Add(new DeviceSettingsApplyLog
         {
@@ -300,6 +302,8 @@ public sealed class EffectiveAgentSettingsResolver : IEffectiveAgentSettingsReso
             Status = status,
             InitiatedBy = adminId,
             Message = message,
+            TaskId = taskId,
+            LegacyTaskId = legacyTaskId,
             CreatedUtc = DateTime.UtcNow
         });
 

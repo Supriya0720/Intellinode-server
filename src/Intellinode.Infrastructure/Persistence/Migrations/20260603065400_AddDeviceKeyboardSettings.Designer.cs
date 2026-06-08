@@ -4,6 +4,7 @@ using Intellinode.Domain.Enums;
 using Intellinode.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -12,9 +13,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace Intellinode.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(IntellinodeDbContext))]
-    partial class IntellinodeDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260603065400_AddDeviceKeyboardSettings")]
+    partial class AddDeviceKeyboardSettings
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -28,7 +31,7 @@ namespace Intellinode.Infrastructure.Persistence.Migrations
             NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "enrollment_state", "intellinode", new[] { "PendingInventory", "Active", "Unlicensed", "Disabled", "PendingApproval", "Rejected" });
             NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "heartbeat_binding_kind", "intellinode", new[] { "IpAddress", "HostName" });
             NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "settings_apply_status", "intellinode", new[] { "Pending", "Delivered", "Applied", "Failed" });
-            NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "settings_kind", "intellinode", new[] { "General", "Advanced", "Keyboard", "Mouse", "Display" });
+            NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "settings_kind", "intellinode", new[] { "General", "Advanced", "Keyboard" });
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
             modelBuilder.Entity("Intellinode.Domain.Entities.AdminUser", b =>
@@ -717,165 +720,6 @@ namespace Intellinode.Infrastructure.Persistence.Migrations
 
                             t.HasCheckConstraint("ck_device_keyboard_settings_repeat_rate", "repeat_rate >= 0");
                         });
-                });
-
-            modelBuilder.Entity("Intellinode.Domain.Entities.DeviceMouseSettings", b =>
-                {
-                    b.Property<Guid>("DeviceId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("device_id");
-
-                    b.Property<DateTime>("CreatedUtc")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("created_utc");
-
-                    b.Property<int>("DoubleClickSpeed")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer")
-                        .HasDefaultValue(0)
-                        .HasColumnName("double_click_speed");
-
-                    b.Property<DateTime?>("LastAppliedUtc")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("last_applied_utc");
-
-                    b.Property<long?>("LastAppliedVersion")
-                        .HasColumnType("bigint")
-                        .HasColumnName("last_applied_version");
-
-                    b.Property<string>("LastApplyMessage")
-                        .HasMaxLength(500)
-                        .HasColumnType("character varying(500)")
-                        .HasColumnName("last_apply_message");
-
-                    b.Property<string>("LastApplyStatus")
-                        .HasMaxLength(32)
-                        .HasColumnType("character varying(32)")
-                        .HasColumnName("last_apply_status");
-
-                    b.Property<bool>("PendingApply")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("boolean")
-                        .HasDefaultValue(false)
-                        .HasColumnName("pending_apply");
-
-                    b.Property<int>("PointerSpeed")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer")
-                        .HasDefaultValue(0)
-                        .HasColumnName("pointer_speed");
-
-                    b.Property<long>("SettingsVersion")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("bigint")
-                        .HasDefaultValue(1L)
-                        .HasColumnName("settings_version");
-
-                    b.Property<bool>("Swap")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("boolean")
-                        .HasDefaultValue(false)
-                        .HasColumnName("swap");
-
-                    b.Property<Guid?>("UpdatedBy")
-                        .HasColumnType("uuid")
-                        .HasColumnName("updated_by");
-
-                    b.Property<DateTime>("UpdatedUtc")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("updated_utc");
-
-                    b.HasKey("DeviceId")
-                        .HasName("pk_device_mouse_settings");
-
-                    b.ToTable("device_mouse_settings", "intellinode", t =>
-                        {
-                            t.HasCheckConstraint("ck_device_mouse_settings_double_click_speed", "double_click_speed >= 0");
-
-                            t.HasCheckConstraint("ck_device_mouse_settings_pointer_speed", "pointer_speed >= 0");
-                        });
-                });
-
-            modelBuilder.Entity("Intellinode.Domain.Entities.DeviceDisplaySettings", b =>
-                {
-                    b.Property<Guid>("DeviceId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("device_id");
-
-                    b.Property<string>("ColorDepth")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("character varying(200)")
-                        .HasColumnName("color_depth");
-
-                    b.Property<DateTime>("CreatedUtc")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("created_utc");
-
-                    b.Property<string>("DualDisplayOption")
-                        .IsRequired()
-                        .ValueGeneratedOnAdd()
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)")
-                        .HasDefaultValue("")
-                        .HasColumnName("dual_display_option");
-
-                    b.Property<DateTime?>("LastAppliedUtc")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("last_applied_utc");
-
-                    b.Property<long?>("LastAppliedVersion")
-                        .HasColumnType("bigint")
-                        .HasColumnName("last_applied_version");
-
-                    b.Property<string>("LastApplyMessage")
-                        .HasMaxLength(500)
-                        .HasColumnType("character varying(500)")
-                        .HasColumnName("last_apply_message");
-
-                    b.Property<string>("LastApplyStatus")
-                        .HasMaxLength(32)
-                        .HasColumnType("character varying(32)")
-                        .HasColumnName("last_apply_status");
-
-                    b.Property<bool>("PendingApply")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("boolean")
-                        .HasDefaultValue(false)
-                        .HasColumnName("pending_apply");
-
-                    b.Property<string>("Resolution")
-                        .IsRequired()
-                        .HasMaxLength(500)
-                        .HasColumnType("character varying(500)")
-                        .HasColumnName("resolution");
-
-                    b.Property<string>("SecondaryRotation")
-                        .IsRequired()
-                        .ValueGeneratedOnAdd()
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)")
-                        .HasDefaultValue("")
-                        .HasColumnName("secondary_rotation");
-
-                    b.Property<long>("SettingsVersion")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("bigint")
-                        .HasDefaultValue(1L)
-                        .HasColumnName("settings_version");
-
-                    b.Property<Guid?>("UpdatedBy")
-                        .HasColumnType("uuid")
-                        .HasColumnName("updated_by");
-
-                    b.Property<DateTime>("UpdatedUtc")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("updated_utc");
-
-                    b.HasKey("DeviceId")
-                        .HasName("pk_device_display_settings");
-
-                    b.ToTable("device_display_settings", "intellinode");
                 });
 
             modelBuilder.Entity("Intellinode.Domain.Entities.DeviceRemoteSettings", b =>
@@ -1711,30 +1555,6 @@ namespace Intellinode.Infrastructure.Persistence.Migrations
                     b.Navigation("Device");
                 });
 
-            modelBuilder.Entity("Intellinode.Domain.Entities.DeviceMouseSettings", b =>
-                {
-                    b.HasOne("Intellinode.Domain.Entities.Device", "Device")
-                        .WithOne("MouseSettings")
-                        .HasForeignKey("Intellinode.Domain.Entities.DeviceMouseSettings", "DeviceId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired()
-                        .HasConstraintName("fk_device_mouse_settings_devices_device_id");
-
-                    b.Navigation("Device");
-                });
-
-            modelBuilder.Entity("Intellinode.Domain.Entities.DeviceDisplaySettings", b =>
-                {
-                    b.HasOne("Intellinode.Domain.Entities.Device", "Device")
-                        .WithOne("DisplaySettings")
-                        .HasForeignKey("Intellinode.Domain.Entities.DeviceDisplaySettings", "DeviceId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired()
-                        .HasConstraintName("fk_device_display_settings_devices_device_id");
-
-                    b.Navigation("Device");
-                });
-
             modelBuilder.Entity("Intellinode.Domain.Entities.DeviceRemoteSettings", b =>
                 {
                     b.HasOne("Intellinode.Domain.Entities.Device", "Device")
@@ -1872,10 +1692,6 @@ namespace Intellinode.Infrastructure.Persistence.Migrations
                     b.Navigation("Inventory");
 
                     b.Navigation("KeyboardSettings");
-
-                    b.Navigation("MouseSettings");
-
-                    b.Navigation("DisplaySettings");
 
                     b.Navigation("RefreshTokens");
 

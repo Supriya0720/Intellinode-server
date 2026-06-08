@@ -181,6 +181,104 @@ public interface IGroupRemoteSettingsService
     Task<PropagateGroupSettingsResponse?> PropagatePendingApplyAsync(Guid groupId, Guid? adminId = null, CancellationToken cancellationToken = default);
 }
 
+public interface ISystemSettingService
+{
+    Task<SystemSettingExecuteNowResult> ExecuteNowAsync(
+        SystemSettingExecuteNowRequest request,
+        Guid? adminId = null,
+        CancellationToken cancellationToken = default);
+
+    Task<SystemSettingBulkResult> ExecuteNowBulkAsync(
+        SystemSettingExecuteNowBulkRequest request,
+        Guid? adminId = null,
+        CancellationToken cancellationToken = default);
+
+    Task<SystemSettingQueueResult> QueueAsync(
+        SystemSettingQueueRequest request,
+        Guid? adminId = null,
+        CancellationToken cancellationToken = default);
+
+    Task<SystemSettingQueueResult> TemplateQueueAsync(
+        SystemSettingTemplateQueueRequest request,
+        Guid? adminId = null,
+        CancellationToken cancellationToken = default);
+
+    Task<SystemSettingCurrentResult> GetCurrentAsync(
+        string macAddress,
+        CancellationToken cancellationToken = default);
+
+    Task<SystemSettingHistoryResult> GetApplyHistoryAsync(
+        string macAddress,
+        SystemSettingHistoryQuery query,
+        CancellationToken cancellationToken = default);
+}
+
+public interface IKeyboardSettingsService
+{
+    Task<KeyboardExecuteNowResult> ExecuteNowAsync(
+        KeyboardExecuteNowRequest request,
+        Guid? adminId = null,
+        CancellationToken cancellationToken = default);
+
+    Task<KeyboardQueueResult> QueueAsync(
+        KeyboardQueueRequest request,
+        Guid? adminId = null,
+        CancellationToken cancellationToken = default);
+
+    Task<KeyboardCurrentResult> GetCurrentAsync(
+        string macAddress,
+        CancellationToken cancellationToken = default);
+
+    Task<KeyboardHistoryResult> GetApplyHistoryAsync(
+        string macAddress,
+        KeyboardHistoryQuery query,
+        CancellationToken cancellationToken = default);
+}
+
+public interface IMouseSettingsService
+{
+    Task<MouseExecuteNowResult> ExecuteNowAsync(
+        MouseExecuteNowRequest request,
+        Guid? adminId = null,
+        CancellationToken cancellationToken = default);
+
+    Task<MouseQueueResult> QueueAsync(
+        MouseQueueRequest request,
+        Guid? adminId = null,
+        CancellationToken cancellationToken = default);
+
+    Task<MouseCurrentResult> GetCurrentAsync(
+        string macAddress,
+        CancellationToken cancellationToken = default);
+
+    Task<MouseHistoryResult> GetApplyHistoryAsync(
+        string macAddress,
+        MouseHistoryQuery query,
+        CancellationToken cancellationToken = default);
+}
+
+public interface IDisplaySettingsService
+{
+    Task<DisplayExecuteNowResult> ExecuteNowAsync(
+        DisplayExecuteNowRequest request,
+        Guid? adminId = null,
+        CancellationToken cancellationToken = default);
+
+    Task<DisplayQueueResult> QueueAsync(
+        DisplayQueueRequest request,
+        Guid? adminId = null,
+        CancellationToken cancellationToken = default);
+
+    Task<DisplayCurrentResult> GetCurrentAsync(
+        string macAddress,
+        CancellationToken cancellationToken = default);
+
+    Task<DisplayHistoryResult> GetApplyHistoryAsync(
+        string macAddress,
+        DisplayHistoryQuery query,
+        CancellationToken cancellationToken = default);
+}
+
 public interface IEffectiveAgentSettingsResolver
 {
     Task<EffectiveAgentSettings> ResolveEffectiveGeneralAsync(Guid deviceId, CancellationToken cancellationToken = default);

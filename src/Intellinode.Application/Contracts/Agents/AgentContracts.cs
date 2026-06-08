@@ -225,6 +225,9 @@ public sealed class AgentTaskAckRequest
     public Guid? TaskId { get; set; }
     public string Status { get; set; } = string.Empty;
     public string? AckCode { get; set; }
+
+    /// <summary>FusionX Task_Schedule_Logs.Reason when status is Failed.</summary>
+    public string? Reason { get; set; }
 }
 
 public sealed class AgentTaskAckBatchRequest

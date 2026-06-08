@@ -25,6 +25,9 @@ public sealed class IntellinodeDbContext : DbContext, IIntellinodeDbContext
     public DbSet<AdminUser> AdminUsers => Set<AdminUser>();
     public DbSet<TenantAgentDefaults> TenantAgentDefaults => Set<TenantAgentDefaults>();
     public DbSet<DeviceRemoteSettings> DeviceRemoteSettings => Set<DeviceRemoteSettings>();
+    public DbSet<DeviceKeyboardSettings> DeviceKeyboardSettings => Set<DeviceKeyboardSettings>();
+    public DbSet<DeviceMouseSettings> DeviceMouseSettings => Set<DeviceMouseSettings>();
+    public DbSet<DeviceDisplaySettings> DeviceDisplaySettings => Set<DeviceDisplaySettings>();
     public DbSet<DeviceAgentAdvancedSettings> DeviceAgentAdvancedSettings => Set<DeviceAgentAdvancedSettings>();
     public DbSet<GroupRemoteSettings> GroupRemoteSettings => Set<GroupRemoteSettings>();
     public DbSet<GroupAgentAdvancedSettings> GroupAgentAdvancedSettings => Set<GroupAgentAdvancedSettings>();
@@ -65,7 +68,7 @@ public sealed class IntellinodeDbContext : DbContext, IIntellinodeDbContext
             modelBuilder,
             "settings_kind",
             SchemaName,
-            ["General", "Advanced"]);
+            ["General", "Advanced", "Keyboard", "Mouse", "Display"]);
         NpgsqlModelBuilderExtensions.HasPostgresEnum(
             modelBuilder,
             "settings_apply_status",
@@ -228,6 +231,70 @@ public sealed class IntellinodeDbContext : DbContext, IIntellinodeDbContext
                 .OnDelete(DeleteBehavior.Cascade);
         });
 
+        modelBuilder.Entity<DeviceKeyboardSettings>(entity =>
+        {
+            entity.ToTable("device_keyboard_settings");
+            entity.HasKey(x => x.DeviceId);
+            entity.Property(x => x.KeyboardLocale).HasMaxLength(100);
+            entity.Property(x => x.LastApplyStatus).HasMaxLength(32);
+            entity.Property(x => x.LastApplyMessage).HasMaxLength(500);
+            entity.Property(x => x.Delay).HasDefaultValue(0);
+            entity.Property(x => x.RepeatRate).HasDefaultValue(0);
+            entity.Property(x => x.SettingsVersion).HasDefaultValue(1L);
+            entity.Property(x => x.PendingApply).HasDefaultValue(false);
+            entity.ToTable(t => t.HasCheckConstraint(
+                "ck_device_keyboard_settings_delay",
+                "delay >= 0"));
+            entity.ToTable(t => t.HasCheckConstraint(
+                "ck_device_keyboard_settings_repeat_rate",
+                "repeat_rate >= 0"));
+            entity.HasOne(x => x.Device)
+                .WithOne(x => x.KeyboardSettings)
+                .HasForeignKey<DeviceKeyboardSettings>(x => x.DeviceId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<DeviceMouseSettings>(entity =>
+        {
+            entity.ToTable("device_mouse_settings");
+            entity.HasKey(x => x.DeviceId);
+            entity.Property(x => x.LastApplyStatus).HasMaxLength(32);
+            entity.Property(x => x.LastApplyMessage).HasMaxLength(500);
+            entity.Property(x => x.Swap).HasDefaultValue(false);
+            entity.Property(x => x.PointerSpeed).HasDefaultValue(0);
+            entity.Property(x => x.DoubleClickSpeed).HasDefaultValue(0);
+            entity.Property(x => x.SettingsVersion).HasDefaultValue(1L);
+            entity.Property(x => x.PendingApply).HasDefaultValue(false);
+            entity.ToTable(t => t.HasCheckConstraint(
+                "ck_device_mouse_settings_pointer_speed",
+                "pointer_speed >= 0"));
+            entity.ToTable(t => t.HasCheckConstraint(
+                "ck_device_mouse_settings_double_click_speed",
+                "double_click_speed >= 0"));
+            entity.HasOne(x => x.Device)
+                .WithOne(x => x.MouseSettings)
+                .HasForeignKey<DeviceMouseSettings>(x => x.DeviceId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<DeviceDisplaySettings>(entity =>
+        {
+            entity.ToTable("device_display_settings");
+            entity.HasKey(x => x.DeviceId);
+            entity.Property(x => x.Resolution).HasMaxLength(500);
+            entity.Property(x => x.ColorDepth).HasMaxLength(200);
+            entity.Property(x => x.DualDisplayOption).HasMaxLength(100).HasDefaultValue(string.Empty);
+            entity.Property(x => x.SecondaryRotation).HasMaxLength(50).HasDefaultValue(string.Empty);
+            entity.Property(x => x.LastApplyStatus).HasMaxLength(32);
+            entity.Property(x => x.LastApplyMessage).HasMaxLength(500);
+            entity.Property(x => x.SettingsVersion).HasDefaultValue(1L);
+            entity.Property(x => x.PendingApply).HasDefaultValue(false);
+            entity.HasOne(x => x.Device)
+                .WithOne(x => x.DisplaySettings)
+                .HasForeignKey<DeviceDisplaySettings>(x => x.DeviceId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
         modelBuilder.Entity<DeviceAgentAdvancedSettings>(entity =>
         {
             entity.ToTable("device_agent_advanced_settings");
@@ -333,10 +400,15 @@ public sealed class IntellinodeDbContext : DbContext, IIntellinodeDbContext
             entity.Property(x => x.Status).HasColumnType("intellinode.settings_apply_status");
             entity.HasIndex(x => new { x.DeviceId, x.CreatedUtc })
                 .IsDescending(false, true);
+            entity.HasIndex(x => x.TaskId);
             entity.HasOne(x => x.Device)
                 .WithMany()
                 .HasForeignKey(x => x.DeviceId)
                 .OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(x => x.Task)
+                .WithMany()
+                .HasForeignKey(x => x.TaskId)
+                .OnDelete(DeleteBehavior.SetNull);
         });
 
         modelBuilder.Entity<DiscoverLookup>(entity =>
