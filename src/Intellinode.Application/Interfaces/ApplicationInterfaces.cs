@@ -326,6 +326,46 @@ public interface IWindows8021xTaskPayloadHydrator
         CancellationToken cancellationToken = default);
 }
 
+public interface IWindowsComputerNamePayloadBuilder
+{
+    string BuildHostRenamePayload(WindowsComputerNameHostRenamePayloadRequest request);
+    string BuildDomainJoinPayload(WindowsComputerNameDomainJoinPayloadRequest request);
+    string GetModuleNameForApplyMode(ComputerNameApplyMode mode);
+}
+
+public interface IWindowsComputerNameSettingsService
+{
+    Task<WindowsComputerNameExecuteNowResult> ExecuteNowAsync(
+        WindowsComputerNameExecuteNowRequest request,
+        Guid? adminId = null,
+        CancellationToken cancellationToken = default);
+
+    Task<WindowsComputerNameQueueResult> QueueAsync(
+        WindowsComputerNameQueueRequest request,
+        Guid? adminId = null,
+        CancellationToken cancellationToken = default);
+
+    Task<WindowsComputerNameCurrentResult> GetCurrentAsync(
+        string macAddress,
+        CancellationToken cancellationToken = default);
+
+    Task<WindowsComputerNameHistoryResult> GetApplyHistoryAsync(
+        string macAddress,
+        WindowsComputerNameHistoryQuery query,
+        CancellationToken cancellationToken = default);
+
+    Task<WindowsComputerNameBulkResult> ExecuteNowBulkAsync(
+        WindowsComputerNameExecuteNowBulkRequest request,
+        Guid? adminId = null,
+        CancellationToken cancellationToken = default);
+
+    Task<WindowsComputerNameBulkResult> ExecuteNowGroupAsync(
+        Guid groupId,
+        WindowsComputerNameExecuteNowGroupRequest request,
+        Guid? adminId = null,
+        CancellationToken cancellationToken = default);
+}
+
 public interface IIntellinodeDbContext
 {
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);

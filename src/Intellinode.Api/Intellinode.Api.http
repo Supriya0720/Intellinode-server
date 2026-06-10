@@ -2416,3 +2416,321 @@ Authorization: Bearer {{adminToken}}
 }
 
 # Expected: 400 ValidationFailed — macAddress must include :XP suffix (Windows only in v1)
+
+
+### Windows Computer Name APIs (Windows :XP only, v1)
+
+# Prerequisite: device enrolled with MAC suffix :XP and admin logged in (@adminToken).
+# Inline JSON in functionParameter (Keyboard parity — NOT compact ref like 802.1X above).
+# Two FusionX module names: Host Name (host rename) and DomainSettings (domain/workgroup join).
+# Pending tasks are independent per module — a pending Host Name task does not block DomainSettings.
+# GET current redacts password as ******** (write-only; agent payload still includes password).
+# Task pipeline: FunctionName=Now (instant) / Update (queued), ExtraData signal suffix CN.
+
+@compNameMac = 00-11-22-33-44-55:XP
+
+### Windows Computer Name — Get current by MAC (password redacted)
+# @name compNameGetCurrent
+GET {{Intellinode.Api_HostAddress}}/api/v1/admin/device-config/windows-computer-name/{{compNameMac}}
+Authorization: Bearer {{adminToken}}
+
+# Expected: 200 with data.settings.applyMode, hostName, settingsVersion, password=******** when stored
+
+
+### Windows Computer Name — Execute now (host rename)
+# @name compNameExecuteNowHostRename
+POST {{Intellinode.Api_HostAddress}}/api/v1/admin/device-config/windows-computer-name/execute-now
+Content-Type: application/json
+Authorization: Bearer {{adminToken}}
+
+{
+  "target": {
+    "macAddress": "{{compNameMac}}",
+    "osType": "XP"
+  },
+  "settings": {
+    "applyMode": "HostRename",
+    "hostName": "CORP-PC-01"
+  },
+  "execution": {
+    "agentAction": "0",
+    "scheduleType": "InstantApply"
+  },
+  "options": {
+    "dryRun": false,
+    "returnLegacySummary": true,
+    "correlationId": "77777777-7777-7777-7777-777777777777"
+  }
+}
+
+# Expected: 200 success=true, data.taskId, data.execution.scheduleType=InstantApply
+# Task: ModuleName=Host Name, FunctionName=Now, functionParameter=full WinCELinux.WindowsComputerNameSettings JSON (~300 chars)
+
+@compNameHostTaskId = {{compNameExecuteNowHostRename.response.body.data.taskId}}
+@compNameHostLegacyTaskId = 1
+
+
+### Windows Computer Name — Execute now (domain join)
+# @name compNameExecuteNowDomainJoin
+POST {{Intellinode.Api_HostAddress}}/api/v1/admin/device-config/windows-computer-name/execute-now
+Content-Type: application/json
+Authorization: Bearer {{adminToken}}
+
+{
+  "target": {
+    "macAddress": "{{compNameMac}}",
+    "osType": "XP"
+  },
+  "settings": {
+    "applyMode": 1,
+    "isDomainJoin": true,
+    "hostName": "CORP-PC-01",
+    "domain": "corp.example.com",
+    "userName": "jsmith",
+    "password": "P@ssw0rd!2024",
+    "organizationalUnit": "OU=Devices,DC=corp,DC=local"
+  },
+  "execution": {
+    "agentAction": "0",
+    "scheduleType": "InstantApply"
+  },
+  "options": {
+    "dryRun": false,
+    "returnLegacySummary": true,
+    "correlationId": "88888888-8888-8888-8888-888888888888"
+  }
+}
+
+# Expected: 200 success=true; task ModuleName=DomainSettings, WindowsDomainSettings wrapper, IsDomainWorkgroup="True"
+
+@compNameDomainTaskId = {{compNameExecuteNowDomainJoin.response.body.data.taskId}}
+@compNameDomainLegacyTaskId = 2
+
+
+### Windows Computer Name — Queue (scheduled / execute later)
+# @name compNameQueue
+POST {{Intellinode.Api_HostAddress}}/api/v1/admin/device-config/windows-computer-name/queue
+Content-Type: application/json
+Authorization: Bearer {{adminToken}}
+
+{
+  "target": {
+    "macAddress": "DE-AD-BE-EF-00-66:XP",
+    "osType": "XP"
+  },
+  "settings": {
+    "applyMode": 1,
+    "isDomainJoin": true,
+    "hostName": "CORP-PC-01",
+    "domain": "corp.example.com",
+    "userName": "jsmith",
+    "password": "P@ssw0rd!2024",
+    "organizationalUnit": "OU=Devices,DC=corp,DC=local"
+  },
+  "execution": {
+    "agentAction": "0",
+    "scheduleType": "Queue"
+  },
+  "options": {
+    "dryRun": false,
+    "returnLegacySummary": true,
+    "correlationId": "99999999-9999-9999-9999-999999999999"
+  }
+}
+
+# Expected: 200 Queue accepted; task FunctionName=Update, apply log applyMode=queued
+
+
+### Windows Computer Name — Agent poll pending tasks (inline JSON, no hydration)
+# @name compNamePendingTasks
+GET {{Intellinode.Api_HostAddress}}/api/v1/agents/tasks/pending
+Authorization: Bearer {{agentToken}}
+
+# Expected: 200 tasks[].moduleName=Host Name or DomainSettings
+# functionParameter is full inline JSON (WinCELinux.WindowsComputerNameSettings or WindowsDomainSettings)
+# signal ends with &CN (e.g. 00-11-22-33-44-55:XP&CN) — not hydrated from compact ref
+
+
+### Windows Computer Name — Agent ack completed (host rename task)
+POST {{Intellinode.Api_HostAddress}}/api/v1/agents/tasks/ack
+Content-Type: application/json
+Authorization: Bearer {{agentToken}}
+
+{
+  "acknowledgements": [
+    {
+      "taskId": "{{compNameHostTaskId}}",
+      "legacyTaskId": {{compNameHostLegacyTaskId}},
+      "status": "Completed"
+    }
+  ]
+}
+
+# Expected: 204 No Content; device_windows_computer_name_settings.lastApplyStatus=Applied, pendingApply=false
+
+
+### Windows Computer Name — Agent ack failed (FusionX Reason parity)
+POST {{Intellinode.Api_HostAddress}}/api/v1/agents/tasks/ack
+Content-Type: application/json
+Authorization: Bearer {{agentToken}}
+
+{
+  "acknowledgements": [
+    {
+      "taskId": "{{compNameDomainTaskId}}",
+      "legacyTaskId": {{compNameDomainLegacyTaskId}},
+      "status": "Failed",
+      "reason": "Failed to join domain: 0x80070057"
+    }
+  ]
+}
+
+# Expected: 204 No Content; lastApplyStatus=Failed, lastApplyMessage matches reason; desired settings unchanged
+
+
+### Windows Computer Name — Apply history (all)
+# @name compNameGetApplyHistory
+GET {{Intellinode.Api_HostAddress}}/api/v1/admin/device-config/windows-computer-name/apply-history/{{compNameMac}}?page=1&pageSize=20
+Authorization: Bearer {{adminToken}}
+
+# Expected: 200 with Host Name + DomainSettings tasks and SettingsKind.WindowsComputerName apply logs
+
+
+### Windows Computer Name — Apply history (failed only)
+GET {{Intellinode.Api_HostAddress}}/api/v1/admin/device-config/windows-computer-name/apply-history/{{compNameMac}}?status=Failed&page=1&pageSize=20
+Authorization: Bearer {{adminToken}}
+
+# Expected: after domain join execute-now → ack Failed, items with applyStatus=Failed
+
+
+### Windows Computer Name — Execute now bulk (host rename + auto-generate)
+# @name compNameExecuteNowBulkAutoGenerate
+POST {{Intellinode.Api_HostAddress}}/api/v1/admin/device-config/windows-computer-name/execute-now/bulk
+Content-Type: application/json
+Authorization: Bearer {{adminToken}}
+
+{
+  "targets": [
+    { "macAddress": "{{compNameMac}}", "osType": "XP" },
+    { "macAddress": "AA:BB:CC:DD:EE:11:XP", "osType": "XP" }
+  ],
+  "settings": {
+    "applyMode": "HostRename",
+    "hostName": "",
+    "prefix": "CORP-",
+    "postfix": "-WS",
+    "noOfChar": 12,
+    "isMacOrSerial": false
+  },
+  "execution": {
+    "agentAction": "0",
+    "scheduleType": "InstantApply"
+  },
+  "options": {
+    "dryRun": false,
+    "returnLegacySummary": true,
+    "correlationId": "99999999-9999-9999-9999-999999999999"
+  }
+}
+
+# Expected: 200 success=true; data.accepted/blocked per target
+# data.results[]: status Pending|Blocked, reason when blocked, resolvedHostName when auto-generate ran
+# Agent poll returns concrete HostName in functionParameter (not empty)
+
+
+### Windows Computer Name — Execute now group (domain join)
+# @name compNameExecuteNowGroupDomainJoin
+POST {{Intellinode.Api_HostAddress}}/api/v1/admin/device-config/windows-computer-name/execute-now/group/{{defaultGroupId}}
+Content-Type: application/json
+Authorization: Bearer {{adminToken}}
+
+{
+  "groupId": "{{defaultGroupId}}",
+  "settings": {
+    "applyMode": "DomainJoin",
+    "isDomainJoin": true,
+    "hostName": "CORP-PC-01",
+    "domain": "corp.example.com",
+    "userName": "jsmith",
+    "password": "P@ssw0rd!2024",
+    "organizationalUnit": "OU=Devices,DC=corp,DC=local"
+  },
+  "execution": {
+    "agentAction": "0",
+    "scheduleType": "InstantApply"
+  },
+  "options": {
+    "dryRun": false,
+    "returnLegacySummary": true,
+    "correlationId": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
+  }
+}
+
+# Expected: 200 with per-member results; non-:XP group members → Blocked / UnsupportedOsType
+
+
+### Windows Computer Name — Bulk dry run
+POST {{Intellinode.Api_HostAddress}}/api/v1/admin/device-config/windows-computer-name/execute-now/bulk
+Content-Type: application/json
+Authorization: Bearer {{adminToken}}
+
+{
+  "targets": [
+    { "macAddress": "{{compNameMac}}", "osType": "XP" }
+  ],
+  "settings": {
+    "applyMode": "HostRename",
+    "hostName": "",
+    "prefix": "CORP-",
+    "postfix": "-WS",
+    "noOfChar": 12
+  },
+  "execution": {
+    "agentAction": "0",
+    "scheduleType": "InstantApply"
+  },
+  "options": {
+    "dryRun": true,
+    "returnLegacySummary": false,
+    "correlationId": "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"
+  }
+}
+
+# Expected: 200; no device_tasks rows created; results[].status=Pending with resolvedHostName preview
+
+
+### Windows Computer Name — Bulk blocked target example
+POST {{Intellinode.Api_HostAddress}}/api/v1/admin/device-config/windows-computer-name/execute-now/bulk
+Content-Type: application/json
+Authorization: Bearer {{adminToken}}
+
+{
+  "targets": [
+    { "macAddress": "{{compNameMac}}", "osType": "XP" },
+    { "macAddress": "AA:BB:CC:DD:EE:FF:99", "osType": "XP" },
+    { "macAddress": "AA:BB:CC:DD:EE:22:LX", "osType": "LX" }
+  ],
+  "settings": {
+    "applyMode": "HostRename",
+    "hostName": "CORP-PC-01"
+  },
+  "execution": {
+    "agentAction": "0",
+    "scheduleType": "InstantApply"
+  },
+  "options": {
+    "dryRun": false,
+    "returnLegacySummary": true,
+    "correlationId": "cccccccc-cccc-cccc-cccc-cccccccccccc"
+  }
+}
+
+# Expected: 200 mixed results — e.g. 1 Accepted, 2 Blocked
+# AA:BB:CC:DD:EE:FF:99 → DeviceNotFound
+# AA:BB:CC:DD:EE:22:LX → UnsupportedOsType
+# Sample shape:
+# { "success": true, "data": { "accepted": 1, "blocked": 2, "results": [
+#   { "macAddress": "...", "status": "Pending" },
+#   { "macAddress": "AA:BB:CC:DD:EE:FF:99", "status": "Blocked", "reason": "DeviceNotFound" },
+#   { "macAddress": "AA:BB:CC:DD:EE:22:LX", "status": "Blocked", "reason": "UnsupportedOsType" }
+# ] } }

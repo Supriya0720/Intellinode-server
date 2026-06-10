@@ -30,6 +30,7 @@ public sealed class IntellinodeDbContext : DbContext, IIntellinodeDbContext
     public DbSet<DeviceDisplaySettings> DeviceDisplaySettings => Set<DeviceDisplaySettings>();
     public DbSet<DeviceWindows8021xSettings> DeviceWindows8021xSettings => Set<DeviceWindows8021xSettings>();
     public DbSet<DeviceWindows8021xSettingsSnapshot> DeviceWindows8021xSettingsSnapshots => Set<DeviceWindows8021xSettingsSnapshot>();
+    public DbSet<DeviceWindowsComputerNameSettings> DeviceWindowsComputerNameSettings => Set<DeviceWindowsComputerNameSettings>();
     public DbSet<DeviceAgentAdvancedSettings> DeviceAgentAdvancedSettings => Set<DeviceAgentAdvancedSettings>();
     public DbSet<GroupRemoteSettings> GroupRemoteSettings => Set<GroupRemoteSettings>();
     public DbSet<GroupAgentAdvancedSettings> GroupAgentAdvancedSettings => Set<GroupAgentAdvancedSettings>();
@@ -70,7 +71,7 @@ public sealed class IntellinodeDbContext : DbContext, IIntellinodeDbContext
             modelBuilder,
             "settings_kind",
             SchemaName,
-            ["General", "Advanced", "Keyboard", "Mouse", "Display", "Windows8021x"]);
+            ["General", "Advanced", "Keyboard", "Mouse", "Display", "Windows8021x", "WindowsComputerName"]);
         NpgsqlModelBuilderExtensions.HasPostgresEnum(
             modelBuilder,
             "settings_apply_status",
@@ -315,6 +316,36 @@ public sealed class IntellinodeDbContext : DbContext, IIntellinodeDbContext
             entity.HasOne(x => x.Device)
                 .WithOne(x => x.Windows8021xSettings)
                 .HasForeignKey<DeviceWindows8021xSettings>(x => x.DeviceId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<DeviceWindowsComputerNameSettings>(entity =>
+        {
+            entity.ToTable("device_windows_computer_name_settings");
+            entity.HasKey(x => x.DeviceId);
+            entity.Property(x => x.HostName).HasMaxLength(15);
+            entity.Property(x => x.Domain).HasMaxLength(63);
+            entity.Property(x => x.WorkGroup).HasMaxLength(63);
+            entity.Property(x => x.OrganizationalUnit).HasMaxLength(100);
+            entity.Property(x => x.UserName).HasMaxLength(50);
+            entity.Property(x => x.Password).HasMaxLength(64);
+            entity.Property(x => x.Prefix).HasMaxLength(10);
+            entity.Property(x => x.Postfix).HasMaxLength(10);
+            entity.Property(x => x.NoOfChar).HasDefaultValue(0);
+            entity.Property(x => x.IsMacOrSerial).HasDefaultValue(false);
+            entity.Property(x => x.LastApplyStatus).HasMaxLength(32);
+            entity.Property(x => x.LastApplyMessage).HasMaxLength(500);
+            entity.Property(x => x.SettingsVersion).HasDefaultValue(1L);
+            entity.Property(x => x.PendingApply).HasDefaultValue(false);
+            entity.ToTable(t => t.HasCheckConstraint(
+                "ck_device_windows_computer_name_settings_settings_version",
+                "settings_version >= 0"));
+            entity.ToTable(t => t.HasCheckConstraint(
+                "ck_device_windows_computer_name_settings_no_of_char",
+                "no_of_char >= 0"));
+            entity.HasOne(x => x.Device)
+                .WithOne(x => x.WindowsComputerNameSettings)
+                .HasForeignKey<DeviceWindowsComputerNameSettings>(x => x.DeviceId)
                 .OnDelete(DeleteBehavior.Cascade);
         });
 

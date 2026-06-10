@@ -802,3 +802,273 @@ public sealed class Windows8021xHistoryQueryValidator : AbstractValidator<Window
             .WithMessage("fromUtc must be less than or equal to toUtc.");
     }
 }
+
+public sealed class WindowsComputerNameExecuteNowRequestValidator : AbstractValidator<WindowsComputerNameExecuteNowRequest>
+{
+    public WindowsComputerNameExecuteNowRequestValidator()
+    {
+        RuleFor(x => x.Target).SetValidator(new WindowsComputerNameTargetRequestValidator());
+        RuleFor(x => x.Settings).SetValidator(new WindowsComputerNameSettingsRequestValidator());
+        RuleFor(x => x.Execution)
+            .Must(e => string.Equals(e.ScheduleType?.Trim(), "InstantApply", StringComparison.OrdinalIgnoreCase))
+            .WithMessage("scheduleType must be InstantApply for this endpoint.");
+        RuleFor(x => x)
+            .Must(x => WindowsComputerNameSettingsRequestValidation.PayloadWithinLimit(x.Settings, x.Target.MacAddress))
+            .WithMessage($"Serialized agent payload exceeds {WindowsComputerNameSettingsRequestValidation.MaxFunctionParameterLength} characters.");
+    }
+}
+
+public sealed class WindowsComputerNameQueueRequestValidator : AbstractValidator<WindowsComputerNameQueueRequest>
+{
+    public WindowsComputerNameQueueRequestValidator()
+    {
+        RuleFor(x => x.Target).SetValidator(new WindowsComputerNameTargetRequestValidator());
+        RuleFor(x => x.Settings).SetValidator(new WindowsComputerNameSettingsRequestValidator());
+        RuleFor(x => x.Execution)
+            .Must(e => string.Equals(e.ScheduleType?.Trim(), "Queue", StringComparison.OrdinalIgnoreCase))
+            .WithMessage("scheduleType must be Queue for this endpoint.");
+        RuleFor(x => x)
+            .Must(x => WindowsComputerNameSettingsRequestValidation.PayloadWithinLimit(x.Settings, x.Target.MacAddress))
+            .WithMessage($"Serialized agent payload exceeds {WindowsComputerNameSettingsRequestValidation.MaxFunctionParameterLength} characters.");
+    }
+}
+
+public sealed class WindowsComputerNameTargetRequestValidator : AbstractValidator<WindowsComputerNameTargetRequest>
+{
+    public WindowsComputerNameTargetRequestValidator()
+    {
+        RuleFor(x => x.MacAddress)
+            .NotEmpty()
+            .MaximumLength(300)
+            .Must(HaveXpOsSuffix)
+            .WithMessage("macAddress must include :XP suffix.");
+
+        RuleFor(x => x.OsType)
+            .NotEmpty()
+            .Must(os => string.Equals(os.Trim(), "XP", StringComparison.OrdinalIgnoreCase))
+            .WithMessage("osType must be XP.");
+
+        RuleFor(x => x)
+            .Must(x =>
+            {
+                var suffix = SystemSettingExecuteNowRequestValidator.ExtractOsSuffix(x.MacAddress);
+                return suffix == "XP";
+            })
+            .WithMessage("target.osType must match macAddress suffix.");
+    }
+
+    private static bool HaveXpOsSuffix(string macAddress)
+    {
+        var suffix = SystemSettingExecuteNowRequestValidator.ExtractOsSuffix(macAddress);
+        return suffix == "XP";
+    }
+}
+
+public sealed class WindowsComputerNameSettingsRequestValidator : AbstractValidator<WindowsComputerNameSettingsRequest>
+{
+    public const int MaxHostNameLength = 15;
+    public const int MaxDomainLength = 253;
+    public const int MaxWorkGroupLength = 15;
+    public const int MaxUserNameLength = 256;
+    public const int MaxPasswordLength = 64;
+    public const int MaxOrganizationalUnitLength = 100;
+    public const int MaxPrefixLength = 20;
+    public const int MaxPostfixLength = 20;
+    public const int MaxNoOfChar = 15;
+
+    public WindowsComputerNameSettingsRequestValidator()
+    {
+        RuleFor(x => x.ApplyMode).IsInEnum();
+
+        RuleFor(x => x.HostName).MaximumLength(MaxHostNameLength);
+        RuleFor(x => x.Domain).MaximumLength(MaxDomainLength);
+        RuleFor(x => x.WorkGroup).MaximumLength(MaxWorkGroupLength);
+        RuleFor(x => x.OrganizationalUnit).MaximumLength(MaxOrganizationalUnitLength);
+        RuleFor(x => x.UserName).MaximumLength(MaxUserNameLength);
+        RuleFor(x => x.Password).MaximumLength(MaxPasswordLength);
+        RuleFor(x => x.Prefix).MaximumLength(MaxPrefixLength);
+        RuleFor(x => x.Postfix).MaximumLength(MaxPostfixLength);
+        RuleFor(x => x.NoOfChar).InclusiveBetween(0, MaxNoOfChar);
+
+        RuleFor(x => x)
+            .Must(HasHostRenameIdentity)
+            .When(x => x.ApplyMode == ComputerNameApplyMode.HostRename)
+            .WithMessage("hostName is required unless auto-generate metadata is provided (prefix, postfix, or noOfChar).");
+
+        RuleFor(x => x.HostName)
+            .NotEmpty()
+            .When(x => x.ApplyMode == ComputerNameApplyMode.DomainJoin)
+            .WithMessage("hostName is required for domain join.");
+
+        RuleFor(x => x)
+            .Must(HasValidDomainJoinFields)
+            .When(x => x.ApplyMode == ComputerNameApplyMode.DomainJoin)
+            .WithMessage("domain join requires domain credentials or workgroup credentials based on isDomainJoin.");
+    }
+
+    private static bool HasHostRenameIdentity(WindowsComputerNameSettingsRequest settings) =>
+        !string.IsNullOrWhiteSpace(settings.HostName) ||
+        !string.IsNullOrWhiteSpace(settings.Prefix) ||
+        !string.IsNullOrWhiteSpace(settings.Postfix) ||
+        settings.NoOfChar > 0;
+
+    private static bool HasValidDomainJoinFields(WindowsComputerNameSettingsRequest settings)
+    {
+        if (settings.IsDomainJoin)
+        {
+            return !string.IsNullOrWhiteSpace(settings.Domain) &&
+                   !string.IsNullOrWhiteSpace(settings.UserName) &&
+                   !string.IsNullOrWhiteSpace(settings.Password) &&
+                   string.IsNullOrWhiteSpace(settings.WorkGroup);
+        }
+
+        return !string.IsNullOrWhiteSpace(settings.WorkGroup) &&
+               !string.IsNullOrWhiteSpace(settings.UserName) &&
+               !string.IsNullOrWhiteSpace(settings.Password) &&
+               string.IsNullOrWhiteSpace(settings.Domain) &&
+               string.IsNullOrWhiteSpace(settings.OrganizationalUnit);
+    }
+}
+
+public sealed class WindowsComputerNameHistoryQueryValidator : AbstractValidator<WindowsComputerNameHistoryQuery>
+{
+    public WindowsComputerNameHistoryQueryValidator()
+    {
+        RuleFor(x => x.Page).GreaterThanOrEqualTo(1);
+        RuleFor(x => x.PageSize).InclusiveBetween(1, 100);
+
+        RuleFor(x => x.Status)
+            .Must(s => string.IsNullOrWhiteSpace(s) || s is "Pending" or "Delivered" or "Applied" or "Failed")
+            .WithMessage("status must be one of Pending, Delivered, Applied, Failed.");
+
+        RuleFor(x => x)
+            .Must(x => !x.FromUtc.HasValue || !x.ToUtc.HasValue || x.FromUtc <= x.ToUtc)
+            .WithMessage("fromUtc must be less than or equal to toUtc.");
+    }
+}
+
+/// <summary>
+/// Payload sizing for FluentValidation — must stay aligned with WindowsComputerNamePayloadBuilder.
+/// </summary>
+internal static class WindowsComputerNameSettingsRequestValidation
+{
+    public const int MaxFunctionParameterLength = 512;
+
+    private static readonly string[] EmptyTextFields = ["", "", "", "", ""];
+
+    public static bool PayloadWithinLimit(WindowsComputerNameSettingsRequest settings, string macAddress)
+    {
+        var macAddr = MapMacAddress(macAddress);
+        var payload = settings.ApplyMode == ComputerNameApplyMode.HostRename
+            ? SerializeHostRename(settings, macAddr)
+            : SerializeDomainJoin(settings, macAddr);
+
+        return payload.Length <= MaxFunctionParameterLength;
+    }
+
+    private static string MapMacAddress(string deviceMacAddress) =>
+        deviceMacAddress.Trim().EndsWith(":XP", StringComparison.OrdinalIgnoreCase)
+            ? deviceMacAddress.Trim()
+            : $"{deviceMacAddress.Trim()}:XP";
+
+    private static string SerializeHostRename(WindowsComputerNameSettingsRequest settings, string macAddr)
+    {
+        var inner = new
+        {
+            MacAddr = macAddr,
+            HostName = settings.HostName.Trim(),
+            Domain = string.Empty,
+            WorkGroup = string.Empty,
+            UserName = string.Empty,
+            Password = string.Empty,
+            prefix = settings.Prefix.Trim(),
+            postfix = settings.Postfix.Trim(),
+            noOfChar = settings.NoOfChar,
+            IsMacOrSrNo = settings.IsMacOrSerial,
+            Text1 = EmptyTextFields[0],
+            Text2 = EmptyTextFields[1],
+            Text3 = EmptyTextFields[2],
+            Text4 = EmptyTextFields[3],
+            Text5 = EmptyTextFields[4],
+            TaskID = 0,
+            AgentAction = 0
+        };
+
+        return System.Text.Json.JsonSerializer.Serialize(new { WinCELinux = new { WindowsComputerNameSettings = inner } });
+    }
+
+    private static string SerializeDomainJoin(WindowsComputerNameSettingsRequest settings, string macAddr)
+    {
+        var inner = new
+        {
+            MacAddr = macAddr,
+            IsDomainWorkgroup = settings.IsDomainJoin ? "True" : "False",
+            HostName = settings.HostName.Trim(),
+            Domain = settings.IsDomainJoin ? settings.Domain.Trim() : string.Empty,
+            WorkGroup = settings.IsDomainJoin ? string.Empty : settings.WorkGroup.Trim(),
+            UserName = settings.UserName.Trim(),
+            Password = settings.Password,
+            OrganizationalUnit = settings.IsDomainJoin ? settings.OrganizationalUnit.Trim() : string.Empty,
+            Text1 = EmptyTextFields[0],
+            Text2 = EmptyTextFields[1],
+            Text3 = EmptyTextFields[2],
+            Text4 = EmptyTextFields[3],
+            Text5 = EmptyTextFields[4],
+            TaskID = 0,
+            AgentAction = 0
+        };
+
+        return System.Text.Json.JsonSerializer.Serialize(new { WinCELinux = new { WindowsDomainSettings = inner } });
+    }
+}
+
+public sealed class WindowsComputerNameExecuteNowBulkRequestValidator : AbstractValidator<WindowsComputerNameExecuteNowBulkRequest>
+{
+    public const int MaxTargets = 500;
+
+    public WindowsComputerNameExecuteNowBulkRequestValidator()
+    {
+        RuleFor(x => x.Targets)
+            .NotEmpty()
+            .WithMessage("At least one target is required.");
+
+        RuleFor(x => x.Targets)
+            .Must(targets => targets.Count <= MaxTargets)
+            .WithMessage($"At most {MaxTargets} targets are allowed.");
+
+        RuleForEach(x => x.Targets).SetValidator(new WindowsComputerNameTargetRequestValidator());
+        RuleFor(x => x.Settings).SetValidator(new WindowsComputerNameSettingsRequestValidator());
+        RuleFor(x => x.Execution)
+            .Must(e => string.Equals(e.ScheduleType?.Trim(), "InstantApply", StringComparison.OrdinalIgnoreCase))
+            .WithMessage("scheduleType must be InstantApply for this endpoint.");
+
+        RuleFor(x => x)
+            .Must(x => WindowsComputerNameSettingsRequestValidation.PayloadWithinLimit(
+                x.Settings,
+                WindowsComputerNameTestValidationMacAddress.Value))
+            .WithMessage($"Serialized agent payload exceeds {WindowsComputerNameSettingsRequestValidation.MaxFunctionParameterLength} characters.");
+    }
+}
+
+public sealed class WindowsComputerNameExecuteNowGroupRequestValidator : AbstractValidator<WindowsComputerNameExecuteNowGroupRequest>
+{
+    public WindowsComputerNameExecuteNowGroupRequestValidator()
+    {
+        RuleFor(x => x.GroupId).NotEmpty();
+        RuleFor(x => x.Settings).SetValidator(new WindowsComputerNameSettingsRequestValidator());
+        RuleFor(x => x.Execution)
+            .Must(e => string.Equals(e.ScheduleType?.Trim(), "InstantApply", StringComparison.OrdinalIgnoreCase))
+            .WithMessage("scheduleType must be InstantApply for this endpoint.");
+
+        RuleFor(x => x)
+            .Must(x => WindowsComputerNameSettingsRequestValidation.PayloadWithinLimit(
+                x.Settings,
+                WindowsComputerNameTestValidationMacAddress.Value))
+            .WithMessage($"Serialized agent payload exceeds {WindowsComputerNameSettingsRequestValidation.MaxFunctionParameterLength} characters.");
+    }
+}
+
+internal static class WindowsComputerNameTestValidationMacAddress
+{
+    public const string Value = "AA:BB:CC:DD:EE:10:XP";
+}

@@ -20,6 +20,7 @@ public sealed class AgentTaskService : IAgentTaskService
     private readonly MouseTaskAckHandler _mouseTaskAckHandler;
     private readonly DisplayTaskAckHandler _displayTaskAckHandler;
     private readonly Windows8021xTaskAckHandler _windows8021xTaskAckHandler;
+    private readonly WindowsComputerNameTaskAckHandler _windowsComputerNameTaskAckHandler;
     private readonly IWindows8021xTaskPayloadHydrator _windows8021xHydrator;
     private readonly ILogger<AgentTaskService> _logger;
 
@@ -29,6 +30,7 @@ public sealed class AgentTaskService : IAgentTaskService
         MouseTaskAckHandler mouseTaskAckHandler,
         DisplayTaskAckHandler displayTaskAckHandler,
         Windows8021xTaskAckHandler windows8021xTaskAckHandler,
+        WindowsComputerNameTaskAckHandler windowsComputerNameTaskAckHandler,
         IWindows8021xTaskPayloadHydrator windows8021xHydrator,
         ILogger<AgentTaskService> logger)
     {
@@ -37,6 +39,7 @@ public sealed class AgentTaskService : IAgentTaskService
         _mouseTaskAckHandler = mouseTaskAckHandler;
         _displayTaskAckHandler = displayTaskAckHandler;
         _windows8021xTaskAckHandler = windows8021xTaskAckHandler;
+        _windowsComputerNameTaskAckHandler = windowsComputerNameTaskAckHandler;
         _windows8021xHydrator = windows8021xHydrator;
         _logger = logger;
     }
@@ -104,6 +107,7 @@ public sealed class AgentTaskService : IAgentTaskService
             .Include(d => d.MouseSettings)
             .Include(d => d.DisplaySettings)
             .Include(d => d.Windows8021xSettings)
+            .Include(d => d.WindowsComputerNameSettings)
             .FirstOrDefaultAsync(d => d.Id == deviceId, cancellationToken);
 
         if (device is null)
@@ -156,6 +160,16 @@ public sealed class AgentTaskService : IAgentTaskService
             if (Windows8021xTaskAckHandler.IsWindows8021xTask(task))
             {
                 await _windows8021xTaskAckHandler.ApplyAckAsync(
+                    device,
+                    task,
+                    status,
+                    ack.Reason,
+                    cancellationToken);
+            }
+
+            if (WindowsComputerNameTaskAckHandler.IsComputerNameTask(task))
+            {
+                await _windowsComputerNameTaskAckHandler.ApplyAckAsync(
                     device,
                     task,
                     status,
