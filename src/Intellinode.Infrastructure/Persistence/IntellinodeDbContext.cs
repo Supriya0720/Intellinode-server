@@ -31,6 +31,7 @@ public sealed class IntellinodeDbContext : DbContext, IIntellinodeDbContext
     public DbSet<DeviceWindows8021xSettings> DeviceWindows8021xSettings => Set<DeviceWindows8021xSettings>();
     public DbSet<DeviceWindows8021xSettingsSnapshot> DeviceWindows8021xSettingsSnapshots => Set<DeviceWindows8021xSettingsSnapshot>();
     public DbSet<DeviceWindowsComputerNameSettings> DeviceWindowsComputerNameSettings => Set<DeviceWindowsComputerNameSettings>();
+    public DbSet<DeviceWindowsEthernetSettings> DeviceWindowsEthernetSettings => Set<DeviceWindowsEthernetSettings>();
     public DbSet<DeviceAgentAdvancedSettings> DeviceAgentAdvancedSettings => Set<DeviceAgentAdvancedSettings>();
     public DbSet<GroupRemoteSettings> GroupRemoteSettings => Set<GroupRemoteSettings>();
     public DbSet<GroupAgentAdvancedSettings> GroupAgentAdvancedSettings => Set<GroupAgentAdvancedSettings>();
@@ -71,7 +72,7 @@ public sealed class IntellinodeDbContext : DbContext, IIntellinodeDbContext
             modelBuilder,
             "settings_kind",
             SchemaName,
-            ["General", "Advanced", "Keyboard", "Mouse", "Display", "Windows8021x", "WindowsComputerName"]);
+            ["General", "Advanced", "Keyboard", "Mouse", "Display", "Windows8021x", "WindowsComputerName", "WindowsEthernetSetup"]);
         NpgsqlModelBuilderExtensions.HasPostgresEnum(
             modelBuilder,
             "settings_apply_status",
@@ -346,6 +347,31 @@ public sealed class IntellinodeDbContext : DbContext, IIntellinodeDbContext
             entity.HasOne(x => x.Device)
                 .WithOne(x => x.WindowsComputerNameSettings)
                 .HasForeignKey<DeviceWindowsComputerNameSettings>(x => x.DeviceId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<DeviceWindowsEthernetSettings>(entity =>
+        {
+            entity.ToTable("device_windows_ethernet_settings");
+            entity.HasKey(x => x.DeviceId);
+            entity.Property(x => x.IpAddress).HasMaxLength(15);
+            entity.Property(x => x.SubnetMask).HasMaxLength(15);
+            entity.Property(x => x.Gateway).HasMaxLength(15);
+            entity.Property(x => x.PrimaryDns).HasMaxLength(15);
+            entity.Property(x => x.SecondaryDns).HasMaxLength(15);
+            entity.Property(x => x.PrimaryWins).HasMaxLength(15);
+            entity.Property(x => x.SecondaryWins).HasMaxLength(15);
+            entity.Property(x => x.NetworkSpeed).HasMaxLength(64).HasDefaultValue("AutoSelect");
+            entity.Property(x => x.LastApplyStatus).HasMaxLength(32);
+            entity.Property(x => x.LastApplyMessage).HasMaxLength(500);
+            entity.Property(x => x.SettingsVersion).HasDefaultValue(1L);
+            entity.Property(x => x.PendingApply).HasDefaultValue(false);
+            entity.ToTable(t => t.HasCheckConstraint(
+                "ck_device_windows_ethernet_settings_settings_version",
+                "settings_version >= 0"));
+            entity.HasOne(x => x.Device)
+                .WithOne(x => x.WindowsEthernetSetupSettings)
+                .HasForeignKey<DeviceWindowsEthernetSettings>(x => x.DeviceId)
                 .OnDelete(DeleteBehavior.Cascade);
         });
 

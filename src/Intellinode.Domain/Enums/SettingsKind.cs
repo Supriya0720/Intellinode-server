@@ -13,5 +13,7 @@ public enum SettingsKind
     /// <summary>FusionX module "Windows_802_1x".</summary>
     Windows8021x,
     /// <summary>FusionX Computer Name / Domain Join (Host Name, DomainSettings modules).</summary>
-    WindowsComputerName
+    WindowsComputerName,
+    /// <summary>FusionX module "Ethernet".</summary>
+    WindowsEthernetSetup
 }

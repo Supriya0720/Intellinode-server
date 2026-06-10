@@ -23,6 +23,7 @@ public static class DependencyInjection
         services.Configure<DisplayOptions>(configuration.GetSection(DisplayOptions.SectionName));
         services.Configure<Windows8021xOptions>(configuration.GetSection(Windows8021xOptions.SectionName));
         services.Configure<WindowsComputerNameOptions>(configuration.GetSection(WindowsComputerNameOptions.SectionName));
+        services.Configure<WindowsEthernetSetupOptions>(configuration.GetSection(WindowsEthernetSetupOptions.SectionName));
 
         var connectionString = configuration.GetConnectionString("DefaultConnection")
             ?? throw new InvalidOperationException("Connection string 'DefaultConnection' is not configured.");
@@ -59,6 +60,7 @@ public static class DependencyInjection
         services.AddScoped<DisplayTaskAckHandler>();
         services.AddScoped<Windows8021xTaskAckHandler>();
         services.AddScoped<WindowsComputerNameTaskAckHandler>();
+        services.AddScoped<WindowsEthernetSetupTaskAckHandler>();
         services.AddScoped<IAgentTaskService, AgentTaskService>();
         services.AddScoped<IDeviceRemoteSettingsService, DeviceRemoteSettingsService>();
         services.AddScoped<IDeviceAgentAdvancedSettingsService, DeviceAgentAdvancedSettingsService>();
@@ -72,6 +74,8 @@ public static class DependencyInjection
         services.AddScoped<IWindows8021xTaskPayloadHydrator, Windows8021xTaskPayloadHydrator>();
         services.AddScoped<IWindowsComputerNamePayloadBuilder, WindowsComputerNamePayloadBuilder>();
         services.AddScoped<IWindowsComputerNameSettingsService, WindowsComputerNameSettingsService>();
+        services.AddScoped<IWindowsEthernetSetupSettingsService, WindowsEthernetSetupSettingsService>();
+        services.AddScoped<IWindowsEthernetSetupPayloadBuilder, WindowsEthernetSetupPayloadBuilder>();
         services.AddScoped<EffectiveAgentSettingsResolver>();
         services.AddScoped<IEffectiveAgentSettingsResolver>(sp => sp.GetRequiredService<EffectiveAgentSettingsResolver>());
         services.AddSingleton<ITokenService, TokenService>();

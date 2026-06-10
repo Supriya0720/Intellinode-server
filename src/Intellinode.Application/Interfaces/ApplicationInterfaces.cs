@@ -366,6 +366,44 @@ public interface IWindowsComputerNameSettingsService
         CancellationToken cancellationToken = default);
 }
 
+public interface IWindowsEthernetSetupSettingsService
+{
+    Task<WindowsEthernetSetupCurrentResult> GetCurrentAsync(
+        string macAddress,
+        CancellationToken cancellationToken = default);
+
+    Task<WindowsEthernetSetupExecuteNowResult> ExecuteNowAsync(
+        WindowsEthernetSetupExecuteNowRequest request,
+        Guid? adminId = null,
+        CancellationToken cancellationToken = default);
+
+    Task<WindowsEthernetSetupQueueResult> QueueAsync(
+        WindowsEthernetSetupQueueRequest request,
+        Guid? adminId = null,
+        CancellationToken cancellationToken = default);
+
+    Task<WindowsEthernetSetupHistoryResult> GetApplyHistoryAsync(
+        string macAddress,
+        WindowsEthernetSetupHistoryQuery query,
+        CancellationToken cancellationToken = default);
+
+    Task<WindowsEthernetSetupBulkResult> ExecuteNowBulkAsync(
+        WindowsEthernetSetupExecuteNowBulkRequest request,
+        Guid? adminId = null,
+        CancellationToken cancellationToken = default);
+
+    Task<WindowsEthernetSetupBulkResult> ExecuteNowGroupAsync(
+        Guid groupId,
+        WindowsEthernetSetupExecuteNowGroupRequest request,
+        Guid? adminId = null,
+        CancellationToken cancellationToken = default);
+}
+
+public interface IWindowsEthernetSetupPayloadBuilder
+{
+    string BuildEthernetPayload(WindowsEthernetSetupPayloadRequest request);
+}
+
 public interface IIntellinodeDbContext
 {
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);

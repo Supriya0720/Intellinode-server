@@ -2734,3 +2734,162 @@ Authorization: Bearer {{adminToken}}
 #   { "macAddress": "AA:BB:CC:DD:EE:FF:99", "status": "Blocked", "reason": "DeviceNotFound" },
 #   { "macAddress": "AA:BB:CC:DD:EE:22:LX", "status": "Blocked", "reason": "UnsupportedOsType" }
 # ] } }
+
+
+@ethernetMac = 00-11-22-33-44-55:XP
+
+### Windows Ethernet Setup — Get current by MAC
+# @name ethernetGetCurrent
+GET {{Intellinode.Api_HostAddress}}/api/v1/admin/device-config/windows-ethernet-setup/{{ethernetMac}}
+Authorization: Bearer {{adminToken}}
+
+# Expected: 200 with data.reported from devices table, data.desired from device_windows_ethernet_settings (or defaults)
+
+
+### Windows Ethernet Setup — Execute now (manual static IP)
+# @name ethernetExecuteNowManual
+POST {{Intellinode.Api_HostAddress}}/api/v1/admin/device-config/windows-ethernet-setup/execute-now
+Content-Type: application/json
+Authorization: Bearer {{adminToken}}
+
+{
+  "target": { "macAddress": "{{ethernetMac}}", "osType": "XP" },
+  "settings": {
+    "isDhcp": false,
+    "ipAddress": "192.168.1.50",
+    "subnetMask": "255.255.255.0",
+    "gateway": "192.168.1.1",
+    "primaryDns": "8.8.8.8",
+    "secondaryDns": "8.8.4.4",
+    "obtainDnsAutomatically": false,
+    "networkSpeed": "AutoSelect"
+  },
+  "execution": { "agentAction": "0", "scheduleType": "InstantApply" },
+  "options": { "dryRun": false, "returnLegacySummary": true }
+}
+
+# Expected: 200, data.taskId, data.execution.status=Pending
+# Task: ModuleName=Ethernet, FunctionName=Now, ExtraData={mac}&NT&Ethernet
+
+@ethernetTaskId = {{ethernetExecuteNowManual.response.body.data.taskId}}
+
+### Windows Ethernet Setup — Execute now (DHCP)
+POST {{Intellinode.Api_HostAddress}}/api/v1/admin/device-config/windows-ethernet-setup/execute-now
+Content-Type: application/json
+Authorization: Bearer {{adminToken}}
+
+{
+  "target": { "macAddress": "{{ethernetMac}}", "osType": "XP" },
+  "settings": { "isDhcp": true, "networkSpeed": "AutoSelect" },
+  "execution": { "agentAction": "0", "scheduleType": "InstantApply" },
+  "options": { "dryRun": false, "returnLegacySummary": true }
+}
+
+
+### Windows Ethernet Setup — Queue (scheduled apply)
+# @name ethernetQueue
+POST {{Intellinode.Api_HostAddress}}/api/v1/admin/device-config/windows-ethernet-setup/queue
+Content-Type: application/json
+Authorization: Bearer {{adminToken}}
+
+{
+  "target": { "macAddress": "{{ethernetMac}}", "osType": "XP" },
+  "settings": {
+    "isDhcp": false,
+    "ipAddress": "192.168.1.60",
+    "subnetMask": "255.255.255.0",
+    "gateway": "192.168.1.1",
+    "primaryDns": "8.8.8.8",
+    "secondaryDns": "8.8.4.4",
+    "obtainDnsAutomatically": false,
+    "networkSpeed": "AutoSelect"
+  },
+  "execution": { "agentAction": "0", "scheduleType": "Queue" },
+  "options": { "dryRun": false, "returnLegacySummary": true }
+}
+
+# Expected: 200, data.execution.scheduleType=Queue, task FunctionName=Update
+
+@ethernetQueuedTaskId = {{ethernetQueue.response.body.data.taskId}}
+
+### Windows Ethernet Setup — Apply history
+GET {{Intellinode.Api_HostAddress}}/api/v1/admin/device-config/windows-ethernet-setup/apply-history/{{ethernetMac}}?page=1&pageSize=20
+Authorization: Bearer {{adminToken}}
+
+# Expected: 200 with merged task/log items for ModuleName=Ethernet
+
+### Windows Ethernet Setup — Apply history (failed only)
+GET {{Intellinode.Api_HostAddress}}/api/v1/admin/device-config/windows-ethernet-setup/apply-history/{{ethernetMac}}?status=Failed&page=1&pageSize=20
+Authorization: Bearer {{adminToken}}
+
+
+### Windows Ethernet Setup — Execute now bulk (manual, shared gateway/DNS)
+# @name ethernetExecuteNowBulkManual
+POST {{Intellinode.Api_HostAddress}}/api/v1/admin/device-config/windows-ethernet-setup/execute-now/bulk
+Content-Type: application/json
+Authorization: Bearer {{adminToken}}
+
+{
+  "targets": [
+    { "macAddress": "{{ethernetMac}}", "osType": "XP" },
+    { "macAddress": "AA:BB:CC:DD:EE:11:XP", "osType": "XP" }
+  ],
+  "settings": {
+    "isDhcp": false,
+    "subnetMask": "255.255.255.0",
+    "gateway": "192.168.1.1",
+    "primaryDns": "8.8.8.8",
+    "secondaryDns": "8.8.4.4",
+    "obtainDnsAutomatically": false,
+    "networkSpeed": "AutoSelect"
+  },
+  "execution": { "agentAction": "0", "scheduleType": "InstantApply" },
+  "options": { "dryRun": false, "returnLegacySummary": true }
+}
+
+# Expected: 200; data.results[] per MAC; manual multi-target uses each device's reported IP
+
+### Windows Ethernet Setup — Execute now bulk (DHCP)
+POST {{Intellinode.Api_HostAddress}}/api/v1/admin/device-config/windows-ethernet-setup/execute-now/bulk
+Content-Type: application/json
+Authorization: Bearer {{adminToken}}
+
+{
+  "targets": [
+    { "macAddress": "{{ethernetMac}}", "osType": "XP" }
+  ],
+  "settings": { "isDhcp": true, "networkSpeed": "AutoSelect" },
+  "execution": { "agentAction": "0", "scheduleType": "InstantApply" },
+  "options": { "dryRun": false, "returnLegacySummary": true }
+}
+
+### Windows Ethernet Setup — Execute now group (DHCP)
+# @name ethernetExecuteNowGroupDhcp
+POST {{Intellinode.Api_HostAddress}}/api/v1/admin/device-config/windows-ethernet-setup/execute-now/group/{{defaultGroupId}}
+Content-Type: application/json
+Authorization: Bearer {{adminToken}}
+
+{
+  "groupId": "{{defaultGroupId}}",
+  "settings": { "isDhcp": true, "networkSpeed": "AutoSelect" },
+  "execution": { "agentAction": "0", "scheduleType": "InstantApply" },
+  "options": { "dryRun": false, "returnLegacySummary": true }
+}
+
+# Expected: 200 with per-member results; non-:XP members → Blocked / UnsupportedOsType
+
+### Windows Ethernet Setup — Bulk dry run
+POST {{Intellinode.Api_HostAddress}}/api/v1/admin/device-config/windows-ethernet-setup/execute-now/bulk
+Content-Type: application/json
+Authorization: Bearer {{adminToken}}
+
+{
+  "targets": [
+    { "macAddress": "{{ethernetMac}}", "osType": "XP" }
+  ],
+  "settings": { "isDhcp": true, "networkSpeed": "AutoSelect" },
+  "execution": { "agentAction": "0", "scheduleType": "InstantApply" },
+  "options": { "dryRun": true, "returnLegacySummary": false }
+}
+
+# Expected: 200; no device_tasks rows created

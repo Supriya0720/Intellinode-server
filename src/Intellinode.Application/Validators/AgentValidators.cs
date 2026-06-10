@@ -1,3 +1,5 @@
+using System.Net;
+using System.Net.Sockets;
 using FluentValidation;
 using Intellinode.Application.Contracts.Admin;
 using Intellinode.Application.Contracts.Agents;
@@ -1069,6 +1071,375 @@ public sealed class WindowsComputerNameExecuteNowGroupRequestValidator : Abstrac
 }
 
 internal static class WindowsComputerNameTestValidationMacAddress
+{
+    public const string Value = "AA:BB:CC:DD:EE:10:XP";
+}
+
+public sealed class WindowsEthernetSetupExecuteNowRequestValidator : AbstractValidator<WindowsEthernetSetupExecuteNowRequest>
+{
+    public WindowsEthernetSetupExecuteNowRequestValidator()
+    {
+        RuleFor(x => x.Target).SetValidator(new WindowsEthernetSetupTargetRequestValidator());
+        RuleFor(x => x.Settings).SetValidator(new WindowsEthernetSetupSettingsRequestValidator());
+        RuleFor(x => x.Execution)
+            .Must(e => string.Equals(e.ScheduleType?.Trim(), "InstantApply", StringComparison.OrdinalIgnoreCase))
+            .WithMessage("scheduleType must be InstantApply for this endpoint.");
+        RuleFor(x => x)
+            .Must(x => WindowsEthernetSetupSettingsRequestValidation.PayloadWithinLimit(
+                x.Settings,
+                x.Target.MacAddress,
+                ParseAgentAction(x.Execution.AgentAction)))
+            .WithMessage($"Serialized agent payload exceeds {WindowsEthernetSetupSettingsRequestValidation.MaxFunctionParameterLength} characters.");
+    }
+
+    private static int ParseAgentAction(string? agentAction) =>
+        int.TryParse(agentAction?.Trim(), out var value) ? value : 0;
+}
+
+public sealed class WindowsEthernetSetupTargetRequestValidator : AbstractValidator<WindowsEthernetSetupTargetRequest>
+{
+    public WindowsEthernetSetupTargetRequestValidator()
+    {
+        RuleFor(x => x.MacAddress)
+            .NotEmpty()
+            .MaximumLength(300)
+            .Must(HaveXpOsSuffix)
+            .WithMessage("macAddress must include :XP suffix.");
+
+        RuleFor(x => x.OsType)
+            .NotEmpty()
+            .Must(os => string.Equals(os.Trim(), "XP", StringComparison.OrdinalIgnoreCase))
+            .WithMessage("osType must be XP.");
+
+        RuleFor(x => x)
+            .Must(x =>
+            {
+                var suffix = SystemSettingExecuteNowRequestValidator.ExtractOsSuffix(x.MacAddress);
+                return suffix == "XP";
+            })
+            .WithMessage("target.osType must match macAddress suffix.");
+    }
+
+    private static bool HaveXpOsSuffix(string macAddress)
+    {
+        var suffix = SystemSettingExecuteNowRequestValidator.ExtractOsSuffix(macAddress);
+        return suffix == "XP";
+    }
+}
+
+public sealed class WindowsEthernetSetupSettingsRequestValidator : AbstractValidator<WindowsEthernetSetupSettingsRequest>
+{
+    public const int MaxIpFieldLength = 15;
+    public const int MaxNetworkSpeedLength = 64;
+
+    private static readonly HashSet<string> ValidSubnetOctets = new(StringComparer.Ordinal)
+    {
+        "0", "128", "192", "224", "240", "248", "252", "254", "255"
+    };
+
+    public WindowsEthernetSetupSettingsRequestValidator(bool requireManualIpAddress = true)
+    {
+        RuleFor(x => x.IpAddress).MaximumLength(MaxIpFieldLength);
+        RuleFor(x => x.SubnetMask).MaximumLength(MaxIpFieldLength);
+        RuleFor(x => x.Gateway).MaximumLength(MaxIpFieldLength);
+        RuleFor(x => x.PrimaryDns).MaximumLength(MaxIpFieldLength);
+        RuleFor(x => x.SecondaryDns).MaximumLength(MaxIpFieldLength);
+        RuleFor(x => x.PrimaryWins).MaximumLength(MaxIpFieldLength);
+        RuleFor(x => x.SecondaryWins).MaximumLength(MaxIpFieldLength);
+        RuleFor(x => x.NetworkSpeed).MaximumLength(MaxNetworkSpeedLength);
+
+        if (requireManualIpAddress)
+        {
+            RuleFor(x => x.IpAddress)
+                .NotEmpty()
+                .When(x => !x.IsDhcp)
+                .WithMessage("ipAddress is required when isDhcp is false.");
+        }
+
+        RuleFor(x => x.SubnetMask)
+            .NotEmpty()
+            .When(x => !x.IsDhcp)
+            .WithMessage("subnetMask is required when isDhcp is false.");
+
+        RuleFor(x => x.Gateway)
+            .NotEmpty()
+            .When(x => !x.IsDhcp)
+            .WithMessage("gateway is required when isDhcp is false.");
+
+        RuleFor(x => x.IpAddress)
+            .Must(IsValidIpv4)
+            .When(x => !x.IsDhcp && !string.IsNullOrWhiteSpace(x.IpAddress))
+            .WithMessage("ipAddress must be a valid IPv4 address.");
+
+        RuleFor(x => x.Gateway)
+            .Must(IsValidIpv4)
+            .When(x => !x.IsDhcp && !string.IsNullOrWhiteSpace(x.Gateway))
+            .WithMessage("gateway must be a valid IPv4 address.");
+
+        RuleFor(x => x.SubnetMask)
+            .Must(IsValidSubnetMask)
+            .When(x => !x.IsDhcp && !string.IsNullOrWhiteSpace(x.SubnetMask))
+            .WithMessage("subnetMask is not a valid subnet mask.");
+
+        RuleFor(x => x.PrimaryDns)
+            .Must(IsValidIpv4)
+            .When(x => !x.IsDhcp && !x.ObtainDnsAutomatically && !string.IsNullOrWhiteSpace(x.PrimaryDns))
+            .WithMessage("primaryDns must be a valid IPv4 address.");
+
+        RuleFor(x => x.SecondaryDns)
+            .Must(IsValidIpv4)
+            .When(x => !x.IsDhcp && !x.ObtainDnsAutomatically && !string.IsNullOrWhiteSpace(x.SecondaryDns))
+            .WithMessage("secondaryDns must be a valid IPv4 address.");
+
+        RuleFor(x => x.PrimaryWins)
+            .Must(IsValidIpv4)
+            .When(x => !x.IsDhcp && !string.IsNullOrWhiteSpace(x.PrimaryWins))
+            .WithMessage("primaryWins must be a valid IPv4 address.");
+
+        RuleFor(x => x.SecondaryWins)
+            .Must(IsValidIpv4)
+            .When(x => !x.IsDhcp && !string.IsNullOrWhiteSpace(x.SecondaryWins))
+            .WithMessage("secondaryWins must be a valid IPv4 address.");
+    }
+
+    internal static bool IsValidIpv4(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return false;
+        }
+
+        return IPAddress.TryParse(value.Trim(), out var ip) && ip.AddressFamily == AddressFamily.InterNetwork;
+    }
+
+    internal static bool IsValidSubnetMask(string? subnetMask)
+    {
+        if (string.IsNullOrWhiteSpace(subnetMask) || !IsValidIpv4(subnetMask))
+        {
+            return false;
+        }
+
+        var subnetval = subnetMask.Trim().Split('.');
+        if (subnetval.Length != 4)
+        {
+            return false;
+        }
+
+        for (var j = 0; j <= 3; j++)
+        {
+            if (!ValidSubnetOctets.Contains(subnetval[j]))
+            {
+                return false;
+            }
+
+            if (j == 0 && subnetval[j] == "0")
+            {
+                return false;
+            }
+
+            if (j == 3 && (subnetval[j] == "254" || subnetval[j] == "255"))
+            {
+                return false;
+            }
+        }
+
+        for (var k = 3; k > 0; k--)
+        {
+            if (subnetval[k] == "0")
+            {
+                continue;
+            }
+
+            if (subnetval[k] != "0" && subnetval[k - 1] == "255")
+            {
+                continue;
+            }
+
+            return false;
+        }
+
+        for (var m = 0; m < 3; m++)
+        {
+            if (subnetval[m] == "255")
+            {
+                continue;
+            }
+
+            if (subnetval[m] != "255" && subnetval[m + 1] == "0")
+            {
+                continue;
+            }
+
+            return false;
+        }
+
+        return true;
+    }
+}
+
+/// <summary>
+/// Payload sizing for FluentValidation — must stay aligned with WindowsEthernetSetupPayloadBuilder.
+/// </summary>
+internal static class WindowsEthernetSetupSettingsRequestValidation
+{
+    public const int MaxFunctionParameterLength = 512;
+
+    public static bool PayloadWithinLimit(
+        WindowsEthernetSetupSettingsRequest settings,
+        string macAddress,
+        int agentAction)
+    {
+        var macAddr = MapMacAddress(macAddress);
+        var payload = SerializePayload(settings, macAddr, agentAction);
+        return payload.Length <= MaxFunctionParameterLength;
+    }
+
+    private static string MapMacAddress(string deviceMacAddress) =>
+        deviceMacAddress.Trim().EndsWith(":XP", StringComparison.OrdinalIgnoreCase)
+            ? deviceMacAddress.Trim()
+            : $"{deviceMacAddress.Trim()}:XP";
+
+    private static string SerializePayload(
+        WindowsEthernetSetupSettingsRequest settings,
+        string macAddr,
+        int agentAction)
+    {
+        var obtainDnsAutomatically = settings.ObtainDnsAutomatically;
+        var priDns = obtainDnsAutomatically ? string.Empty : settings.PrimaryDns.Trim();
+        var secDns = obtainDnsAutomatically ? string.Empty : settings.SecondaryDns.Trim();
+
+        var inner = new
+        {
+            MacAddr = macAddr,
+            DHCP = settings.IsDhcp,
+            IPAddr = settings.IsDhcp ? string.Empty : settings.IpAddress.Trim(),
+            SubnetMask = settings.IsDhcp ? string.Empty : settings.SubnetMask.Trim(),
+            Gateway = settings.IsDhcp ? string.Empty : settings.Gateway.Trim(),
+            PriDNS = settings.IsDhcp ? string.Empty : priDns,
+            SecDNS = settings.IsDhcp ? string.Empty : secDns,
+            PriWNS = settings.IsDhcp ? string.Empty : settings.PrimaryWins.Trim(),
+            SecWNS = settings.IsDhcp ? string.Empty : settings.SecondaryWins.Trim(),
+            networkSpeed = string.IsNullOrWhiteSpace(settings.NetworkSpeed) ? "AutoSelect" : settings.NetworkSpeed.Trim(),
+            networkType = "Ethernet",
+            IsObtainedDNSAutomatically = obtainDnsAutomatically,
+            TaskID = 0,
+            AgentAction = agentAction
+        };
+
+        return System.Text.Json.JsonSerializer.Serialize(new { WinCELinux = new { XPNetwork_Settings = inner } });
+    }
+}
+
+public sealed class WindowsEthernetSetupQueueRequestValidator : AbstractValidator<WindowsEthernetSetupQueueRequest>
+{
+    public WindowsEthernetSetupQueueRequestValidator()
+    {
+        RuleFor(x => x.Target).SetValidator(new WindowsEthernetSetupTargetRequestValidator());
+        RuleFor(x => x.Settings).SetValidator(new WindowsEthernetSetupSettingsRequestValidator());
+        RuleFor(x => x.Execution)
+            .Must(e => string.Equals(e.ScheduleType?.Trim(), "Queue", StringComparison.OrdinalIgnoreCase))
+            .WithMessage("scheduleType must be Queue for this endpoint.");
+        RuleFor(x => x)
+            .Must(x => WindowsEthernetSetupSettingsRequestValidation.PayloadWithinLimit(
+                x.Settings,
+                x.Target.MacAddress,
+                ParseAgentAction(x.Execution.AgentAction)))
+            .WithMessage($"Serialized agent payload exceeds {WindowsEthernetSetupSettingsRequestValidation.MaxFunctionParameterLength} characters.");
+    }
+
+    private static int ParseAgentAction(string? agentAction) =>
+        int.TryParse(agentAction?.Trim(), out var value) ? value : 0;
+}
+
+public sealed class WindowsEthernetSetupHistoryQueryValidator : AbstractValidator<WindowsEthernetSetupHistoryQuery>
+{
+    public WindowsEthernetSetupHistoryQueryValidator()
+    {
+        RuleFor(x => x.Page).GreaterThanOrEqualTo(1);
+        RuleFor(x => x.PageSize).InclusiveBetween(1, 100);
+
+        RuleFor(x => x.Status)
+            .Must(s => string.IsNullOrWhiteSpace(s) || s is "Pending" or "Delivered" or "Applied" or "Failed")
+            .WithMessage("status must be one of Pending, Delivered, Applied, Failed.");
+
+        RuleFor(x => x)
+            .Must(x => !x.FromUtc.HasValue || !x.ToUtc.HasValue || x.FromUtc <= x.ToUtc)
+            .WithMessage("fromUtc must be less than or equal to toUtc.");
+    }
+}
+
+public sealed class WindowsEthernetSetupExecuteNowBulkRequestValidator : AbstractValidator<WindowsEthernetSetupExecuteNowBulkRequest>
+{
+    public const int MaxTargets = 500;
+
+    public WindowsEthernetSetupExecuteNowBulkRequestValidator()
+    {
+        RuleFor(x => x.Targets)
+            .NotEmpty()
+            .WithMessage("At least one target is required.");
+
+        RuleFor(x => x.Targets)
+            .Must(targets => targets.GroupBy(t => t.MacAddress.Trim(), StringComparer.OrdinalIgnoreCase).Count() <= MaxTargets)
+            .WithMessage($"At most {MaxTargets} targets are allowed.");
+
+        RuleForEach(x => x.Targets).SetValidator(new WindowsEthernetSetupTargetRequestValidator());
+
+        RuleFor(x => x.Settings)
+            .Custom((settings, context) =>
+            {
+                var bulk = (WindowsEthernetSetupExecuteNowBulkRequest)context.InstanceToValidate!;
+                var uniqueCount = bulk.Targets
+                    .GroupBy(t => t.MacAddress.Trim(), StringComparer.OrdinalIgnoreCase)
+                    .Count();
+                var validator = new WindowsEthernetSetupSettingsRequestValidator(requireManualIpAddress: uniqueCount <= 1);
+                var result = validator.Validate(settings);
+                foreach (var error in result.Errors)
+                {
+                    context.AddFailure(error);
+                }
+            });
+
+        RuleFor(x => x.Execution)
+            .Must(e => string.Equals(e.ScheduleType?.Trim(), "InstantApply", StringComparison.OrdinalIgnoreCase))
+            .WithMessage("scheduleType must be InstantApply for this endpoint.");
+
+        RuleFor(x => x)
+            .Must(x => WindowsEthernetSetupSettingsRequestValidation.PayloadWithinLimit(
+                x.Settings,
+                x.Targets.FirstOrDefault()?.MacAddress ?? WindowsEthernetSetupTestValidationMacAddress.Value,
+                ParseAgentAction(x.Execution.AgentAction)))
+            .WithMessage($"Serialized agent payload exceeds {WindowsEthernetSetupSettingsRequestValidation.MaxFunctionParameterLength} characters.");
+    }
+
+    private static int ParseAgentAction(string? agentAction) =>
+        int.TryParse(agentAction?.Trim(), out var value) ? value : 0;
+}
+
+public sealed class WindowsEthernetSetupExecuteNowGroupRequestValidator : AbstractValidator<WindowsEthernetSetupExecuteNowGroupRequest>
+{
+    public WindowsEthernetSetupExecuteNowGroupRequestValidator()
+    {
+        RuleFor(x => x.GroupId).NotEmpty();
+
+        RuleFor(x => x.Settings).SetValidator(new WindowsEthernetSetupSettingsRequestValidator(requireManualIpAddress: false));
+
+        RuleFor(x => x.Execution)
+            .Must(e => string.Equals(e.ScheduleType?.Trim(), "InstantApply", StringComparison.OrdinalIgnoreCase))
+            .WithMessage("scheduleType must be InstantApply for this endpoint.");
+
+        RuleFor(x => x)
+            .Must(x => WindowsEthernetSetupSettingsRequestValidation.PayloadWithinLimit(
+                x.Settings,
+                WindowsEthernetSetupTestValidationMacAddress.Value,
+                ParseAgentAction(x.Execution.AgentAction)))
+            .WithMessage($"Serialized agent payload exceeds {WindowsEthernetSetupSettingsRequestValidation.MaxFunctionParameterLength} characters.");
+    }
+
+    private static int ParseAgentAction(string? agentAction) =>
+        int.TryParse(agentAction?.Trim(), out var value) ? value : 0;
+}
+
+internal static class WindowsEthernetSetupTestValidationMacAddress
 {
     public const string Value = "AA:BB:CC:DD:EE:10:XP";
 }
