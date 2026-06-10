@@ -628,3 +628,177 @@ public sealed class DisplayHistoryQueryValidator : AbstractValidator<DisplayHist
             .WithMessage("fromUtc must be less than or equal to toUtc.");
     }
 }
+
+public sealed class Windows8021xExecuteNowRequestValidator : AbstractValidator<Windows8021xExecuteNowRequest>
+{
+    public Windows8021xExecuteNowRequestValidator()
+    {
+        RuleFor(x => x.Target).SetValidator(new Windows8021xTargetRequestValidator());
+        RuleFor(x => x.Settings).SetValidator(new Windows8021xSettingsRequestValidator());
+        RuleFor(x => x.Execution)
+            .Must(e => string.Equals(e.ScheduleType?.Trim(), "InstantApply", StringComparison.OrdinalIgnoreCase))
+            .WithMessage("scheduleType must be InstantApply for this endpoint.");
+    }
+}
+
+public sealed class Windows8021xQueueRequestValidator : AbstractValidator<Windows8021xQueueRequest>
+{
+    public Windows8021xQueueRequestValidator()
+    {
+        RuleFor(x => x.Target).SetValidator(new Windows8021xTargetRequestValidator());
+        RuleFor(x => x.Settings).SetValidator(new Windows8021xSettingsRequestValidator());
+        RuleFor(x => x.Execution)
+            .Must(e => string.Equals(e.ScheduleType?.Trim(), "Queue", StringComparison.OrdinalIgnoreCase))
+            .WithMessage("scheduleType must be Queue for this endpoint.");
+    }
+}
+
+public sealed class Windows8021xTargetRequestValidator : AbstractValidator<Windows8021xTargetRequest>
+{
+    public Windows8021xTargetRequestValidator()
+    {
+        RuleFor(x => x.MacAddress)
+            .NotEmpty()
+            .MaximumLength(300)
+            .Must(mac => string.Equals(SystemSettingExecuteNowRequestValidator.ExtractOsSuffix(mac), "XP", StringComparison.OrdinalIgnoreCase))
+            .WithMessage("macAddress must include :XP suffix (Windows only in v1).");
+
+        RuleFor(x => x.OsType)
+            .NotEmpty()
+            .Must(os => string.Equals(os.Trim(), "XP", StringComparison.OrdinalIgnoreCase))
+            .WithMessage("osType must be XP.");
+
+        RuleFor(x => x)
+            .Must(x =>
+            {
+                var suffix = SystemSettingExecuteNowRequestValidator.ExtractOsSuffix(x.MacAddress);
+                return suffix is not null && suffix == x.OsType.Trim().ToUpperInvariant();
+            })
+            .WithMessage("target.osType must match macAddress suffix.");
+    }
+}
+
+public sealed class Windows8021xSettingsRequestValidator : AbstractValidator<Windows8021xSettingsRequest>
+{
+    public const int MaxSettingsJsonLength = 32_000;
+    public const int MaxPasswordLength = 256;
+
+    public Windows8021xSettingsRequestValidator()
+    {
+        RuleFor(x => x.SettingsJson)
+            .NotEmpty()
+            .MaximumLength(MaxSettingsJsonLength)
+            .Must(Windows8021xSettingsRequestValidation.IsValidJsonObject)
+            .WithMessage("settingsJson must be a valid JSON object.");
+
+        RuleFor(x => x.SettingsJson)
+            .Must(Windows8021xSettingsRequestValidation.HasAuthenticationFlag)
+            .WithMessage("settingsJson must contain blEnable802_Authentication (boolean).");
+
+        RuleFor(x => x.SettingsJson)
+            .Must(Windows8021xSettingsRequestValidation.HasAuthenticationMethodWhenEnabled)
+            .WithMessage("str_Authentication is required when blEnable802_Authentication is true.");
+
+        RuleFor(x => x.SettingsJson)
+            .Must(Windows8021xSettingsRequestValidation.PasswordWithinLimit)
+            .WithMessage($"cPassword must not exceed {MaxPasswordLength} characters.");
+    }
+}
+
+internal static class Windows8021xSettingsRequestValidation
+{
+    public static bool IsValidJsonObject(string? settingsJson)
+    {
+        if (string.IsNullOrWhiteSpace(settingsJson))
+        {
+            return false;
+        }
+
+        try
+        {
+            using var document = System.Text.Json.JsonDocument.Parse(settingsJson);
+            return document.RootElement.ValueKind == System.Text.Json.JsonValueKind.Object;
+        }
+        catch (System.Text.Json.JsonException)
+        {
+            return false;
+        }
+    }
+
+    public static bool HasAuthenticationFlag(string? settingsJson)
+    {
+        if (!TryGetRoot(settingsJson, out var root))
+        {
+            return false;
+        }
+
+        return root.TryGetProperty("blEnable802_Authentication", out var enabled) &&
+               (enabled.ValueKind == System.Text.Json.JsonValueKind.True ||
+                enabled.ValueKind == System.Text.Json.JsonValueKind.False);
+    }
+
+    public static bool HasAuthenticationMethodWhenEnabled(string? settingsJson)
+    {
+        if (!TryGetRoot(settingsJson, out var root))
+        {
+            return false;
+        }
+
+        if (!root.TryGetProperty("blEnable802_Authentication", out var enabled) ||
+            enabled.ValueKind != System.Text.Json.JsonValueKind.True)
+        {
+            return true;
+        }
+
+        return root.TryGetProperty("str_Authentication", out var method) &&
+               method.ValueKind == System.Text.Json.JsonValueKind.String &&
+               !string.IsNullOrWhiteSpace(method.GetString());
+    }
+
+    public static bool PasswordWithinLimit(string? settingsJson)
+    {
+        if (!TryGetRoot(settingsJson, out var root))
+        {
+            return false;
+        }
+
+        if (!root.TryGetProperty(Windows8021xSensitiveFields.PasswordPropertyName, out var password) ||
+            password.ValueKind != System.Text.Json.JsonValueKind.String)
+        {
+            return true;
+        }
+
+        var value = password.GetString() ?? string.Empty;
+        return value.Length <= Windows8021xSettingsRequestValidator.MaxPasswordLength;
+    }
+
+    private static bool TryGetRoot(string? settingsJson, out System.Text.Json.JsonElement root)
+    {
+        root = default;
+        if (!IsValidJsonObject(settingsJson))
+        {
+            return false;
+        }
+
+        using var document = System.Text.Json.JsonDocument.Parse(settingsJson!);
+        root = document.RootElement.Clone();
+        return true;
+    }
+}
+
+public sealed class Windows8021xHistoryQueryValidator : AbstractValidator<Windows8021xHistoryQuery>
+{
+    public Windows8021xHistoryQueryValidator()
+    {
+        RuleFor(x => x.Page).GreaterThanOrEqualTo(1);
+        RuleFor(x => x.PageSize).InclusiveBetween(1, 100);
+
+        RuleFor(x => x.Status)
+            .Must(s => string.IsNullOrWhiteSpace(s) || s is "Pending" or "Delivered" or "Applied" or "Failed")
+            .WithMessage("status must be one of Pending, Delivered, Applied, Failed.");
+
+        RuleFor(x => x)
+            .Must(x => !x.FromUtc.HasValue || !x.ToUtc.HasValue || x.FromUtc <= x.ToUtc)
+            .WithMessage("fromUtc must be less than or equal to toUtc.");
+    }
+}

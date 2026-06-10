@@ -19,6 +19,8 @@ public sealed class AgentTaskService : IAgentTaskService
     private readonly KeyboardTaskAckHandler _keyboardTaskAckHandler;
     private readonly MouseTaskAckHandler _mouseTaskAckHandler;
     private readonly DisplayTaskAckHandler _displayTaskAckHandler;
+    private readonly Windows8021xTaskAckHandler _windows8021xTaskAckHandler;
+    private readonly IWindows8021xTaskPayloadHydrator _windows8021xHydrator;
     private readonly ILogger<AgentTaskService> _logger;
 
     public AgentTaskService(
@@ -26,12 +28,16 @@ public sealed class AgentTaskService : IAgentTaskService
         KeyboardTaskAckHandler keyboardTaskAckHandler,
         MouseTaskAckHandler mouseTaskAckHandler,
         DisplayTaskAckHandler displayTaskAckHandler,
+        Windows8021xTaskAckHandler windows8021xTaskAckHandler,
+        IWindows8021xTaskPayloadHydrator windows8021xHydrator,
         ILogger<AgentTaskService> logger)
     {
         _dbContext = dbContext;
         _keyboardTaskAckHandler = keyboardTaskAckHandler;
         _mouseTaskAckHandler = mouseTaskAckHandler;
         _displayTaskAckHandler = displayTaskAckHandler;
+        _windows8021xTaskAckHandler = windows8021xTaskAckHandler;
+        _windows8021xHydrator = windows8021xHydrator;
         _logger = logger;
     }
 
@@ -51,14 +57,39 @@ public sealed class AgentTaskService : IAgentTaskService
             if (firstPending is not null)
             {
                 firstPending.Status = DeviceTaskStatus.InProcess;
-                // Delivered apply log on InProcess for Keyboard is deferred (PR3); terminal ack writes Applied/Failed.
                 await _dbContext.SaveChangesAsync(cancellationToken);
             }
         }
 
+        var mappedTasks = new List<AgentPendingTaskDto>(tasks.Count);
+        foreach (var task in tasks)
+        {
+            var functionParameter = task.FunctionParameter;
+            if (_windows8021xHydrator.CanHydrate(task.ModuleName))
+            {
+                var hydrated = await _windows8021xHydrator.HydrateFunctionParameterAsync(
+                    task.FunctionParameter,
+                    deviceId,
+                    cancellationToken);
+                if (hydrated is not null)
+                {
+                    functionParameter = hydrated;
+                }
+                else
+                {
+                    _logger.LogWarning(
+                        "Windows_802_1x task {TaskId} hydration failed for device {DeviceId}; returning compact functionParameter",
+                        task.Id,
+                        deviceId);
+                }
+            }
+
+            mappedTasks.Add(MapPendingTask(task, functionParameter));
+        }
+
         return new AgentPendingTasksResponse
         {
-            Tasks = tasks.Select(MapPendingTask).ToList()
+            Tasks = mappedTasks
         };
     }
 
@@ -72,6 +103,7 @@ public sealed class AgentTaskService : IAgentTaskService
             .Include(d => d.KeyboardSettings)
             .Include(d => d.MouseSettings)
             .Include(d => d.DisplaySettings)
+            .Include(d => d.Windows8021xSettings)
             .FirstOrDefaultAsync(d => d.Id == deviceId, cancellationToken);
 
         if (device is null)
@@ -114,6 +146,16 @@ public sealed class AgentTaskService : IAgentTaskService
             if (DisplayTaskAckHandler.IsDisplayTask(task))
             {
                 await _displayTaskAckHandler.ApplyAckAsync(
+                    device,
+                    task,
+                    status,
+                    ack.Reason,
+                    cancellationToken);
+            }
+
+            if (Windows8021xTaskAckHandler.IsWindows8021xTask(task))
+            {
+                await _windows8021xTaskAckHandler.ApplyAckAsync(
                     device,
                     task,
                     status,
@@ -214,9 +256,6 @@ public sealed class AgentTaskService : IAgentTaskService
         return null;
     }
 
-    /// <summary>
-    /// Assigns the next monotonic legacy task id per device (max existing + 1).
-    /// </summary>
     private async Task<int> GetNextLegacyTaskIdAsync(Guid deviceId, CancellationToken cancellationToken)
     {
         var maxLegacyId = await _dbContext.DeviceTasks
@@ -226,14 +265,14 @@ public sealed class AgentTaskService : IAgentTaskService
         return (maxLegacyId ?? 0) + 1;
     }
 
-    private static AgentPendingTaskDto MapPendingTask(DeviceTask task) =>
+    private static AgentPendingTaskDto MapPendingTask(DeviceTask task, string functionParameter) =>
         new()
         {
             Id = task.Id,
             LegacyTaskId = task.LegacyTaskId,
             ModuleName = task.ModuleName,
             FunctionName = task.FunctionName,
-            FunctionParameter = task.FunctionParameter,
+            FunctionParameter = functionParameter,
             Signal = DeviceTaskOperations.ExtractSignal(task.ExtraData),
             Status = DeviceTaskOperations.MapStatusToString(task.Status)
         };

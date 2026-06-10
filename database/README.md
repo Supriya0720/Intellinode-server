@@ -301,6 +301,12 @@ SELECT fn_queue_device_task(
 SELECT fn_process_heartbeat('AA:BB:CC:DD:EE:FF', '01:10:00');
 ```
 
+## Windows 802.1X settings
+
+Per-device 802.1X profiles are stored in `intellinode.device_windows_802_1x_settings` (`settings_json` JSONB). Agent tasks use compact `{"settingsVersion":N}` references; the API hydrates full payloads at poll time (ADR Option A).
+
+Operational guide: [docs/windows-802-1x-operations.md](../docs/windows-802-1x-operations.md).
+
 ## FusionX → PostgreSQL mapping
 
 | Legacy FusionX | PostgreSQL function |

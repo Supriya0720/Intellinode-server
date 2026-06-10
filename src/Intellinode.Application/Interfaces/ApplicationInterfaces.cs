@@ -235,6 +235,28 @@ public interface IKeyboardSettingsService
         CancellationToken cancellationToken = default);
 }
 
+public interface IWindows8021xSettingsService
+{
+    Task<Windows8021xExecuteNowResult> ExecuteNowAsync(
+        Windows8021xExecuteNowRequest request,
+        Guid? adminId = null,
+        CancellationToken cancellationToken = default);
+
+    Task<Windows8021xQueueResult> QueueAsync(
+        Windows8021xQueueRequest request,
+        Guid? adminId = null,
+        CancellationToken cancellationToken = default);
+
+    Task<Windows8021xCurrentResult> GetCurrentAsync(
+        string macAddress,
+        CancellationToken cancellationToken = default);
+
+    Task<Windows8021xHistoryResult> GetApplyHistoryAsync(
+        string macAddress,
+        Windows8021xHistoryQuery query,
+        CancellationToken cancellationToken = default);
+}
+
 public interface IMouseSettingsService
 {
     Task<MouseExecuteNowResult> ExecuteNowAsync(
@@ -286,6 +308,22 @@ public interface IEffectiveAgentSettingsResolver
     Task<EffectiveDeviceSettingsDto?> ResolveEffectiveCombinedByMacAsync(string macAddress, CancellationToken cancellationToken = default);
     Task<AgentConfigAckResponse> AcknowledgeConfigAsync(Guid deviceId, AgentConfigAckRequest request, CancellationToken cancellationToken = default);
     Task<bool> HasPendingConfigAsync(Guid deviceId, CancellationToken cancellationToken = default);
+}
+
+public interface IWindows8021xPayloadBuilder
+{
+    string BuildAgentPayload(string settingsJson);
+    string BuildCompactTaskReference(long settingsVersion);
+    bool TryParseCompactTaskReference(string functionParameter, out long settingsVersion);
+}
+
+public interface IWindows8021xTaskPayloadHydrator
+{
+    bool CanHydrate(string moduleName);
+    Task<string?> HydrateFunctionParameterAsync(
+        string storedFunctionParameter,
+        Guid deviceId,
+        CancellationToken cancellationToken = default);
 }
 
 public interface IIntellinodeDbContext

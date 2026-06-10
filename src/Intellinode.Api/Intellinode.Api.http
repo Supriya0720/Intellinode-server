@@ -2251,3 +2251,168 @@ Authorization: Bearer {{adminToken}}
 ### Display — Apply history
 GET {{Intellinode.Api_HostAddress}}/api/v1/admin/device-config/display/apply-history/{{displayMac}}?page=1&pageSize=20
 Authorization: Bearer {{adminToken}}
+
+
+### Windows 802.1X Security APIs (Windows :XP only, v1)
+
+# Prerequisite: device enrolled with MAC suffix :XP (run agent enroll above) and admin logged in (@adminToken).
+# settings.settingsJson is the inner FusionX Windows_802_1x document (structXP_Data field names, no WinCELinux wrapper).
+# GET current redacts cPassword as ********; writes store the real password for agent hydration at poll time.
+# Task pipeline: ModuleName=Windows_802_1x, FunctionName=Now (instant) / Update (queued), signal suffix Win802_1x.
+# Agent poll hydrates compact functionParameter {"settingsVersion":N} → full WinCELinux.Windows_802_1x JSON.
+
+@win8021xMac = 00-11-22-33-44-55:XP
+
+### Windows 802.1X — Get current by MAC (password redacted)
+# @name win8021xGetCurrent
+GET {{Intellinode.Api_HostAddress}}/api/v1/admin/device-config/windows-802-1x/{{win8021xMac}}
+Authorization: Bearer {{adminToken}}
+
+# Expected: 200 with data.settings.settingsJson (cPassword=********), settingsVersion, pendingApply, lastApplyStatus
+
+
+### Windows 802.1X — Execute now (instant apply, PEAP wireless sample)
+# @name win8021xExecuteNow
+POST {{Intellinode.Api_HostAddress}}/api/v1/admin/device-config/windows-802-1x/execute-now
+Content-Type: application/json
+Authorization: Bearer {{adminToken}}
+
+{
+  "target": {
+    "macAddress": "{{win8021xMac}}",
+    "osType": "XP"
+  },
+  "settings": {
+    "settingsJson": "{\"blEnable802_Authentication\":true,\"str_Authentication\":\"Microsoft: Protected EAP (PEAP)\",\"isWired\":false,\"cSSID\":\"Corp-WiFi-Enterprise\",\"cPassword\":\"user-password\",\"cUserName\":\"corp\\\\jdoe\",\"cDomain\":\"CONTOSO\",\"objTrusted_Root_Certificate_Authorities_PEAP_TLS\":[{\"thumprint\":\"AA11BB22CC33DD44EE55FF66778899AABBCCDDEEFF\"}],\"ObjList_Of_EKUs_Client_Authentication\":[{\"name\":\"Client Authentication\"}]}"
+  },
+  "execution": {
+    "agentAction": "0",
+    "scheduleType": "InstantApply"
+  },
+  "options": {
+    "dryRun": false,
+    "returnLegacySummary": true,
+    "correlationId": "55555555-5555-5555-5555-555555555555"
+  }
+}
+
+# Expected: 200 success=true, data.taskId, data.execution.scheduleType=InstantApply
+# Task: ModuleName=Windows_802_1x, FunctionName=Now; function_parameter stores {"settingsVersion":N} only
+
+@win8021xTaskId = {{win8021xExecuteNow.response.body.data.taskId}}
+@win8021xLegacyTaskId = 1
+
+
+### Windows 802.1X — Queue (scheduled / execute later)
+# @name win8021xQueue
+POST {{Intellinode.Api_HostAddress}}/api/v1/admin/device-config/windows-802-1x/queue
+Content-Type: application/json
+Authorization: Bearer {{adminToken}}
+
+{
+  "target": {
+    "macAddress": "{{win8021xMac}}",
+    "osType": "XP"
+  },
+  "settings": {
+    "settingsJson": "{\"blEnable802_Authentication\":true,\"str_Authentication\":\"Microsoft: Protected EAP (PEAP)\",\"isWired\":false,\"cSSID\":\"Corp-WiFi-Enterprise\",\"cPassword\":\"user-password\",\"cUserName\":\"corp\\\\jdoe\",\"cDomain\":\"CONTOSO\"}"
+  },
+  "execution": {
+    "agentAction": "0",
+    "scheduleType": "Queue"
+  },
+  "options": {
+    "dryRun": false,
+    "returnLegacySummary": true,
+    "correlationId": "66666666-6666-6666-6666-666666666666"
+  }
+}
+
+# Expected: 200 Queue accepted; task FunctionName=Update, apply log applyMode=queued
+
+
+### Windows 802.1X — Agent poll pending tasks (hydrated payload)
+# @name win8021xPendingTasks
+GET {{Intellinode.Api_HostAddress}}/api/v1/agents/tasks/pending
+Authorization: Bearer {{agentToken}}
+
+# Expected: 200 tasks[].moduleName=Windows_802_1x, functionParameter contains WinCELinux.Windows_802_1x (full JSON, not compact ref)
+
+
+### Windows 802.1X — Agent ack completed
+POST {{Intellinode.Api_HostAddress}}/api/v1/agents/tasks/ack
+Content-Type: application/json
+Authorization: Bearer {{agentToken}}
+
+{
+  "acknowledgements": [
+    {
+      "taskId": "{{win8021xTaskId}}",
+      "legacyTaskId": {{win8021xLegacyTaskId}},
+      "status": "Completed"
+    }
+  ]
+}
+
+# Expected: 204 No Content; device_windows_802_1x_settings.lastApplyStatus=Applied, pendingApply=false
+
+
+### Windows 802.1X — Agent ack failed (FusionX Reason parity)
+POST {{Intellinode.Api_HostAddress}}/api/v1/agents/tasks/ack
+Content-Type: application/json
+Authorization: Bearer {{agentToken}}
+
+{
+  "acknowledgements": [
+    {
+      "taskId": "{{win8021xTaskId}}",
+      "legacyTaskId": {{win8021xLegacyTaskId}},
+      "status": "Failed",
+      "reason": "Failed to apply 802.1X profile: 0x80070057"
+    }
+  ]
+}
+
+# Expected: 204 No Content; lastApplyStatus=Failed, lastApplyMessage matches reason; desired settings unchanged
+
+
+### Windows 802.1X — Apply history (all)
+# @name win8021xGetApplyHistory
+GET {{Intellinode.Api_HostAddress}}/api/v1/admin/device-config/windows-802-1x/apply-history/{{win8021xMac}}?page=1&pageSize=20
+Authorization: Bearer {{adminToken}}
+
+# Expected: 200 with Windows_802_1x-scoped tasks + apply logs (moduleName=Windows_802_1x)
+
+
+### Windows 802.1X — Apply history (failed only)
+GET {{Intellinode.Api_HostAddress}}/api/v1/admin/device-config/windows-802-1x/apply-history/{{win8021xMac}}?status=Failed&page=1&pageSize=20
+Authorization: Bearer {{adminToken}}
+
+# Expected: after execute-now → ack Failed, items with applyStatus=Failed and message containing profile error
+
+
+### Windows 802.1X — Validation: macAddress without :XP suffix rejected
+POST {{Intellinode.Api_HostAddress}}/api/v1/admin/device-config/windows-802-1x/execute-now
+Content-Type: application/json
+Authorization: Bearer {{adminToken}}
+
+{
+  "target": {
+    "macAddress": "00-11-22-33-44-55",
+    "osType": "XP"
+  },
+  "settings": {
+    "settingsJson": "{\"blEnable802_Authentication\":false}"
+  },
+  "execution": {
+    "agentAction": "0",
+    "scheduleType": "InstantApply"
+  },
+  "options": {
+    "dryRun": false,
+    "returnLegacySummary": true,
+    "correlationId": null
+  }
+}
+
+# Expected: 400 ValidationFailed — macAddress must include :XP suffix (Windows only in v1)

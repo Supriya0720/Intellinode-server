@@ -51,5 +51,7 @@ public class Device
     public DeviceKeyboardSettings? KeyboardSettings { get; set; }
     public DeviceMouseSettings? MouseSettings { get; set; }
     public DeviceDisplaySettings? DisplaySettings { get; set; }
+    public DeviceWindows8021xSettings? Windows8021xSettings { get; set; }
+    public ICollection<DeviceWindows8021xSettingsSnapshot> Windows8021xSnapshots { get; set; } = [];
     public DeviceAgentAdvancedSettings? AgentAdvancedSettings { get; set; }
 }

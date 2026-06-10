@@ -28,6 +28,8 @@ public sealed class IntellinodeDbContext : DbContext, IIntellinodeDbContext
     public DbSet<DeviceKeyboardSettings> DeviceKeyboardSettings => Set<DeviceKeyboardSettings>();
     public DbSet<DeviceMouseSettings> DeviceMouseSettings => Set<DeviceMouseSettings>();
     public DbSet<DeviceDisplaySettings> DeviceDisplaySettings => Set<DeviceDisplaySettings>();
+    public DbSet<DeviceWindows8021xSettings> DeviceWindows8021xSettings => Set<DeviceWindows8021xSettings>();
+    public DbSet<DeviceWindows8021xSettingsSnapshot> DeviceWindows8021xSettingsSnapshots => Set<DeviceWindows8021xSettingsSnapshot>();
     public DbSet<DeviceAgentAdvancedSettings> DeviceAgentAdvancedSettings => Set<DeviceAgentAdvancedSettings>();
     public DbSet<GroupRemoteSettings> GroupRemoteSettings => Set<GroupRemoteSettings>();
     public DbSet<GroupAgentAdvancedSettings> GroupAgentAdvancedSettings => Set<GroupAgentAdvancedSettings>();
@@ -68,7 +70,7 @@ public sealed class IntellinodeDbContext : DbContext, IIntellinodeDbContext
             modelBuilder,
             "settings_kind",
             SchemaName,
-            ["General", "Advanced", "Keyboard", "Mouse", "Display"]);
+            ["General", "Advanced", "Keyboard", "Mouse", "Display", "Windows8021x"]);
         NpgsqlModelBuilderExtensions.HasPostgresEnum(
             modelBuilder,
             "settings_apply_status",
@@ -292,6 +294,47 @@ public sealed class IntellinodeDbContext : DbContext, IIntellinodeDbContext
             entity.HasOne(x => x.Device)
                 .WithOne(x => x.DisplaySettings)
                 .HasForeignKey<DeviceDisplaySettings>(x => x.DeviceId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<DeviceWindows8021xSettings>(entity =>
+        {
+            entity.ToTable("device_windows_802_1x_settings");
+            entity.HasKey(x => x.DeviceId);
+            entity.Property(x => x.SettingsJson)
+                .HasColumnName("settings_json")
+                .HasColumnType("jsonb")
+                .HasDefaultValue("{}");
+            entity.Property(x => x.LastApplyStatus).HasMaxLength(32);
+            entity.Property(x => x.LastApplyMessage).HasMaxLength(500);
+            entity.Property(x => x.SettingsVersion).HasDefaultValue(1L);
+            entity.Property(x => x.PendingApply).HasDefaultValue(false);
+            entity.ToTable(t => t.HasCheckConstraint(
+                "ck_device_windows_802_1x_settings_settings_version",
+                "settings_version >= 0"));
+            entity.HasOne(x => x.Device)
+                .WithOne(x => x.Windows8021xSettings)
+                .HasForeignKey<DeviceWindows8021xSettings>(x => x.DeviceId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<DeviceWindows8021xSettingsSnapshot>(entity =>
+        {
+            entity.ToTable("device_windows_802_1x_settings_snapshots");
+            entity.HasKey(x => new { x.DeviceId, x.SettingsVersion });
+            entity.Property(x => x.SettingsJson)
+                .HasColumnName("settings_json")
+                .HasColumnType("jsonb")
+                .HasDefaultValue("{}");
+            entity.ToTable(t => t.HasCheckConstraint(
+                "ck_device_windows_802_1x_settings_snapshots_settings_version",
+                "settings_version >= 1"));
+            entity.HasIndex(x => new { x.DeviceId, x.SettingsVersion })
+                .IsUnique()
+                .HasDatabaseName("ix_device_windows_802_1x_settings_snapshots_device_version");
+            entity.HasOne(x => x.Device)
+                .WithMany(x => x.Windows8021xSnapshots)
+                .HasForeignKey(x => x.DeviceId)
                 .OnDelete(DeleteBehavior.Cascade);
         });
 
