@@ -22,6 +22,7 @@ public sealed class AgentTaskService : IAgentTaskService
     private readonly Windows8021xTaskAckHandler _windows8021xTaskAckHandler;
     private readonly WindowsComputerNameTaskAckHandler _windowsComputerNameTaskAckHandler;
     private readonly WindowsEthernetSetupTaskAckHandler _windowsEthernetSetupTaskAckHandler;
+    private readonly WindowsWirelessSetupTaskAckHandler _windowsWirelessSetupTaskAckHandler;
     private readonly WindowsWirelessPropertiesTaskAckHandler _windowsWirelessPropertiesTaskAckHandler;
     private readonly IWindows8021xTaskPayloadHydrator _windows8021xHydrator;
     private readonly IWindowsWirelessPropertiesTaskPayloadHydrator _windowsWirelessPropertiesHydrator;
@@ -35,6 +36,7 @@ public sealed class AgentTaskService : IAgentTaskService
         Windows8021xTaskAckHandler windows8021xTaskAckHandler,
         WindowsComputerNameTaskAckHandler windowsComputerNameTaskAckHandler,
         WindowsEthernetSetupTaskAckHandler windowsEthernetSetupTaskAckHandler,
+        WindowsWirelessSetupTaskAckHandler windowsWirelessSetupTaskAckHandler,
         WindowsWirelessPropertiesTaskAckHandler windowsWirelessPropertiesTaskAckHandler,
         IWindows8021xTaskPayloadHydrator windows8021xHydrator,
         IWindowsWirelessPropertiesTaskPayloadHydrator windowsWirelessPropertiesHydrator,
@@ -47,6 +49,7 @@ public sealed class AgentTaskService : IAgentTaskService
         _windows8021xTaskAckHandler = windows8021xTaskAckHandler;
         _windowsComputerNameTaskAckHandler = windowsComputerNameTaskAckHandler;
         _windowsEthernetSetupTaskAckHandler = windowsEthernetSetupTaskAckHandler;
+        _windowsWirelessSetupTaskAckHandler = windowsWirelessSetupTaskAckHandler;
         _windowsWirelessPropertiesTaskAckHandler = windowsWirelessPropertiesTaskAckHandler;
         _windows8021xHydrator = windows8021xHydrator;
         _windowsWirelessPropertiesHydrator = windowsWirelessPropertiesHydrator;
@@ -209,6 +212,16 @@ public sealed class AgentTaskService : IAgentTaskService
             if (WindowsEthernetSetupTaskAckHandler.IsEthernetSetupTask(task))
             {
                 await _windowsEthernetSetupTaskAckHandler.ApplyAckAsync(
+                    device,
+                    task,
+                    status,
+                    ack.Reason,
+                    cancellationToken);
+            }
+
+            if (WindowsWirelessSetupTaskAckHandler.IsWirelessSetupTask(task))
+            {
+                await _windowsWirelessSetupTaskAckHandler.ApplyAckAsync(
                     device,
                     task,
                     status,

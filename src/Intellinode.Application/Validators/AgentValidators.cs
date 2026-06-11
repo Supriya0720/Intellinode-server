@@ -1444,6 +1444,293 @@ internal static class WindowsEthernetSetupTestValidationMacAddress
     public const string Value = "AA:BB:CC:DD:EE:10:XP";
 }
 
+public sealed class WindowsWirelessSetupExecuteNowRequestValidator : AbstractValidator<WindowsWirelessSetupExecuteNowRequest>
+{
+    public WindowsWirelessSetupExecuteNowRequestValidator()
+    {
+        RuleFor(x => x.Target).SetValidator(new WindowsWirelessSetupTargetRequestValidator());
+        RuleFor(x => x.Settings).SetValidator(new WindowsWirelessSetupSettingsRequestValidator());
+        RuleFor(x => x.Execution)
+            .Must(e => string.Equals(e.ScheduleType?.Trim(), "InstantApply", StringComparison.OrdinalIgnoreCase))
+            .WithMessage("scheduleType must be InstantApply for this endpoint.");
+        RuleFor(x => x)
+            .Must(x => WindowsWirelessSetupSettingsRequestValidation.PayloadWithinLimit(
+                x.Settings,
+                x.Target.MacAddress,
+                ParseAgentAction(x.Execution.AgentAction)))
+            .WithMessage($"Serialized agent payload exceeds {WindowsWirelessSetupSettingsRequestValidation.MaxFunctionParameterLength} characters.");
+    }
+
+    private static int ParseAgentAction(string? agentAction) =>
+        int.TryParse(agentAction?.Trim(), out var value) ? value : 0;
+}
+
+public sealed class WindowsWirelessSetupTargetRequestValidator : AbstractValidator<WindowsWirelessSetupTargetRequest>
+{
+    public WindowsWirelessSetupTargetRequestValidator()
+    {
+        RuleFor(x => x.MacAddress)
+            .NotEmpty()
+            .MaximumLength(300)
+            .Must(HaveXpOsSuffix)
+            .WithMessage("macAddress must include :XP suffix.");
+
+        RuleFor(x => x.OsType)
+            .NotEmpty()
+            .Must(os => string.Equals(os.Trim(), "XP", StringComparison.OrdinalIgnoreCase))
+            .WithMessage("osType must be XP.");
+
+        RuleFor(x => x)
+            .Must(x =>
+            {
+                var suffix = SystemSettingExecuteNowRequestValidator.ExtractOsSuffix(x.MacAddress);
+                return suffix == "XP";
+            })
+            .WithMessage("target.osType must match macAddress suffix.");
+    }
+
+    private static bool HaveXpOsSuffix(string macAddress)
+    {
+        var suffix = SystemSettingExecuteNowRequestValidator.ExtractOsSuffix(macAddress);
+        return suffix == "XP";
+    }
+}
+
+public sealed class WindowsWirelessSetupSettingsRequestValidator : AbstractValidator<WindowsWirelessSetupSettingsRequest>
+{
+    public const int MaxIpFieldLength = 15;
+
+    public WindowsWirelessSetupSettingsRequestValidator(bool requireManualIpAddress = true)
+    {
+        RuleFor(x => x.IpAddress).MaximumLength(MaxIpFieldLength);
+        RuleFor(x => x.SubnetMask).MaximumLength(MaxIpFieldLength);
+        RuleFor(x => x.Gateway).MaximumLength(MaxIpFieldLength);
+        RuleFor(x => x.PrimaryDns).MaximumLength(MaxIpFieldLength);
+        RuleFor(x => x.SecondaryDns).MaximumLength(MaxIpFieldLength);
+        RuleFor(x => x.PrimaryWins).MaximumLength(MaxIpFieldLength);
+        RuleFor(x => x.SecondaryWins).MaximumLength(MaxIpFieldLength);
+
+        if (requireManualIpAddress)
+        {
+            RuleFor(x => x.IpAddress)
+                .NotEmpty()
+                .When(x => !x.IsDhcp)
+                .WithMessage("ipAddress is required when isDhcp is false.");
+        }
+
+        RuleFor(x => x.SubnetMask)
+            .NotEmpty()
+            .When(x => !x.IsDhcp)
+            .WithMessage("subnetMask is required when isDhcp is false.");
+
+        RuleFor(x => x.Gateway)
+            .NotEmpty()
+            .When(x => !x.IsDhcp)
+            .WithMessage("gateway is required when isDhcp is false.");
+
+        RuleFor(x => x.PrimaryDns)
+            .NotEmpty()
+            .When(x => !x.IsDhcp)
+            .WithMessage("primaryDns is required when isDhcp is false.");
+
+        RuleFor(x => x.IpAddress)
+            .Must(WindowsEthernetSetupSettingsRequestValidator.IsValidIpv4)
+            .When(x => !x.IsDhcp && !string.IsNullOrWhiteSpace(x.IpAddress))
+            .WithMessage("ipAddress must be a valid IPv4 address.");
+
+        RuleFor(x => x.Gateway)
+            .Must(WindowsEthernetSetupSettingsRequestValidator.IsValidIpv4)
+            .When(x => !x.IsDhcp && !string.IsNullOrWhiteSpace(x.Gateway))
+            .WithMessage("gateway must be a valid IPv4 address.");
+
+        RuleFor(x => x.SubnetMask)
+            .Must(WindowsEthernetSetupSettingsRequestValidator.IsValidSubnetMask)
+            .When(x => !x.IsDhcp && !string.IsNullOrWhiteSpace(x.SubnetMask))
+            .WithMessage("subnetMask is not a valid subnet mask.");
+
+        RuleFor(x => x.PrimaryDns)
+            .Must(WindowsEthernetSetupSettingsRequestValidator.IsValidIpv4)
+            .When(x => !x.IsDhcp && !string.IsNullOrWhiteSpace(x.PrimaryDns))
+            .WithMessage("primaryDns must be a valid IPv4 address.");
+
+        RuleFor(x => x.SecondaryDns)
+            .Must(WindowsEthernetSetupSettingsRequestValidator.IsValidIpv4)
+            .When(x => !x.IsDhcp && !string.IsNullOrWhiteSpace(x.SecondaryDns))
+            .WithMessage("secondaryDns must be a valid IPv4 address.");
+
+        RuleFor(x => x.PrimaryWins)
+            .Must(WindowsEthernetSetupSettingsRequestValidator.IsValidIpv4)
+            .When(x => !x.IsDhcp && !string.IsNullOrWhiteSpace(x.PrimaryWins))
+            .WithMessage("primaryWins must be a valid IPv4 address.");
+
+        RuleFor(x => x.SecondaryWins)
+            .Must(WindowsEthernetSetupSettingsRequestValidator.IsValidIpv4)
+            .When(x => !x.IsDhcp && !string.IsNullOrWhiteSpace(x.SecondaryWins))
+            .WithMessage("secondaryWins must be a valid IPv4 address.");
+    }
+}
+
+/// <summary>
+/// Payload sizing for FluentValidation — must stay aligned with WindowsWirelessSetupPayloadBuilder.
+/// </summary>
+internal static class WindowsWirelessSetupSettingsRequestValidation
+{
+    public const int MaxFunctionParameterLength = 512;
+
+    public static bool PayloadWithinLimit(
+        WindowsWirelessSetupSettingsRequest settings,
+        string macAddress,
+        int agentAction)
+    {
+        var macAddr = MapMacAddress(macAddress);
+        var payload = SerializePayload(settings, macAddr, agentAction);
+        return payload.Length <= MaxFunctionParameterLength;
+    }
+
+    private static string MapMacAddress(string deviceMacAddress) =>
+        deviceMacAddress.Trim().EndsWith(":XP", StringComparison.OrdinalIgnoreCase)
+            ? deviceMacAddress.Trim()
+            : $"{deviceMacAddress.Trim()}:XP";
+
+    private static string SerializePayload(
+        WindowsWirelessSetupSettingsRequest settings,
+        string macAddr,
+        int agentAction)
+    {
+        var inner = new
+        {
+            MacAddr = macAddr,
+            DHCP = settings.IsDhcp,
+            IPAddr = settings.IsDhcp ? string.Empty : settings.IpAddress.Trim(),
+            SubnetMask = settings.IsDhcp ? string.Empty : settings.SubnetMask.Trim(),
+            Gateway = settings.IsDhcp ? string.Empty : settings.Gateway.Trim(),
+            PriDNS = settings.IsDhcp ? string.Empty : settings.PrimaryDns.Trim(),
+            SecDNS = settings.IsDhcp ? string.Empty : settings.SecondaryDns.Trim(),
+            PriWNS = settings.IsDhcp ? string.Empty : settings.PrimaryWins.Trim(),
+            SecWNS = settings.IsDhcp ? string.Empty : settings.SecondaryWins.Trim(),
+            networkType = "Wireless",
+            TaskID = 0,
+            AgentAction = agentAction
+        };
+
+        return System.Text.Json.JsonSerializer.Serialize(new { WinCELinux = new { XPNetwork_Settings = inner } });
+    }
+}
+
+public sealed class WindowsWirelessSetupQueueRequestValidator : AbstractValidator<WindowsWirelessSetupQueueRequest>
+{
+    public WindowsWirelessSetupQueueRequestValidator()
+    {
+        RuleFor(x => x.Target).SetValidator(new WindowsWirelessSetupTargetRequestValidator());
+        RuleFor(x => x.Settings).SetValidator(new WindowsWirelessSetupSettingsRequestValidator());
+        RuleFor(x => x.Execution)
+            .Must(e => string.Equals(e.ScheduleType?.Trim(), "Queue", StringComparison.OrdinalIgnoreCase))
+            .WithMessage("scheduleType must be Queue for this endpoint.");
+        RuleFor(x => x)
+            .Must(x => WindowsWirelessSetupSettingsRequestValidation.PayloadWithinLimit(
+                x.Settings,
+                x.Target.MacAddress,
+                ParseAgentAction(x.Execution.AgentAction)))
+            .WithMessage($"Serialized agent payload exceeds {WindowsWirelessSetupSettingsRequestValidation.MaxFunctionParameterLength} characters.");
+    }
+
+    private static int ParseAgentAction(string? agentAction) =>
+        int.TryParse(agentAction?.Trim(), out var value) ? value : 0;
+}
+
+public sealed class WindowsWirelessSetupHistoryQueryValidator : AbstractValidator<WindowsWirelessSetupHistoryQuery>
+{
+    public WindowsWirelessSetupHistoryQueryValidator()
+    {
+        RuleFor(x => x.Page).GreaterThanOrEqualTo(1);
+        RuleFor(x => x.PageSize).InclusiveBetween(1, 100);
+
+        RuleFor(x => x.Status)
+            .Must(s => string.IsNullOrWhiteSpace(s) || s is "Pending" or "Delivered" or "Applied" or "Failed")
+            .WithMessage("status must be one of Pending, Delivered, Applied, Failed.");
+
+        RuleFor(x => x)
+            .Must(x => !x.FromUtc.HasValue || !x.ToUtc.HasValue || x.FromUtc <= x.ToUtc)
+            .WithMessage("fromUtc must be less than or equal to toUtc.");
+    }
+}
+
+public sealed class WindowsWirelessSetupExecuteNowBulkRequestValidator : AbstractValidator<WindowsWirelessSetupExecuteNowBulkRequest>
+{
+    public const int MaxTargets = 500;
+
+    public WindowsWirelessSetupExecuteNowBulkRequestValidator()
+    {
+        RuleFor(x => x.Targets)
+            .NotEmpty()
+            .WithMessage("At least one target is required.");
+
+        RuleFor(x => x.Targets)
+            .Must(targets => targets.GroupBy(t => t.MacAddress.Trim(), StringComparer.OrdinalIgnoreCase).Count() <= MaxTargets)
+            .WithMessage($"At most {MaxTargets} targets are allowed.");
+
+        RuleForEach(x => x.Targets).SetValidator(new WindowsWirelessSetupTargetRequestValidator());
+
+        RuleFor(x => x.Settings)
+            .Custom((settings, context) =>
+            {
+                var bulk = (WindowsWirelessSetupExecuteNowBulkRequest)context.InstanceToValidate!;
+                var uniqueCount = bulk.Targets
+                    .GroupBy(t => t.MacAddress.Trim(), StringComparer.OrdinalIgnoreCase)
+                    .Count();
+                var validator = new WindowsWirelessSetupSettingsRequestValidator(requireManualIpAddress: uniqueCount <= 1);
+                var result = validator.Validate(settings);
+                foreach (var error in result.Errors)
+                {
+                    context.AddFailure(error);
+                }
+            });
+
+        RuleFor(x => x.Execution)
+            .Must(e => string.Equals(e.ScheduleType?.Trim(), "InstantApply", StringComparison.OrdinalIgnoreCase))
+            .WithMessage("scheduleType must be InstantApply for this endpoint.");
+
+        RuleFor(x => x)
+            .Must(x => WindowsWirelessSetupSettingsRequestValidation.PayloadWithinLimit(
+                x.Settings,
+                x.Targets.FirstOrDefault()?.MacAddress ?? WindowsWirelessSetupTestValidationMacAddress.Value,
+                ParseAgentAction(x.Execution.AgentAction)))
+            .WithMessage($"Serialized agent payload exceeds {WindowsWirelessSetupSettingsRequestValidation.MaxFunctionParameterLength} characters.");
+    }
+
+    private static int ParseAgentAction(string? agentAction) =>
+        int.TryParse(agentAction?.Trim(), out var value) ? value : 0;
+}
+
+public sealed class WindowsWirelessSetupExecuteNowGroupRequestValidator : AbstractValidator<WindowsWirelessSetupExecuteNowGroupRequest>
+{
+    public WindowsWirelessSetupExecuteNowGroupRequestValidator()
+    {
+        RuleFor(x => x.GroupId).NotEmpty();
+
+        RuleFor(x => x.Settings).SetValidator(new WindowsWirelessSetupSettingsRequestValidator(requireManualIpAddress: false));
+
+        RuleFor(x => x.Execution)
+            .Must(e => string.Equals(e.ScheduleType?.Trim(), "InstantApply", StringComparison.OrdinalIgnoreCase))
+            .WithMessage("scheduleType must be InstantApply for this endpoint.");
+
+        RuleFor(x => x)
+            .Must(x => WindowsWirelessSetupSettingsRequestValidation.PayloadWithinLimit(
+                x.Settings,
+                WindowsWirelessSetupTestValidationMacAddress.Value,
+                ParseAgentAction(x.Execution.AgentAction)))
+            .WithMessage($"Serialized agent payload exceeds {WindowsWirelessSetupSettingsRequestValidation.MaxFunctionParameterLength} characters.");
+    }
+
+    private static int ParseAgentAction(string? agentAction) =>
+        int.TryParse(agentAction?.Trim(), out var value) ? value : 0;
+}
+
+internal static class WindowsWirelessSetupTestValidationMacAddress
+{
+    public const string Value = "AA:BB:CC:DD:EE:10:XP";
+}
+
 public sealed class WindowsWirelessPropertiesExecuteNowRequestValidator : AbstractValidator<WindowsWirelessPropertiesExecuteNowRequest>
 {
     public WindowsWirelessPropertiesExecuteNowRequestValidator()

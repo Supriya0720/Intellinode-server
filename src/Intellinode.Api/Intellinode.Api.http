@@ -3352,3 +3352,184 @@ Authorization: Bearer {{adminToken}}
 }
 
 # Expected: 200; no device_tasks rows created
+
+
+@wirelessSetupMac = 00-11-22-33-44-55:XP
+
+### Windows Wireless Setup — Get current by MAC
+# @name wirelessSetupGetCurrent
+GET {{Intellinode.Api_HostAddress}}/api/v1/admin/device-config/windows-wireless-setup/{{wirelessSetupMac}}
+Authorization: Bearer {{adminToken}}
+
+# Expected: 200; data.reported.isAvailable=false (v1 stub); data.desired from device_windows_wireless_setup_settings
+
+
+### Windows Wireless Setup — Execute now (manual static IP)
+# @name wirelessSetupExecuteNowManual
+POST {{Intellinode.Api_HostAddress}}/api/v1/admin/device-config/windows-wireless-setup/execute-now
+Content-Type: application/json
+Authorization: Bearer {{adminToken}}
+
+{
+  "target": { "macAddress": "{{wirelessSetupMac}}", "osType": "XP" },
+  "settings": {
+    "isDhcp": false,
+    "ipAddress": "192.168.1.50",
+    "subnetMask": "255.255.255.0",
+    "gateway": "192.168.1.1",
+    "primaryDns": "8.8.8.8",
+    "secondaryDns": "8.8.4.4",
+    "primaryWins": "",
+    "secondaryWins": ""
+  },
+  "execution": { "agentAction": "0", "scheduleType": "InstantApply" },
+  "options": { "dryRun": false, "returnLegacySummary": true }
+}
+
+# Expected: 200, data.taskId, data.execution.status=Pending
+# Task: ModuleName=Wireless, FunctionName=Now, ExtraData={mac}&W, inline XPNetwork_Settings JSON (no hydration)
+
+@wirelessSetupTaskId = {{wirelessSetupExecuteNowManual.response.body.data.taskId}}
+
+### Windows Wireless Setup — Execute now (DHCP)
+POST {{Intellinode.Api_HostAddress}}/api/v1/admin/device-config/windows-wireless-setup/execute-now
+Content-Type: application/json
+Authorization: Bearer {{adminToken}}
+
+{
+  "target": { "macAddress": "{{wirelessSetupMac}}", "osType": "XP" },
+  "settings": { "isDhcp": true },
+  "execution": { "agentAction": "0", "scheduleType": "InstantApply" },
+  "options": { "dryRun": false, "returnLegacySummary": true }
+}
+
+
+### Windows Wireless Setup — Queue (scheduled apply)
+# @name wirelessSetupQueue
+POST {{Intellinode.Api_HostAddress}}/api/v1/admin/device-config/windows-wireless-setup/queue
+Content-Type: application/json
+Authorization: Bearer {{adminToken}}
+
+{
+  "target": { "macAddress": "{{wirelessSetupMac}}", "osType": "XP" },
+  "settings": {
+    "isDhcp": false,
+    "ipAddress": "192.168.1.60",
+    "subnetMask": "255.255.255.0",
+    "gateway": "192.168.1.1",
+    "primaryDns": "8.8.8.8",
+    "secondaryDns": "8.8.4.4",
+    "primaryWins": "",
+    "secondaryWins": ""
+  },
+  "execution": { "agentAction": "0", "scheduleType": "Queue" },
+  "options": { "dryRun": false, "returnLegacySummary": true }
+}
+
+# Expected: 200, data.execution.scheduleType=Queue, task FunctionName=Update
+
+@wirelessSetupQueuedTaskId = {{wirelessSetupQueue.response.body.data.taskId}}
+
+### Windows Wireless Setup — Apply history
+GET {{Intellinode.Api_HostAddress}}/api/v1/admin/device-config/windows-wireless-setup/apply-history/{{wirelessSetupMac}}?page=1&pageSize=20
+Authorization: Bearer {{adminToken}}
+
+# Expected: 200 with merged task/log items for ModuleName=Wireless
+
+### Windows Wireless Setup — Apply history (failed only)
+GET {{Intellinode.Api_HostAddress}}/api/v1/admin/device-config/windows-wireless-setup/apply-history/{{wirelessSetupMac}}?status=Failed&page=1&pageSize=20
+Authorization: Bearer {{adminToken}}
+
+
+### Windows Wireless Setup — Execute now bulk (DHCP)
+POST {{Intellinode.Api_HostAddress}}/api/v1/admin/device-config/windows-wireless-setup/execute-now/bulk
+Content-Type: application/json
+Authorization: Bearer {{adminToken}}
+
+{
+  "targets": [
+    { "macAddress": "{{wirelessSetupMac}}", "osType": "XP" },
+    { "macAddress": "AA:BB:CC:DD:EE:11:XP", "osType": "XP" }
+  ],
+  "settings": { "isDhcp": true },
+  "execution": { "agentAction": "0", "scheduleType": "InstantApply" },
+  "options": { "dryRun": false, "returnLegacySummary": true }
+}
+
+# Expected: 200; data.results[] per MAC; independent pending block from Ethernet and Wireless Properties
+
+### Windows Wireless Setup — Execute now group (DHCP)
+# @name wirelessSetupExecuteNowGroupDhcp
+POST {{Intellinode.Api_HostAddress}}/api/v1/admin/device-config/windows-wireless-setup/execute-now/group/{{defaultGroupId}}
+Content-Type: application/json
+Authorization: Bearer {{adminToken}}
+
+{
+  "groupId": "{{defaultGroupId}}",
+  "settings": { "isDhcp": true },
+  "execution": { "agentAction": "0", "scheduleType": "InstantApply" },
+  "options": { "dryRun": false, "returnLegacySummary": true }
+}
+
+# Expected: 200 with per-member results; non-:XP members → Blocked / UnsupportedOsType
+
+### Windows Wireless Setup — Bulk dry run
+POST {{Intellinode.Api_HostAddress}}/api/v1/admin/device-config/windows-wireless-setup/execute-now/bulk
+Content-Type: application/json
+Authorization: Bearer {{adminToken}}
+
+{
+  "targets": [
+    { "macAddress": "{{wirelessSetupMac}}", "osType": "XP" }
+  ],
+  "settings": { "isDhcp": true },
+  "execution": { "agentAction": "0", "scheduleType": "InstantApply" },
+  "options": { "dryRun": true, "returnLegacySummary": false }
+}
+
+# Expected: 200; no device_tasks rows created
+
+
+### Windows Wireless Setup — Agent poll pending tasks (inline payload)
+# @name wirelessSetupPendingTasks
+GET {{Intellinode.Api_HostAddress}}/api/v1/agents/tasks/pending
+Authorization: Bearer {{agentToken}}
+
+# Expected: moduleName=Wireless
+# functionParameter = inline {"WinCELinux":{"XPNetwork_Settings":{..., "networkType":"Wireless"}}} (no hydration)
+# extraData contains &W
+
+
+### Windows Wireless Setup — Agent ack completed
+POST {{Intellinode.Api_HostAddress}}/api/v1/agents/tasks/ack
+Content-Type: application/json
+Authorization: Bearer {{agentToken}}
+
+{
+  "acknowledgements": [
+    {
+      "taskId": "{{wirelessSetupTaskId}}",
+      "status": "Completed"
+    }
+  ]
+}
+
+# Expected: device_windows_wireless_setup_settings pending_apply=false, last_apply_status=Applied
+
+
+### Windows Wireless Setup — Agent ack failed
+POST {{Intellinode.Api_HostAddress}}/api/v1/agents/tasks/ack
+Content-Type: application/json
+Authorization: Bearer {{agentToken}}
+
+{
+  "acknowledgements": [
+    {
+      "taskId": "{{wirelessSetupTaskId}}",
+      "status": "Failed",
+      "reason": "Wireless IP apply failed on device"
+    }
+  ]
+}
+
+# Expected: last_apply_status=Failed, last_apply_message truncated to 500 chars

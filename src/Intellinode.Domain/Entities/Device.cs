@@ -54,6 +54,7 @@ public class Device
     public DeviceWindows8021xSettings? Windows8021xSettings { get; set; }
     public DeviceWindowsComputerNameSettings? WindowsComputerNameSettings { get; set; }
     public DeviceWindowsEthernetSettings? WindowsEthernetSetupSettings { get; set; }
+    public DeviceWindowsWirelessSetupSettings? WindowsWirelessSetupSettings { get; set; }
     public ICollection<DeviceWindows8021xSettingsSnapshot> Windows8021xSnapshots { get; set; } = [];
     public ICollection<DeviceWindowsWirelessProfileSettings> WindowsWirelessProfiles { get; set; } = [];
     public ICollection<DeviceWindowsWirelessProfileSettingsSnapshot> WindowsWirelessProfileSnapshots { get; set; } = [];

@@ -480,6 +480,44 @@ public interface IWindowsEthernetSetupPayloadBuilder
     string BuildEthernetPayload(WindowsEthernetSetupPayloadRequest request);
 }
 
+public interface IWindowsWirelessSetupSettingsService
+{
+    Task<WindowsWirelessSetupCurrentResult> GetCurrentAsync(
+        string macAddress,
+        CancellationToken cancellationToken = default);
+
+    Task<WindowsWirelessSetupExecuteNowResult> ExecuteNowAsync(
+        WindowsWirelessSetupExecuteNowRequest request,
+        Guid? adminId = null,
+        CancellationToken cancellationToken = default);
+
+    Task<WindowsWirelessSetupQueueResult> QueueAsync(
+        WindowsWirelessSetupQueueRequest request,
+        Guid? adminId = null,
+        CancellationToken cancellationToken = default);
+
+    Task<WindowsWirelessSetupHistoryResult> GetApplyHistoryAsync(
+        string macAddress,
+        WindowsWirelessSetupHistoryQuery query,
+        CancellationToken cancellationToken = default);
+
+    Task<WindowsWirelessSetupBulkResult> ExecuteNowBulkAsync(
+        WindowsWirelessSetupExecuteNowBulkRequest request,
+        Guid? adminId = null,
+        CancellationToken cancellationToken = default);
+
+    Task<WindowsWirelessSetupBulkResult> ExecuteNowGroupAsync(
+        Guid groupId,
+        WindowsWirelessSetupExecuteNowGroupRequest request,
+        Guid? adminId = null,
+        CancellationToken cancellationToken = default);
+}
+
+public interface IWindowsWirelessSetupPayloadBuilder
+{
+    string BuildWirelessPayload(WindowsWirelessSetupPayloadRequest request);
+}
+
 public interface IIntellinodeDbContext
 {
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);

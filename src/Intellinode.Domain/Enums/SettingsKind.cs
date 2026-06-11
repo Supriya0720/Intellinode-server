@@ -16,6 +16,8 @@ public enum SettingsKind
     WindowsComputerName,
     /// <summary>FusionX module "Ethernet".</summary>
     WindowsEthernetSetup,
+    /// <summary>FusionX module "Wireless" (Network Settings → Wireless Setup / Wi‑Fi IP).</summary>
+    WindowsWirelessSetup,
     /// <summary>FusionX module "Wireless Network Security" (Network Settings → Wireless Properties).</summary>
     WindowsWirelessProperties
 }

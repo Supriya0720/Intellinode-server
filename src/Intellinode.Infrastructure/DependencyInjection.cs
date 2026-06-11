@@ -24,6 +24,7 @@ public static class DependencyInjection
         services.Configure<Windows8021xOptions>(configuration.GetSection(Windows8021xOptions.SectionName));
         services.Configure<WindowsComputerNameOptions>(configuration.GetSection(WindowsComputerNameOptions.SectionName));
         services.Configure<WindowsEthernetSetupOptions>(configuration.GetSection(WindowsEthernetSetupOptions.SectionName));
+        services.Configure<WindowsWirelessSetupOptions>(configuration.GetSection(WindowsWirelessSetupOptions.SectionName));
         services.Configure<WindowsWirelessPropertiesOptions>(configuration.GetSection(WindowsWirelessPropertiesOptions.SectionName));
 
         var connectionString = configuration.GetConnectionString("DefaultConnection")
@@ -62,6 +63,7 @@ public static class DependencyInjection
         services.AddScoped<Windows8021xTaskAckHandler>();
         services.AddScoped<WindowsComputerNameTaskAckHandler>();
         services.AddScoped<WindowsEthernetSetupTaskAckHandler>();
+        services.AddScoped<WindowsWirelessSetupTaskAckHandler>();
         services.AddScoped<WindowsWirelessPropertiesTaskAckHandler>();
         services.AddScoped<IAgentTaskService, AgentTaskService>();
         services.AddScoped<IDeviceRemoteSettingsService, DeviceRemoteSettingsService>();
@@ -81,6 +83,8 @@ public static class DependencyInjection
         services.AddScoped<IWindowsComputerNameSettingsService, WindowsComputerNameSettingsService>();
         services.AddScoped<IWindowsEthernetSetupSettingsService, WindowsEthernetSetupSettingsService>();
         services.AddScoped<IWindowsEthernetSetupPayloadBuilder, WindowsEthernetSetupPayloadBuilder>();
+        services.AddScoped<IWindowsWirelessSetupSettingsService, WindowsWirelessSetupSettingsService>();
+        services.AddScoped<IWindowsWirelessSetupPayloadBuilder, WindowsWirelessSetupPayloadBuilder>();
         services.AddScoped<EffectiveAgentSettingsResolver>();
         services.AddScoped<IEffectiveAgentSettingsResolver>(sp => sp.GetRequiredService<EffectiveAgentSettingsResolver>());
         services.AddSingleton<ITokenService, TokenService>();
