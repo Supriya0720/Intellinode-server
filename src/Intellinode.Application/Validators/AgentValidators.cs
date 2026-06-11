@@ -1443,3 +1443,312 @@ internal static class WindowsEthernetSetupTestValidationMacAddress
 {
     public const string Value = "AA:BB:CC:DD:EE:10:XP";
 }
+
+public sealed class WindowsWirelessPropertiesExecuteNowRequestValidator : AbstractValidator<WindowsWirelessPropertiesExecuteNowRequest>
+{
+    public WindowsWirelessPropertiesExecuteNowRequestValidator()
+    {
+        RuleFor(x => x.Target).SetValidator(new WindowsWirelessPropertiesTargetRequestValidator());
+        RuleFor(x => x.Execution)
+            .Must(e => string.Equals(e.ScheduleType?.Trim(), "InstantApply", StringComparison.OrdinalIgnoreCase))
+            .WithMessage("scheduleType must be InstantApply for this endpoint.");
+        RuleFor(x => x.Operation)
+            .Must(o => o is WirelessProfileOperation.Add or WirelessProfileOperation.Update)
+            .WithMessage("operation must be Add or Update for execute-now profile apply.");
+
+        When(x => x.Operation == WirelessProfileOperation.Add, () =>
+        {
+            RuleFor(x => x.Profile).SetValidator(new WindowsWirelessPropertiesProfileRequestValidator(requireFullProfile: true));
+        });
+
+        When(x => x.Operation == WirelessProfileOperation.Update, () =>
+        {
+            RuleFor(x => x.Profile).SetValidator(new WindowsWirelessPropertiesProfileRequestValidator(requireFullProfile: true));
+        });
+    }
+}
+
+public sealed class WindowsWirelessPropertiesQueueRequestValidator : AbstractValidator<WindowsWirelessPropertiesQueueRequest>
+{
+    public WindowsWirelessPropertiesQueueRequestValidator()
+    {
+        RuleFor(x => x.Target).SetValidator(new WindowsWirelessPropertiesTargetRequestValidator());
+        RuleFor(x => x.Execution)
+            .Must(e => string.Equals(e.ScheduleType?.Trim(), "Queue", StringComparison.OrdinalIgnoreCase))
+            .WithMessage("scheduleType must be Queue for this endpoint.");
+        RuleFor(x => x.Operation)
+            .Must(o => o is WirelessProfileOperation.Add or WirelessProfileOperation.Update)
+            .WithMessage("operation must be Add or Update for queue profile apply.");
+
+        When(x => x.Operation == WirelessProfileOperation.Add, () =>
+        {
+            RuleFor(x => x.Profile).SetValidator(new WindowsWirelessPropertiesProfileRequestValidator(requireFullProfile: true));
+        });
+
+        When(x => x.Operation == WirelessProfileOperation.Update, () =>
+        {
+            RuleFor(x => x.Profile).SetValidator(new WindowsWirelessPropertiesProfileRequestValidator(requireFullProfile: true));
+        });
+    }
+}
+
+public sealed class WindowsWirelessPropertiesDeleteRequestValidator : AbstractValidator<WindowsWirelessPropertiesDeleteRequest>
+{
+    public WindowsWirelessPropertiesDeleteRequestValidator()
+    {
+        RuleFor(x => x.Target).SetValidator(new WindowsWirelessPropertiesTargetRequestValidator());
+        RuleFor(x => x.Ssid)
+            .NotEmpty()
+            .MaximumLength(128);
+        RuleFor(x => x.Execution)
+            .Must(e =>
+                string.Equals(e.ScheduleType?.Trim(), "InstantApply", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(e.ScheduleType?.Trim(), "Queue", StringComparison.OrdinalIgnoreCase))
+            .WithMessage("scheduleType must be InstantApply or Queue.");
+    }
+}
+
+public sealed class WindowsWirelessPropertiesTargetRequestValidator : AbstractValidator<WindowsWirelessPropertiesTargetRequest>
+{
+    public WindowsWirelessPropertiesTargetRequestValidator()
+    {
+        RuleFor(x => x.MacAddress)
+            .NotEmpty()
+            .MaximumLength(300)
+            .Must(mac => string.Equals(SystemSettingExecuteNowRequestValidator.ExtractOsSuffix(mac), "XP", StringComparison.OrdinalIgnoreCase))
+            .WithMessage("macAddress must include :XP suffix (Windows only in v1).");
+
+        RuleFor(x => x.OsType)
+            .NotEmpty()
+            .Must(os => string.Equals(os.Trim(), "XP", StringComparison.OrdinalIgnoreCase))
+            .WithMessage("osType must be XP.");
+
+        RuleFor(x => x)
+            .Must(x =>
+            {
+                var suffix = SystemSettingExecuteNowRequestValidator.ExtractOsSuffix(x.MacAddress);
+                return suffix is not null && suffix == x.OsType.Trim().ToUpperInvariant();
+            })
+            .WithMessage("target.osType must match macAddress suffix.");
+    }
+}
+
+public sealed class WindowsWirelessPropertiesProfileRequestValidator : AbstractValidator<WindowsWirelessPropertiesProfileRequest>
+{
+    public const int MaxSsidLength = 128;
+    public const int MaxNetworkNameLength = 50;
+    public const int MaxKeyLength = 100;
+    public const int MaxPreSharedKeyLength = 100;
+
+    public WindowsWirelessPropertiesProfileRequestValidator(bool requireFullProfile = true)
+    {
+        RuleFor(x => x.Ssid)
+            .NotEmpty()
+            .MaximumLength(MaxSsidLength);
+
+        if (!requireFullProfile)
+        {
+            return;
+        }
+
+        RuleFor(x => x.NetworkAuthentication)
+            .NotEmpty()
+            .Must(WindowsWirelessPropertiesProfileRequestValidation.IsValidAuthentication)
+            .WithMessage("networkAuthentication must be a supported FusionX auth value.");
+
+        RuleFor(x => x)
+            .Must(WindowsWirelessPropertiesProfileRequestValidation.HasValidEncryptionForAuth)
+            .WithMessage("dataEncryption must be None for Open auth and required otherwise.");
+
+        RuleFor(x => x.NetworkKey)
+            .Must((profile, key) => WindowsWirelessPropertiesProfileRequestValidation.IsValidNetworkKey(profile, key))
+            .WithMessage("networkKey is required (8-100 chars, FusionX charset) for Shared and WPA-Personal profiles.");
+
+        RuleFor(x => x.PreSharedKey)
+            .MaximumLength(MaxPreSharedKeyLength);
+
+        RuleFor(x => x.NetworkName)
+            .MaximumLength(MaxNetworkNameLength);
+
+        RuleFor(x => x.KeyIndex)
+            .InclusiveBetween(0, 4)
+            .Must((profile, index) => WindowsWirelessPropertiesProfileRequestValidation.IsValidKeyIndex(profile, index))
+            .WithMessage("keyIndex must be between 1 and 4 when specified for keyed profiles.");
+
+        RuleFor(x => x.Text2).MaximumLength(128);
+        RuleFor(x => x.Text3).MaximumLength(128);
+    }
+}
+
+internal static class WindowsWirelessPropertiesProfileRequestValidation
+{
+    private static readonly HashSet<string> ValidAuthenticationValues = new(StringComparer.Ordinal)
+    {
+        "No authentication (Open)",
+        "Shared",
+        "WPA-Enterprise",
+        "WPA-Personal",
+        "WPA2-Enterprise",
+        "WPA2-Personal"
+    };
+
+    private static readonly System.Text.RegularExpressions.Regex NetworkKeyRegex =
+        new("^[a-zA-Z0-9%!@#$%^&*()_+-=/~`]{8,}$", System.Text.RegularExpressions.RegexOptions.Compiled);
+
+    public static bool IsValidAuthentication(string? authentication) =>
+        !string.IsNullOrWhiteSpace(authentication) && ValidAuthenticationValues.Contains(authentication.Trim());
+
+    public static bool IsOpenAuth(string? authentication) =>
+        string.Equals(authentication?.Trim(), "No authentication (Open)", StringComparison.Ordinal);
+
+    public static bool RequiresNetworkKey(string? authentication)
+    {
+        if (string.IsNullOrWhiteSpace(authentication))
+        {
+            return false;
+        }
+
+        var auth = authentication.Trim();
+        return auth == "Shared" ||
+               auth.Contains("Personal", StringComparison.Ordinal);
+    }
+
+    public static bool HasValidEncryptionForAuth(WindowsWirelessPropertiesProfileRequest profile)
+    {
+        if (!IsValidAuthentication(profile.NetworkAuthentication))
+        {
+            return false;
+        }
+
+        if (IsOpenAuth(profile.NetworkAuthentication))
+        {
+            return string.IsNullOrWhiteSpace(profile.DataEncryption) ||
+                   string.Equals(profile.DataEncryption.Trim(), "None", StringComparison.OrdinalIgnoreCase);
+        }
+
+        return !string.IsNullOrWhiteSpace(profile.DataEncryption) &&
+               !string.Equals(profile.DataEncryption.Trim(), "None", StringComparison.OrdinalIgnoreCase);
+    }
+
+    public static bool IsValidNetworkKey(WindowsWirelessPropertiesProfileRequest profile, string? networkKey)
+    {
+        if (!RequiresNetworkKey(profile.NetworkAuthentication))
+        {
+            return true;
+        }
+
+        if (string.IsNullOrWhiteSpace(networkKey))
+        {
+            return false;
+        }
+
+        var trimmed = networkKey.Trim();
+        return trimmed.Length <= WindowsWirelessPropertiesProfileRequestValidator.MaxKeyLength &&
+               NetworkKeyRegex.IsMatch(trimmed);
+    }
+
+    public static bool IsValidKeyIndex(WindowsWirelessPropertiesProfileRequest profile, int keyIndex)
+    {
+        if (!RequiresNetworkKey(profile.NetworkAuthentication))
+        {
+            return keyIndex == 0;
+        }
+
+        return keyIndex is >= 1 and <= 4;
+    }
+}
+
+public sealed class WindowsWirelessPropertiesHistoryQueryValidator : AbstractValidator<WindowsWirelessPropertiesHistoryQuery>
+{
+    public WindowsWirelessPropertiesHistoryQueryValidator()
+    {
+        RuleFor(x => x.Page).GreaterThanOrEqualTo(1);
+        RuleFor(x => x.PageSize).InclusiveBetween(1, 100);
+
+        RuleFor(x => x.Status)
+            .Must(s => string.IsNullOrWhiteSpace(s) || s is "Pending" or "Delivered" or "Applied" or "Failed")
+            .WithMessage("status must be one of Pending, Delivered, Applied, Failed.");
+
+        RuleFor(x => x)
+            .Must(x => !x.FromUtc.HasValue || !x.ToUtc.HasValue || x.FromUtc <= x.ToUtc)
+            .WithMessage("fromUtc must be less than or equal to toUtc.");
+    }
+}
+
+public sealed class WindowsWirelessPropertiesExecuteNowBulkRequestValidator : AbstractValidator<WindowsWirelessPropertiesExecuteNowBulkRequest>
+{
+    public const int MaxTargets = 500;
+
+    public WindowsWirelessPropertiesExecuteNowBulkRequestValidator()
+    {
+        RuleFor(x => x.Targets)
+            .NotEmpty()
+            .WithMessage("At least one target is required.");
+
+        RuleFor(x => x.Targets)
+            .Must(targets => targets.GroupBy(t => t.MacAddress.Trim(), StringComparer.OrdinalIgnoreCase).Count() <= MaxTargets)
+            .WithMessage($"At most {MaxTargets} targets are allowed.");
+
+        RuleForEach(x => x.Targets).SetValidator(new WindowsWirelessPropertiesTargetRequestValidator());
+        RuleFor(x => x.Execution)
+            .Must(e => string.Equals(e.ScheduleType?.Trim(), "InstantApply", StringComparison.OrdinalIgnoreCase))
+            .WithMessage("scheduleType must be InstantApply for this endpoint.");
+        RuleFor(x => x.Operation)
+            .Must(o => o is WirelessProfileOperation.Add or WirelessProfileOperation.Update)
+            .WithMessage("operation must be Add or Update for execute-now bulk.");
+        RuleFor(x => x.Profile).SetValidator(new WindowsWirelessPropertiesProfileRequestValidator(requireFullProfile: true));
+    }
+}
+
+public sealed class WindowsWirelessPropertiesExecuteNowGroupRequestValidator : AbstractValidator<WindowsWirelessPropertiesExecuteNowGroupRequest>
+{
+    public WindowsWirelessPropertiesExecuteNowGroupRequestValidator()
+    {
+        RuleFor(x => x.GroupId).NotEmpty();
+        RuleFor(x => x.Execution)
+            .Must(e => string.Equals(e.ScheduleType?.Trim(), "InstantApply", StringComparison.OrdinalIgnoreCase))
+            .WithMessage("scheduleType must be InstantApply for this endpoint.");
+        RuleFor(x => x.Operation)
+            .Must(o => o is WirelessProfileOperation.Add or WirelessProfileOperation.Update)
+            .WithMessage("operation must be Add or Update for execute-now group.");
+        RuleFor(x => x.Profile).SetValidator(new WindowsWirelessPropertiesProfileRequestValidator(requireFullProfile: true));
+    }
+}
+
+public sealed class WindowsWirelessPropertiesDeleteExecuteNowBulkRequestValidator : AbstractValidator<WindowsWirelessPropertiesDeleteExecuteNowBulkRequest>
+{
+    public const int MaxTargets = 500;
+
+    public WindowsWirelessPropertiesDeleteExecuteNowBulkRequestValidator()
+    {
+        RuleFor(x => x.Targets)
+            .NotEmpty()
+            .WithMessage("At least one target is required.");
+
+        RuleFor(x => x.Targets)
+            .Must(targets => targets.GroupBy(t => t.MacAddress.Trim(), StringComparer.OrdinalIgnoreCase).Count() <= MaxTargets)
+            .WithMessage($"At most {MaxTargets} targets are allowed.");
+
+        RuleForEach(x => x.Targets).SetValidator(new WindowsWirelessPropertiesTargetRequestValidator());
+        RuleFor(x => x.Ssid)
+            .NotEmpty()
+            .MaximumLength(WindowsWirelessPropertiesProfileRequestValidator.MaxSsidLength);
+        RuleFor(x => x.Execution)
+            .Must(e => string.Equals(e.ScheduleType?.Trim(), "InstantApply", StringComparison.OrdinalIgnoreCase))
+            .WithMessage("scheduleType must be InstantApply for this endpoint.");
+    }
+}
+
+public sealed class WindowsWirelessPropertiesDeleteExecuteNowGroupRequestValidator : AbstractValidator<WindowsWirelessPropertiesDeleteExecuteNowGroupRequest>
+{
+    public WindowsWirelessPropertiesDeleteExecuteNowGroupRequestValidator()
+    {
+        RuleFor(x => x.GroupId).NotEmpty();
+        RuleFor(x => x.Ssid)
+            .NotEmpty()
+            .MaximumLength(WindowsWirelessPropertiesProfileRequestValidator.MaxSsidLength);
+        RuleFor(x => x.Execution)
+            .Must(e => string.Equals(e.ScheduleType?.Trim(), "InstantApply", StringComparison.OrdinalIgnoreCase))
+            .WithMessage("scheduleType must be InstantApply for this endpoint.");
+    }
+}

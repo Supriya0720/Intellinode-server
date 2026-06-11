@@ -326,6 +326,82 @@ public interface IWindows8021xTaskPayloadHydrator
         CancellationToken cancellationToken = default);
 }
 
+public interface IWindowsWirelessPropertiesPayloadBuilder
+{
+    string BuildAgentPayload(string settingsJson);
+    string BuildCompactTaskReference(long settingsVersion, long profileKey);
+    bool TryParseCompactTaskReference(string functionParameter, out long settingsVersion, out long profileKey);
+    string BuildInnerSettingsJson(WindowsWirelessPropertiesProfileRequest profile, WirelessProfileOperation operation);
+}
+
+public interface IWindowsWirelessPropertiesTaskPayloadHydrator
+{
+    bool CanHydrate(string moduleName);
+    Task<string?> HydrateFunctionParameterAsync(
+        string storedFunctionParameter,
+        Guid deviceId,
+        CancellationToken cancellationToken = default);
+}
+
+public interface IWindowsWirelessPropertiesSettingsService
+{
+    Task<WindowsWirelessPropertiesExecuteNowResult> ExecuteNowAsync(
+        WindowsWirelessPropertiesExecuteNowRequest request,
+        Guid? adminId = null,
+        CancellationToken cancellationToken = default);
+
+    Task<WindowsWirelessPropertiesQueueResult> QueueAsync(
+        WindowsWirelessPropertiesQueueRequest request,
+        Guid? adminId = null,
+        CancellationToken cancellationToken = default);
+
+    Task<WindowsWirelessPropertiesDeleteExecuteNowResult> DeleteExecuteNowAsync(
+        WindowsWirelessPropertiesDeleteRequest request,
+        Guid? adminId = null,
+        CancellationToken cancellationToken = default);
+
+    Task<WindowsWirelessPropertiesDeleteQueueResult> DeleteQueueAsync(
+        WindowsWirelessPropertiesDeleteRequest request,
+        Guid? adminId = null,
+        CancellationToken cancellationToken = default);
+
+    Task<WindowsWirelessPropertiesListResult> ListProfilesAsync(
+        string macAddress,
+        CancellationToken cancellationToken = default);
+
+    Task<WindowsWirelessPropertiesProfileResult> GetProfileAsync(
+        string macAddress,
+        string ssid,
+        CancellationToken cancellationToken = default);
+
+    Task<WindowsWirelessPropertiesHistoryResult> GetApplyHistoryAsync(
+        string macAddress,
+        WindowsWirelessPropertiesHistoryQuery query,
+        CancellationToken cancellationToken = default);
+
+    Task<WindowsWirelessPropertiesBulkResult> ExecuteNowBulkAsync(
+        WindowsWirelessPropertiesExecuteNowBulkRequest request,
+        Guid? adminId = null,
+        CancellationToken cancellationToken = default);
+
+    Task<WindowsWirelessPropertiesBulkResult> ExecuteNowGroupAsync(
+        Guid groupId,
+        WindowsWirelessPropertiesExecuteNowGroupRequest request,
+        Guid? adminId = null,
+        CancellationToken cancellationToken = default);
+
+    Task<WindowsWirelessPropertiesBulkResult> DeleteExecuteNowBulkAsync(
+        WindowsWirelessPropertiesDeleteExecuteNowBulkRequest request,
+        Guid? adminId = null,
+        CancellationToken cancellationToken = default);
+
+    Task<WindowsWirelessPropertiesBulkResult> DeleteExecuteNowGroupAsync(
+        Guid groupId,
+        WindowsWirelessPropertiesDeleteExecuteNowGroupRequest request,
+        Guid? adminId = null,
+        CancellationToken cancellationToken = default);
+}
+
 public interface IWindowsComputerNamePayloadBuilder
 {
     string BuildHostRenamePayload(WindowsComputerNameHostRenamePayloadRequest request);

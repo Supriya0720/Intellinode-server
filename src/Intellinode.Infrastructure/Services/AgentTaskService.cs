@@ -22,7 +22,9 @@ public sealed class AgentTaskService : IAgentTaskService
     private readonly Windows8021xTaskAckHandler _windows8021xTaskAckHandler;
     private readonly WindowsComputerNameTaskAckHandler _windowsComputerNameTaskAckHandler;
     private readonly WindowsEthernetSetupTaskAckHandler _windowsEthernetSetupTaskAckHandler;
+    private readonly WindowsWirelessPropertiesTaskAckHandler _windowsWirelessPropertiesTaskAckHandler;
     private readonly IWindows8021xTaskPayloadHydrator _windows8021xHydrator;
+    private readonly IWindowsWirelessPropertiesTaskPayloadHydrator _windowsWirelessPropertiesHydrator;
     private readonly ILogger<AgentTaskService> _logger;
 
     public AgentTaskService(
@@ -33,7 +35,9 @@ public sealed class AgentTaskService : IAgentTaskService
         Windows8021xTaskAckHandler windows8021xTaskAckHandler,
         WindowsComputerNameTaskAckHandler windowsComputerNameTaskAckHandler,
         WindowsEthernetSetupTaskAckHandler windowsEthernetSetupTaskAckHandler,
+        WindowsWirelessPropertiesTaskAckHandler windowsWirelessPropertiesTaskAckHandler,
         IWindows8021xTaskPayloadHydrator windows8021xHydrator,
+        IWindowsWirelessPropertiesTaskPayloadHydrator windowsWirelessPropertiesHydrator,
         ILogger<AgentTaskService> logger)
     {
         _dbContext = dbContext;
@@ -43,7 +47,9 @@ public sealed class AgentTaskService : IAgentTaskService
         _windows8021xTaskAckHandler = windows8021xTaskAckHandler;
         _windowsComputerNameTaskAckHandler = windowsComputerNameTaskAckHandler;
         _windowsEthernetSetupTaskAckHandler = windowsEthernetSetupTaskAckHandler;
+        _windowsWirelessPropertiesTaskAckHandler = windowsWirelessPropertiesTaskAckHandler;
         _windows8021xHydrator = windows8021xHydrator;
+        _windowsWirelessPropertiesHydrator = windowsWirelessPropertiesHydrator;
         _logger = logger;
     }
 
@@ -90,6 +96,25 @@ public sealed class AgentTaskService : IAgentTaskService
                 }
             }
 
+            if (_windowsWirelessPropertiesHydrator.CanHydrate(task.ModuleName))
+            {
+                var hydrated = await _windowsWirelessPropertiesHydrator.HydrateFunctionParameterAsync(
+                    task.FunctionParameter,
+                    deviceId,
+                    cancellationToken);
+                if (hydrated is not null)
+                {
+                    functionParameter = hydrated;
+                }
+                else
+                {
+                    _logger.LogWarning(
+                        "Wireless Network Security task {TaskId} hydration failed for device {DeviceId}; returning compact functionParameter",
+                        task.Id,
+                        deviceId);
+                }
+            }
+
             mappedTasks.Add(MapPendingTask(task, functionParameter));
         }
 
@@ -111,6 +136,7 @@ public sealed class AgentTaskService : IAgentTaskService
             .Include(d => d.DisplaySettings)
             .Include(d => d.Windows8021xSettings)
             .Include(d => d.WindowsComputerNameSettings)
+            .Include(d => d.WindowsWirelessProfiles)
             .FirstOrDefaultAsync(d => d.Id == deviceId, cancellationToken);
 
         if (device is null)
@@ -183,6 +209,16 @@ public sealed class AgentTaskService : IAgentTaskService
             if (WindowsEthernetSetupTaskAckHandler.IsEthernetSetupTask(task))
             {
                 await _windowsEthernetSetupTaskAckHandler.ApplyAckAsync(
+                    device,
+                    task,
+                    status,
+                    ack.Reason,
+                    cancellationToken);
+            }
+
+            if (WindowsWirelessPropertiesTaskAckHandler.IsWirelessPropertiesTask(task))
+            {
+                await _windowsWirelessPropertiesTaskAckHandler.ApplyAckAsync(
                     device,
                     task,
                     status,

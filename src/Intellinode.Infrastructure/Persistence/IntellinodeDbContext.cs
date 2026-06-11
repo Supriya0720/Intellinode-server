@@ -32,6 +32,9 @@ public sealed class IntellinodeDbContext : DbContext, IIntellinodeDbContext
     public DbSet<DeviceWindows8021xSettingsSnapshot> DeviceWindows8021xSettingsSnapshots => Set<DeviceWindows8021xSettingsSnapshot>();
     public DbSet<DeviceWindowsComputerNameSettings> DeviceWindowsComputerNameSettings => Set<DeviceWindowsComputerNameSettings>();
     public DbSet<DeviceWindowsEthernetSettings> DeviceWindowsEthernetSettings => Set<DeviceWindowsEthernetSettings>();
+    public DbSet<DeviceWindowsWirelessProfileSettings> DeviceWindowsWirelessProfileSettings => Set<DeviceWindowsWirelessProfileSettings>();
+    public DbSet<DeviceWindowsWirelessProfileSettingsSnapshot> DeviceWindowsWirelessProfileSettingsSnapshots =>
+        Set<DeviceWindowsWirelessProfileSettingsSnapshot>();
     public DbSet<DeviceAgentAdvancedSettings> DeviceAgentAdvancedSettings => Set<DeviceAgentAdvancedSettings>();
     public DbSet<GroupRemoteSettings> GroupRemoteSettings => Set<GroupRemoteSettings>();
     public DbSet<GroupAgentAdvancedSettings> GroupAgentAdvancedSettings => Set<GroupAgentAdvancedSettings>();
@@ -72,7 +75,7 @@ public sealed class IntellinodeDbContext : DbContext, IIntellinodeDbContext
             modelBuilder,
             "settings_kind",
             SchemaName,
-            ["General", "Advanced", "Keyboard", "Mouse", "Display", "Windows8021x", "WindowsComputerName", "WindowsEthernetSetup"]);
+            ["General", "Advanced", "Keyboard", "Mouse", "Display", "Windows8021x", "WindowsComputerName", "WindowsEthernetSetup", "WindowsWirelessProperties"]);
         NpgsqlModelBuilderExtensions.HasPostgresEnum(
             modelBuilder,
             "settings_apply_status",
@@ -392,6 +395,59 @@ public sealed class IntellinodeDbContext : DbContext, IIntellinodeDbContext
             entity.HasOne(x => x.Device)
                 .WithMany(x => x.Windows8021xSnapshots)
                 .HasForeignKey(x => x.DeviceId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<DeviceWindowsWirelessProfileSettings>(entity =>
+        {
+            entity.ToTable("device_windows_wireless_profile_settings");
+            entity.HasKey(x => x.ProfileKey);
+            entity.Property(x => x.ProfileKey)
+                .HasColumnName("profile_key")
+                .ValueGeneratedOnAdd();
+            NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(entity.Property(x => x.ProfileKey));
+            entity.Property(x => x.Ssid).HasMaxLength(128);
+            entity.Property(x => x.SettingsJson)
+                .HasColumnName("settings_json")
+                .HasColumnType("jsonb")
+                .HasDefaultValue("{}");
+            entity.Property(x => x.LastApplyStatus).HasMaxLength(32);
+            entity.Property(x => x.LastApplyMessage).HasMaxLength(500);
+            entity.Property(x => x.SettingsVersion).HasDefaultValue(1L);
+            entity.Property(x => x.PendingApply).HasDefaultValue(false);
+            entity.ToTable(t => t.HasCheckConstraint(
+                "ck_device_windows_wireless_profile_settings_settings_version",
+                "settings_version >= 0"));
+            entity.HasIndex(x => new { x.DeviceId, x.Ssid })
+                .IsUnique()
+                .HasDatabaseName("ix_device_windows_wireless_profile_settings_device_ssid");
+            entity.HasOne(x => x.Device)
+                .WithMany(x => x.WindowsWirelessProfiles)
+                .HasForeignKey(x => x.DeviceId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<DeviceWindowsWirelessProfileSettingsSnapshot>(entity =>
+        {
+            entity.ToTable("device_windows_wireless_profile_settings_snapshots");
+            entity.HasKey(x => new { x.DeviceId, x.ProfileKey, x.SettingsVersion });
+            entity.Property(x => x.SettingsJson)
+                .HasColumnName("settings_json")
+                .HasColumnType("jsonb")
+                .HasDefaultValue("{}");
+            entity.ToTable(t => t.HasCheckConstraint(
+                "ck_device_windows_wireless_profile_settings_snapshots_settings_version",
+                "settings_version >= 1"));
+            entity.HasIndex(x => new { x.DeviceId, x.ProfileKey, x.SettingsVersion })
+                .IsUnique()
+                .HasDatabaseName("ix_device_windows_wireless_profile_settings_snapshots_device_profile_version");
+            entity.HasOne(x => x.Device)
+                .WithMany(x => x.WindowsWirelessProfileSnapshots)
+                .HasForeignKey(x => x.DeviceId)
+                .OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(x => x.Profile)
+                .WithMany(x => x.Snapshots)
+                .HasForeignKey(x => x.ProfileKey)
                 .OnDelete(DeleteBehavior.Cascade);
         });
 

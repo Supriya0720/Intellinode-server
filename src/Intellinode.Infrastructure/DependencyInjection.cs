@@ -24,6 +24,7 @@ public static class DependencyInjection
         services.Configure<Windows8021xOptions>(configuration.GetSection(Windows8021xOptions.SectionName));
         services.Configure<WindowsComputerNameOptions>(configuration.GetSection(WindowsComputerNameOptions.SectionName));
         services.Configure<WindowsEthernetSetupOptions>(configuration.GetSection(WindowsEthernetSetupOptions.SectionName));
+        services.Configure<WindowsWirelessPropertiesOptions>(configuration.GetSection(WindowsWirelessPropertiesOptions.SectionName));
 
         var connectionString = configuration.GetConnectionString("DefaultConnection")
             ?? throw new InvalidOperationException("Connection string 'DefaultConnection' is not configured.");
@@ -61,6 +62,7 @@ public static class DependencyInjection
         services.AddScoped<Windows8021xTaskAckHandler>();
         services.AddScoped<WindowsComputerNameTaskAckHandler>();
         services.AddScoped<WindowsEthernetSetupTaskAckHandler>();
+        services.AddScoped<WindowsWirelessPropertiesTaskAckHandler>();
         services.AddScoped<IAgentTaskService, AgentTaskService>();
         services.AddScoped<IDeviceRemoteSettingsService, DeviceRemoteSettingsService>();
         services.AddScoped<IDeviceAgentAdvancedSettingsService, DeviceAgentAdvancedSettingsService>();
@@ -72,6 +74,9 @@ public static class DependencyInjection
         services.AddScoped<IWindows8021xSettingsService, Windows8021xSettingsService>();
         services.AddScoped<IWindows8021xPayloadBuilder, Windows8021xPayloadBuilder>();
         services.AddScoped<IWindows8021xTaskPayloadHydrator, Windows8021xTaskPayloadHydrator>();
+        services.AddScoped<IWindowsWirelessPropertiesPayloadBuilder, WindowsWirelessPropertiesPayloadBuilder>();
+        services.AddScoped<IWindowsWirelessPropertiesTaskPayloadHydrator, WindowsWirelessPropertiesTaskPayloadHydrator>();
+        services.AddScoped<IWindowsWirelessPropertiesSettingsService, WindowsWirelessPropertiesSettingsService>();
         services.AddScoped<IWindowsComputerNamePayloadBuilder, WindowsComputerNamePayloadBuilder>();
         services.AddScoped<IWindowsComputerNameSettingsService, WindowsComputerNameSettingsService>();
         services.AddScoped<IWindowsEthernetSetupSettingsService, WindowsEthernetSetupSettingsService>();

@@ -2736,6 +2736,465 @@ Authorization: Bearer {{adminToken}}
 # ] } }
 
 
+### Windows Wireless Properties APIs (Windows :XP only, v1)
+
+# Prerequisite: device enrolled with MAC suffix :XP and admin logged in (@adminToken).
+# ADR-0003 Option B: compact ref in DB; agent poll returns hydrated WinCELinux.XPWirelessNetworkSecuritySettings JSON.
+# ModuleName=Wireless Network Security, ExtraData signal suffix WNS, one SSID per task.
+# GET list/profile redacts strNetworkKey and strNetworkPPK as ******** (write-only on read APIs).
+# Multi-profile: add Corp-WiFi, ack Completed, then add Guest (module blocks second SSID while first task is pending).
+# Apply history items may include profileKey, settingsVersion, and ssid (enriched from profile row or snapshot).
+
+@wirelessMac = 00-11-22-33-44-55:XP
+
+### Windows Wireless Properties — List profiles by MAC
+# @name wirelessListProfiles
+GET {{Intellinode.Api_HostAddress}}/api/v1/admin/device-config/windows-wireless-properties/{{wirelessMac}}
+Authorization: Bearer {{adminToken}}
+
+# Expected: 200 with data.profiles[]; strNetworkKey / strNetworkPPK redacted as ********
+
+
+### Windows Wireless Properties — Get single profile by SSID
+# @name wirelessGetProfile
+GET {{Intellinode.Api_HostAddress}}/api/v1/admin/device-config/windows-wireless-properties/{{wirelessMac}}/profiles/Corp-WiFi
+Authorization: Bearer {{adminToken}}
+
+# URL-encode SSID in path if it contains spaces or special characters (e.g. Guest%20WiFi)
+
+
+### Windows Wireless Properties — Execute now (Add, WPA2-Personal)
+# @name wirelessExecuteNowAdd
+POST {{Intellinode.Api_HostAddress}}/api/v1/admin/device-config/windows-wireless-properties/execute-now
+Content-Type: application/json
+Authorization: Bearer {{adminToken}}
+
+{
+  "target": {
+    "macAddress": "{{wirelessMac}}",
+    "osType": "XP"
+  },
+  "operation": 0,
+  "profile": {
+    "ssid": "Corp-WiFi",
+    "networkAuthentication": "WPA2-Personal",
+    "dataEncryption": "AES",
+    "networkKey": "CorpWiFiKey!2024",
+    "preSharedKey": "",
+    "keyIndex": 1,
+    "networkName": "",
+    "connectWhenInRange": true,
+    "connectNonBroadcasting": false
+  },
+  "execution": {
+    "agentAction": "0",
+    "scheduleType": "InstantApply"
+  },
+  "options": {
+    "dryRun": false,
+    "returnLegacySummary": true,
+    "correlationId": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
+  }
+}
+
+# Expected: 200 success=true, data.taskId, data.profileKey, data.ssid=Corp-WiFi
+# Task: ModuleName=Wireless Network Security, FunctionName=Now, functionParameter={"settingsVersion":N,"profileKey":K}
+
+@wirelessTaskId = {{wirelessExecuteNowAdd.response.body.data.taskId}}
+@wirelessLegacyTaskId = 1
+
+
+### Windows Wireless Properties — Execute now (Update same SSID)
+# @name wirelessExecuteNowUpdate
+POST {{Intellinode.Api_HostAddress}}/api/v1/admin/device-config/windows-wireless-properties/execute-now
+Content-Type: application/json
+Authorization: Bearer {{adminToken}}
+
+{
+  "target": {
+    "macAddress": "{{wirelessMac}}",
+    "osType": "XP"
+  },
+  "operation": 1,
+  "profile": {
+    "ssid": "Corp-WiFi",
+    "networkAuthentication": "WPA2-Personal",
+    "dataEncryption": "AES",
+    "networkKey": "NewCorpKey!2024",
+    "preSharedKey": "",
+    "keyIndex": 1,
+    "networkName": "",
+    "connectWhenInRange": true,
+    "connectNonBroadcasting": true
+  },
+  "execution": {
+    "agentAction": "0",
+    "scheduleType": "InstantApply"
+  },
+  "options": {
+    "dryRun": false,
+    "returnLegacySummary": true,
+    "correlationId": "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"
+  }
+}
+
+# Expected: 200; settingsVersion incremented; operation Update (enum 1)
+
+
+### Windows Wireless Properties — Queue (scheduled apply)
+# @name wirelessQueue
+POST {{Intellinode.Api_HostAddress}}/api/v1/admin/device-config/windows-wireless-properties/queue
+Content-Type: application/json
+Authorization: Bearer {{adminToken}}
+
+{
+  "target": {
+    "macAddress": "{{wirelessMac}}",
+    "osType": "XP"
+  },
+  "operation": 0,
+  "profile": {
+    "ssid": "Guest",
+    "networkAuthentication": "No authentication (Open)",
+    "dataEncryption": "None",
+    "networkKey": "",
+    "keyIndex": 0,
+    "connectWhenInRange": false,
+    "connectNonBroadcasting": false
+  },
+  "execution": {
+    "agentAction": "0",
+    "scheduleType": "Queue"
+  },
+  "options": {
+    "dryRun": false,
+    "returnLegacySummary": true,
+    "correlationId": "cccccccc-cccc-cccc-cccc-cccccccccccc"
+  }
+}
+
+# Expected: 200; FunctionName=Update, execution.scheduleType=Queue
+
+
+### Windows Wireless Properties — Delete execute-now
+# @name wirelessDeleteExecuteNow
+POST {{Intellinode.Api_HostAddress}}/api/v1/admin/device-config/windows-wireless-properties/delete/execute-now
+Content-Type: application/json
+Authorization: Bearer {{adminToken}}
+
+{
+  "target": {
+    "macAddress": "{{wirelessMac}}",
+    "osType": "XP"
+  },
+  "ssid": "Corp-WiFi",
+  "execution": {
+    "agentAction": "0",
+    "scheduleType": "InstantApply"
+  },
+  "options": {
+    "dryRun": false,
+    "returnLegacySummary": true,
+    "correlationId": "dddddddd-dddd-dddd-dddd-dddddddddddd"
+  }
+}
+
+# Expected: 200; snapshot inner JSON is SSID-only delete shape; profile row retained until ack Completed
+
+
+### Windows Wireless Properties — Agent poll pending tasks (hydrated payload)
+# @name wirelessPendingTasks
+GET {{Intellinode.Api_HostAddress}}/api/v1/agents/tasks/pending
+Authorization: Bearer {{agentToken}}
+
+# Expected: moduleName=Wireless Network Security
+# functionParameter = full {"WinCELinux":{"XPWirelessNetworkSecuritySettings":{...}}} (NOT compact ref)
+# signal / extraData contains &WNS
+
+
+### Windows Wireless Properties — Agent ack completed
+POST {{Intellinode.Api_HostAddress}}/api/v1/agents/tasks/ack
+Content-Type: application/json
+Authorization: Bearer {{agentToken}}
+
+{
+  "acknowledgements": [
+    {
+      "taskId": "{{wirelessTaskId}}",
+      "legacyTaskId": {{wirelessLegacyTaskId}},
+      "status": "Completed"
+    }
+  ]
+}
+
+# Expected: add/update → pendingApply=false, lastAppliedVersion set
+# delete ack → profile row removed from GET list
+
+
+### Windows Wireless Properties — Agent ack failed
+POST {{Intellinode.Api_HostAddress}}/api/v1/agents/tasks/ack
+Content-Type: application/json
+Authorization: Bearer {{agentToken}}
+
+{
+  "acknowledgements": [
+    {
+      "taskId": "{{wirelessTaskId}}",
+      "legacyTaskId": {{wirelessLegacyTaskId}},
+      "status": "Failed",
+      "reason": "Failed to apply wireless profile: 0x80070057"
+    }
+  ]
+}
+
+# Expected: lastApplyStatus=Failed; profile row retained (including failed delete)
+
+
+### Windows Wireless Properties — Apply history (all)
+# @name wirelessGetApplyHistory
+GET {{Intellinode.Api_HostAddress}}/api/v1/admin/device-config/windows-wireless-properties/apply-history/{{wirelessMac}}?page=1&pageSize=20
+Authorization: Bearer {{adminToken}}
+
+
+### Windows Wireless Properties — Apply history (failed only)
+GET {{Intellinode.Api_HostAddress}}/api/v1/admin/device-config/windows-wireless-properties/apply-history/{{wirelessMac}}?status=Failed&page=1&pageSize=20
+Authorization: Bearer {{adminToken}}
+
+
+### Windows Wireless Properties — Validation: macAddress without :XP suffix rejected
+POST {{Intellinode.Api_HostAddress}}/api/v1/admin/device-config/windows-wireless-properties/execute-now
+Content-Type: application/json
+Authorization: Bearer {{adminToken}}
+
+{
+  "target": {
+    "macAddress": "00-11-22-33-44-55",
+    "osType": "XP"
+  },
+  "operation": 0,
+  "profile": {
+    "ssid": "Corp-WiFi",
+    "networkAuthentication": "WPA2-Personal",
+    "dataEncryption": "AES",
+    "networkKey": "CorpWiFiKey!2024",
+    "keyIndex": 1
+  },
+  "execution": {
+    "agentAction": "0",
+    "scheduleType": "InstantApply"
+  },
+  "options": {
+    "dryRun": false,
+    "returnLegacySummary": true
+  }
+}
+
+# Expected: 400 ValidationFailed — macAddress must include :XP suffix
+
+
+### Windows Wireless Properties — Conflict: second execute-now while pending task exists
+POST {{Intellinode.Api_HostAddress}}/api/v1/admin/device-config/windows-wireless-properties/execute-now
+Content-Type: application/json
+Authorization: Bearer {{adminToken}}
+
+{
+  "target": {
+    "macAddress": "{{wirelessMac}}",
+    "osType": "XP"
+  },
+  "operation": 0,
+  "profile": {
+    "ssid": "Other-WiFi",
+    "networkAuthentication": "WPA2-Personal",
+    "dataEncryption": "AES",
+    "networkKey": "OtherKey!2024",
+    "keyIndex": 1
+  },
+  "execution": {
+    "agentAction": "0",
+    "scheduleType": "InstantApply"
+  },
+  "options": {
+    "dryRun": false,
+    "returnLegacySummary": true
+  }
+}
+
+# Expected: 409 ApplyBlocked — PendingTaskExists (one pending task per module per device)
+
+
+@wirelessMac2 = AA:BB:CC:DD:EE:12:XP
+
+### Windows Wireless Properties — Execute now bulk (Add WPA2-Personal)
+# @name wirelessExecuteNowBulkAdd
+POST {{Intellinode.Api_HostAddress}}/api/v1/admin/device-config/windows-wireless-properties/execute-now/bulk
+Content-Type: application/json
+Authorization: Bearer {{adminToken}}
+
+{
+  "targets": [
+    { "macAddress": "{{wirelessMac}}", "osType": "XP" },
+    { "macAddress": "{{wirelessMac2}}", "osType": "XP" }
+  ],
+  "operation": 0,
+  "profile": {
+    "ssid": "Corp-WiFi",
+    "networkAuthentication": "WPA2-Personal",
+    "dataEncryption": "AES",
+    "networkKey": "CorpWiFiKey!2024",
+    "keyIndex": 1,
+    "connectWhenInRange": true,
+    "connectNonBroadcasting": false
+  },
+  "execution": {
+    "agentAction": "0",
+    "scheduleType": "InstantApply"
+  },
+  "options": {
+    "dryRun": false,
+    "returnLegacySummary": true,
+    "correlationId": "eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee"
+  }
+}
+
+# Expected: 200 — data.accepted, data.blocked, data.results[] with status/reason/ssid/profileKey per MAC
+
+
+### Windows Wireless Properties — Execute now group (Add)
+# @name wirelessExecuteNowGroupAdd
+POST {{Intellinode.Api_HostAddress}}/api/v1/admin/device-config/windows-wireless-properties/execute-now/group/{{defaultGroupId}}
+Content-Type: application/json
+Authorization: Bearer {{adminToken}}
+
+{
+  "operation": 0,
+  "profile": {
+    "ssid": "Guest",
+    "networkAuthentication": "No authentication (Open)",
+    "dataEncryption": "None",
+    "networkKey": "",
+    "keyIndex": 0,
+    "connectWhenInRange": false,
+    "connectNonBroadcasting": false
+  },
+  "execution": {
+    "agentAction": "0",
+    "scheduleType": "InstantApply"
+  },
+  "options": {
+    "dryRun": false,
+    "returnLegacySummary": true,
+    "correlationId": "ffffffff-ffff-ffff-ffff-ffffffffffff"
+  }
+}
+
+# Expected: 200 — expands active EnrollmentState.Active group members; non-:XP MACs → Blocked/UnsupportedOsType
+
+
+### Windows Wireless Properties — Bulk dry run
+POST {{Intellinode.Api_HostAddress}}/api/v1/admin/device-config/windows-wireless-properties/execute-now/bulk
+Content-Type: application/json
+Authorization: Bearer {{adminToken}}
+
+{
+  "targets": [
+    { "macAddress": "{{wirelessMac}}", "osType": "XP" }
+  ],
+  "operation": 0,
+  "profile": {
+    "ssid": "DryRun-WiFi",
+    "networkAuthentication": "WPA2-Personal",
+    "dataEncryption": "AES",
+    "networkKey": "DryRunKey!2024",
+    "keyIndex": 1
+  },
+  "execution": {
+    "scheduleType": "InstantApply"
+  },
+  "options": {
+    "dryRun": true,
+    "returnLegacySummary": true
+  }
+}
+
+# Expected: 200 — all results status=Pending; no device_tasks rows created
+
+
+### Windows Wireless Properties — Bulk partial blocked
+# Prerequisite: seed pending Wireless Network Security task on {{wirelessMac2}} before calling.
+POST {{Intellinode.Api_HostAddress}}/api/v1/admin/device-config/windows-wireless-properties/execute-now/bulk
+Content-Type: application/json
+Authorization: Bearer {{adminToken}}
+
+{
+  "targets": [
+    { "macAddress": "{{wirelessMac}}", "osType": "XP" },
+    { "macAddress": "{{wirelessMac2}}", "osType": "XP" }
+  ],
+  "operation": 0,
+  "profile": {
+    "ssid": "Other-WiFi",
+    "networkAuthentication": "WPA2-Personal",
+    "dataEncryption": "AES",
+    "networkKey": "OtherKey!2024",
+    "keyIndex": 1
+  },
+  "execution": {
+    "scheduleType": "InstantApply"
+  },
+  "options": {
+    "dryRun": false,
+    "returnLegacySummary": true
+  }
+}
+
+# Expected: 200 partial success — one Pending, one Blocked/PendingTaskExists
+
+
+### Windows Wireless Properties — Delete execute now bulk
+POST {{Intellinode.Api_HostAddress}}/api/v1/admin/device-config/windows-wireless-properties/delete/execute-now/bulk
+Content-Type: application/json
+Authorization: Bearer {{adminToken}}
+
+{
+  "targets": [
+    { "macAddress": "{{wirelessMac}}", "osType": "XP" },
+    { "macAddress": "{{wirelessMac2}}", "osType": "XP" }
+  ],
+  "ssid": "Corp-WiFi",
+  "execution": {
+    "scheduleType": "InstantApply"
+  },
+  "options": {
+    "dryRun": false,
+    "returnLegacySummary": true,
+    "correlationId": "11111111-1111-1111-1111-111111111111"
+  }
+}
+
+# Expected: 200 — per-target results; ProfileNotFound where SSID absent
+
+
+### Windows Wireless Properties — Delete execute now group
+POST {{Intellinode.Api_HostAddress}}/api/v1/admin/device-config/windows-wireless-properties/delete/execute-now/group/{{defaultGroupId}}
+Content-Type: application/json
+Authorization: Bearer {{adminToken}}
+
+{
+  "ssid": "Guest",
+  "execution": {
+    "scheduleType": "InstantApply"
+  },
+  "options": {
+    "dryRun": false,
+    "returnLegacySummary": true,
+    "correlationId": "22222222-2222-2222-2222-222222222222"
+  }
+}
+
+# Expected: 200 — deletes Guest SSID on each active group member that has the profile
+
+
 @ethernetMac = 00-11-22-33-44-55:XP
 
 ### Windows Ethernet Setup — Get current by MAC

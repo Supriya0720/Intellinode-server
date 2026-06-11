@@ -15,5 +15,7 @@ public enum SettingsKind
     /// <summary>FusionX Computer Name / Domain Join (Host Name, DomainSettings modules).</summary>
     WindowsComputerName,
     /// <summary>FusionX module "Ethernet".</summary>
-    WindowsEthernetSetup
+    WindowsEthernetSetup,
+    /// <summary>FusionX module "Wireless Network Security" (Network Settings → Wireless Properties).</summary>
+    WindowsWirelessProperties
 }
