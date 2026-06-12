@@ -533,6 +533,109 @@ public interface ITimeAndLanguageReferenceService
         CancellationToken cancellationToken = default);
 }
 
+public interface IPowerManagementReferenceService
+{
+    Task<PowerManagementReferenceResult<WindowsPowerPlanMasterDto>> GetPowerPlansAsync(
+        bool includeInactive = false,
+        CancellationToken cancellationToken = default);
+
+    Task<PowerManagementReferenceResult<WindowsPowerTimeoutMasterDto>> GetTimeoutsAsync(
+        WindowsPowerTimeoutCategory? category = null,
+        bool includeInactive = false,
+        CancellationToken cancellationToken = default);
+
+    Task<PowerManagementReferenceResult<WindowsPowerAdvancedOptionGroupCatalogDto>> GetAdvancedOptionsAsync(
+        string? planName = null,
+        string? optionName = null,
+        bool includeInactive = false,
+        CancellationToken cancellationToken = default);
+}
+
+public interface IWindowsPowerManagementPayloadBuilder
+{
+    string BuildAgentPayload(string settingsJson, long legacyTaskId, int agentAction);
+    string BuildCompactTaskReference(long settingsVersion, string? planName = null);
+    bool TryParseCompactTaskReference(string stored, out long settingsVersion, out string? planName);
+    string BuildSettingsJsonFromBasic(WindowsPowerManagementBasicSettingsRequest request);
+    string MergeAdvancedSettingsJson(string? existingSettingsJson, WindowsPowerManagementAdvancedSettingsRequest request);
+    string NormalizeSettingValue(string value);
+    string BuildExtraData(string macAddress, string planName, string? signalSuffix = null);
+}
+
+public interface IWindowsPowerManagementTaskPayloadHydrator
+{
+    bool CanHydrate(string moduleName);
+    Task<string?> HydrateFunctionParameterAsync(
+        string storedFunctionParameter,
+        Guid deviceId,
+        int legacyTaskId = 0,
+        CancellationToken cancellationToken = default);
+}
+
+public interface IWindowsPowerManagementSettingsService
+{
+    Task<WindowsPowerManagementExecuteNowResult> ExecuteNowAsync(
+        WindowsPowerManagementExecuteNowRequest request,
+        Guid? adminId = null,
+        CancellationToken cancellationToken = default);
+
+    Task<WindowsPowerManagementQueueResult> QueueAsync(
+        WindowsPowerManagementQueueRequest request,
+        Guid? adminId = null,
+        CancellationToken cancellationToken = default);
+
+    Task<WindowsPowerManagementQueueResult> TemplateQueueAsync(
+        WindowsPowerManagementTemplateQueueRequest request,
+        Guid? adminId = null,
+        CancellationToken cancellationToken = default);
+
+    Task<WindowsPowerManagementCurrentResult> GetCurrentAsync(
+        string macAddress,
+        CancellationToken cancellationToken = default);
+
+    Task<WindowsPowerManagementHistoryResult> GetApplyHistoryAsync(
+        string macAddress,
+        WindowsPowerManagementHistoryQuery query,
+        CancellationToken cancellationToken = default);
+
+    Task<WindowsPowerManagementBulkResult> ExecuteNowBulkAsync(
+        WindowsPowerManagementExecuteNowBulkRequest request,
+        Guid? adminId = null,
+        CancellationToken cancellationToken = default);
+
+    Task<WindowsPowerManagementBulkResult> ExecuteNowGroupAsync(
+        Guid groupId,
+        WindowsPowerManagementExecuteNowGroupRequest request,
+        Guid? adminId = null,
+        CancellationToken cancellationToken = default);
+
+    Task<WindowsPowerManagementExecuteNowResult> ExecuteNowAdvancedAsync(
+        WindowsPowerManagementAdvancedExecuteNowRequest request,
+        Guid? adminId = null,
+        CancellationToken cancellationToken = default);
+
+    Task<WindowsPowerManagementQueueResult> QueueAdvancedAsync(
+        WindowsPowerManagementAdvancedQueueRequest request,
+        Guid? adminId = null,
+        CancellationToken cancellationToken = default);
+
+    Task<WindowsPowerManagementQueueResult> TemplateQueueAdvancedAsync(
+        WindowsPowerManagementAdvancedTemplateQueueRequest request,
+        Guid? adminId = null,
+        CancellationToken cancellationToken = default);
+
+    Task<WindowsPowerManagementBulkResult> ExecuteNowAdvancedBulkAsync(
+        WindowsPowerManagementAdvancedExecuteNowBulkRequest request,
+        Guid? adminId = null,
+        CancellationToken cancellationToken = default);
+
+    Task<WindowsPowerManagementBulkResult> ExecuteNowAdvancedGroupAsync(
+        Guid groupId,
+        WindowsPowerManagementAdvancedExecuteNowGroupRequest request,
+        Guid? adminId = null,
+        CancellationToken cancellationToken = default);
+}
+
 public interface IWindowsDateTimePayloadBuilder
 {
     string BuildPayload(WindowsDateTimePayloadRequest request);

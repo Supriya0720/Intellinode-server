@@ -61,5 +61,7 @@ public class Device
     public ICollection<DeviceWindows8021xSettingsSnapshot> Windows8021xSnapshots { get; set; } = [];
     public ICollection<DeviceWindowsWirelessProfileSettings> WindowsWirelessProfiles { get; set; } = [];
     public ICollection<DeviceWindowsWirelessProfileSettingsSnapshot> WindowsWirelessProfileSnapshots { get; set; } = [];
+    public DeviceWindowsPowerManagementSettings? WindowsPowerManagementSettings { get; set; }
+    public ICollection<DeviceWindowsPowerManagementSettingsSnapshot> WindowsPowerManagementSnapshots { get; set; } = [];
     public DeviceAgentAdvancedSettings? AgentAdvancedSettings { get; set; }
 }

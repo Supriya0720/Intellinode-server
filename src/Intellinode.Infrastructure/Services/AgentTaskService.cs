@@ -27,8 +27,10 @@ public sealed class AgentTaskService : IAgentTaskService
     private readonly WindowsEthernetSetupTaskAckHandler _windowsEthernetSetupTaskAckHandler;
     private readonly WindowsWirelessSetupTaskAckHandler _windowsWirelessSetupTaskAckHandler;
     private readonly WindowsWirelessPropertiesTaskAckHandler _windowsWirelessPropertiesTaskAckHandler;
+    private readonly WindowsPowerManagementTaskAckHandler _windowsPowerManagementTaskAckHandler;
     private readonly IWindows8021xTaskPayloadHydrator _windows8021xHydrator;
     private readonly IWindowsWirelessPropertiesTaskPayloadHydrator _windowsWirelessPropertiesHydrator;
+    private readonly IWindowsPowerManagementTaskPayloadHydrator _windowsPowerManagementHydrator;
     private readonly ILogger<AgentTaskService> _logger;
 
     public AgentTaskService(
@@ -44,8 +46,10 @@ public sealed class AgentTaskService : IAgentTaskService
         WindowsEthernetSetupTaskAckHandler windowsEthernetSetupTaskAckHandler,
         WindowsWirelessSetupTaskAckHandler windowsWirelessSetupTaskAckHandler,
         WindowsWirelessPropertiesTaskAckHandler windowsWirelessPropertiesTaskAckHandler,
+        WindowsPowerManagementTaskAckHandler windowsPowerManagementTaskAckHandler,
         IWindows8021xTaskPayloadHydrator windows8021xHydrator,
         IWindowsWirelessPropertiesTaskPayloadHydrator windowsWirelessPropertiesHydrator,
+        IWindowsPowerManagementTaskPayloadHydrator windowsPowerManagementHydrator,
         ILogger<AgentTaskService> logger)
     {
         _dbContext = dbContext;
@@ -60,8 +64,10 @@ public sealed class AgentTaskService : IAgentTaskService
         _windowsEthernetSetupTaskAckHandler = windowsEthernetSetupTaskAckHandler;
         _windowsWirelessSetupTaskAckHandler = windowsWirelessSetupTaskAckHandler;
         _windowsWirelessPropertiesTaskAckHandler = windowsWirelessPropertiesTaskAckHandler;
+        _windowsPowerManagementTaskAckHandler = windowsPowerManagementTaskAckHandler;
         _windows8021xHydrator = windows8021xHydrator;
         _windowsWirelessPropertiesHydrator = windowsWirelessPropertiesHydrator;
+        _windowsPowerManagementHydrator = windowsPowerManagementHydrator;
         _logger = logger;
     }
 
@@ -127,6 +133,26 @@ public sealed class AgentTaskService : IAgentTaskService
                 }
             }
 
+            if (_windowsPowerManagementHydrator.CanHydrate(task.ModuleName))
+            {
+                var hydrated = await _windowsPowerManagementHydrator.HydrateFunctionParameterAsync(
+                    task.FunctionParameter,
+                    deviceId,
+                    task.LegacyTaskId,
+                    cancellationToken);
+                if (hydrated is not null)
+                {
+                    functionParameter = hydrated;
+                }
+                else
+                {
+                    _logger.LogWarning(
+                        "Power Management Settings task {TaskId} hydration failed for device {DeviceId}; returning compact functionParameter",
+                        task.Id,
+                        deviceId);
+                }
+            }
+
             mappedTasks.Add(MapPendingTask(task, functionParameter));
         }
 
@@ -152,6 +178,7 @@ public sealed class AgentTaskService : IAgentTaskService
             .Include(d => d.WindowsRegionLocationSettings)
             .Include(d => d.WindowsRegionalFormatSettings)
             .Include(d => d.WindowsWirelessProfiles)
+            .Include(d => d.WindowsPowerManagementSettings)
             .FirstOrDefaultAsync(d => d.Id == deviceId, cancellationToken);
 
         if (device is null)
@@ -274,6 +301,16 @@ public sealed class AgentTaskService : IAgentTaskService
             if (WindowsWirelessPropertiesTaskAckHandler.IsWirelessPropertiesTask(task))
             {
                 await _windowsWirelessPropertiesTaskAckHandler.ApplyAckAsync(
+                    device,
+                    task,
+                    status,
+                    ack.Reason,
+                    cancellationToken);
+            }
+
+            if (WindowsPowerManagementTaskAckHandler.IsPowerManagementTask(task))
+            {
+                await _windowsPowerManagementTaskAckHandler.ApplyAckAsync(
                     device,
                     task,
                     status,

@@ -48,6 +48,13 @@ public sealed class IntellinodeDbContext : DbContext, IIntellinodeDbContext
     public DbSet<DiscoverLookup> DiscoverLookups => Set<DiscoverLookup>();
     public DbSet<RegionAndLocationMaster> RegionAndLocationMasters => Set<RegionAndLocationMaster>();
     public DbSet<WindowsTimeZoneMaster> WindowsTimeZoneMasters => Set<WindowsTimeZoneMaster>();
+    public DbSet<WindowsPowerPlanMaster> WindowsPowerPlanMasters => Set<WindowsPowerPlanMaster>();
+    public DbSet<WindowsPowerTimeoutMaster> WindowsPowerTimeoutMasters => Set<WindowsPowerTimeoutMaster>();
+    public DbSet<WindowsPowerAdvancedOptionMaster> WindowsPowerAdvancedOptionMasters => Set<WindowsPowerAdvancedOptionMaster>();
+    public DbSet<DeviceWindowsPowerManagementSettings> DeviceWindowsPowerManagementSettings =>
+        Set<DeviceWindowsPowerManagementSettings>();
+    public DbSet<DeviceWindowsPowerManagementSettingsSnapshot> DeviceWindowsPowerManagementSettingsSnapshots =>
+        Set<DeviceWindowsPowerManagementSettingsSnapshot>();
     public DbSet<AgentCommunicationLog> AgentCommunicationLogs => Set<AgentCommunicationLog>();
     public DbSet<ExceptionLog> ExceptionLogs => Set<ExceptionLog>();
 
@@ -83,7 +90,7 @@ public sealed class IntellinodeDbContext : DbContext, IIntellinodeDbContext
             modelBuilder,
             "settings_kind",
             SchemaName,
-            ["General", "Advanced", "Keyboard", "Mouse", "Display", "Windows8021x", "WindowsComputerName", "WindowsEthernetSetup", "WindowsWirelessSetup", "WindowsWirelessProperties", "WindowsDateTimeSetup", "WindowsRegionLocation", "WindowsRegionalFormat"]);
+            ["General", "Advanced", "Keyboard", "Mouse", "Display", "Windows8021x", "WindowsComputerName", "WindowsEthernetSetup", "WindowsWirelessSetup", "WindowsWirelessProperties", "WindowsDateTimeSetup", "WindowsRegionLocation", "WindowsRegionalFormat", "WindowsPowerManagement"]);
         NpgsqlModelBuilderExtensions.HasPostgresEnum(
             modelBuilder,
             "settings_apply_status",
@@ -328,6 +335,44 @@ public sealed class IntellinodeDbContext : DbContext, IIntellinodeDbContext
             entity.HasOne(x => x.Device)
                 .WithOne(x => x.Windows8021xSettings)
                 .HasForeignKey<DeviceWindows8021xSettings>(x => x.DeviceId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<DeviceWindowsPowerManagementSettings>(entity =>
+        {
+            entity.ToTable("device_windows_power_management_settings");
+            entity.HasKey(x => x.DeviceId);
+            entity.Property(x => x.ActivePlanName).HasMaxLength(50).HasDefaultValue("Balanced");
+            entity.Property(x => x.AgentAction).HasDefaultValue(0);
+            entity.Property(x => x.SettingsJson)
+                .HasColumnName("settings_json")
+                .HasColumnType("jsonb")
+                .HasDefaultValue("{}");
+            entity.Property(x => x.LastApplyStatus).HasMaxLength(32);
+            entity.Property(x => x.LastApplyMessage).HasMaxLength(500);
+            entity.Property(x => x.SettingsVersion).HasDefaultValue(1L);
+            entity.Property(x => x.PendingApply).HasDefaultValue(false);
+            entity.ToTable(t => t.HasCheckConstraint(
+                "ck_device_windows_power_management_settings_settings_version",
+                "settings_version >= 0"));
+            entity.HasOne(x => x.Device)
+                .WithOne(x => x.WindowsPowerManagementSettings)
+                .HasForeignKey<DeviceWindowsPowerManagementSettings>(x => x.DeviceId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<DeviceWindowsPowerManagementSettingsSnapshot>(entity =>
+        {
+            entity.ToTable("device_windows_power_management_settings_snapshots");
+            entity.HasKey(x => new { x.DeviceId, x.SettingsVersion });
+            entity.Property(x => x.ActivePlanName).HasMaxLength(50);
+            entity.Property(x => x.SettingsJson)
+                .HasColumnName("settings_json")
+                .HasColumnType("jsonb")
+                .HasDefaultValue("{}");
+            entity.HasOne(x => x.Device)
+                .WithMany(x => x.WindowsPowerManagementSnapshots)
+                .HasForeignKey(x => x.DeviceId)
                 .OnDelete(DeleteBehavior.Cascade);
         });
 
@@ -760,6 +805,49 @@ public sealed class IntellinodeDbContext : DbContext, IIntellinodeDbContext
             entity.Property(x => x.IsActive).HasDefaultValue(true);
             entity.HasIndex(x => x.DisplayName).IsUnique();
             entity.HasIndex(x => x.IsActive);
+        });
+
+        modelBuilder.Entity<WindowsPowerPlanMaster>(entity =>
+        {
+            entity.ToTable("windows_power_plan_master");
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.Id).ValueGeneratedNever();
+            entity.Property(x => x.PlanName).HasMaxLength(50);
+            entity.Property(x => x.IsDefault).HasDefaultValue(false);
+            entity.Property(x => x.SortOrder).HasDefaultValue(0);
+            entity.Property(x => x.IsActive).HasDefaultValue(true);
+            entity.HasIndex(x => x.PlanName).IsUnique();
+            entity.HasIndex(x => x.IsActive);
+        });
+
+        modelBuilder.Entity<WindowsPowerTimeoutMaster>(entity =>
+        {
+            entity.ToTable("windows_power_timeout_master");
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.Id).ValueGeneratedNever();
+            entity.Property(x => x.DisplayText).HasMaxLength(100);
+            entity.Property(x => x.Category)
+                .HasMaxLength(32)
+                .HasConversion<string>();
+            entity.Property(x => x.SortOrder).HasDefaultValue(0);
+            entity.Property(x => x.IsActive).HasDefaultValue(true);
+            entity.HasIndex(x => new { x.Category, x.IsActive });
+        });
+
+        modelBuilder.Entity<WindowsPowerAdvancedOptionMaster>(entity =>
+        {
+            entity.ToTable("windows_power_advanced_option_master");
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.Id).ValueGeneratedNever();
+            entity.Property(x => x.PlanName).HasMaxLength(50);
+            entity.Property(x => x.OptionName).HasMaxLength(100);
+            entity.Property(x => x.SettingName).HasMaxLength(100);
+            entity.Property(x => x.DisplayText).HasMaxLength(100);
+            entity.Property(x => x.ValueText).HasMaxLength(100);
+            entity.Property(x => x.SortOrder).HasDefaultValue(0);
+            entity.Property(x => x.IsActive).HasDefaultValue(true);
+            entity.HasIndex(x => new { x.OptionName, x.IsActive });
+            entity.HasIndex(x => new { x.PlanName, x.OptionName, x.SettingName, x.IsActive });
         });
     }
 }

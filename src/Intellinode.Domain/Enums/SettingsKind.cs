@@ -25,5 +25,7 @@ public enum SettingsKind
     /// <summary>FusionX "Region And Location Settings" (System Settings → Time and Language).</summary>
     WindowsRegionLocation,
     /// <summary>FusionX "Regional Settings" (System Settings → Time and Language).</summary>
-    WindowsRegionalFormat
+    WindowsRegionalFormat,
+    /// <summary>FusionX module "Power Management Settings" (System Settings → Power Management).</summary>
+    WindowsPowerManagement
 }

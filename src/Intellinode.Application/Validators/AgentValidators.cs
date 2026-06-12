@@ -2682,3 +2682,253 @@ public sealed class WindowsWirelessPropertiesDeleteExecuteNowGroupRequestValidat
             .WithMessage("scheduleType must be InstantApply for this endpoint.");
     }
 }
+
+public sealed class WindowsPowerManagementExecuteNowRequestValidator : AbstractValidator<WindowsPowerManagementExecuteNowRequest>
+{
+    public WindowsPowerManagementExecuteNowRequestValidator()
+    {
+        RuleFor(x => x.Target).SetValidator(new WindowsPowerManagementTargetRequestValidator());
+        RuleFor(x => x.Settings).SetValidator(new WindowsPowerManagementSettingsRequestValidator());
+        RuleFor(x => x.Execution)
+            .Must(e => string.Equals(e.ScheduleType?.Trim(), "InstantApply", StringComparison.OrdinalIgnoreCase))
+            .WithMessage("scheduleType must be InstantApply for this endpoint.");
+    }
+}
+
+public sealed class WindowsPowerManagementQueueRequestValidator : AbstractValidator<WindowsPowerManagementQueueRequest>
+{
+    public WindowsPowerManagementQueueRequestValidator()
+    {
+        RuleFor(x => x.Target).SetValidator(new WindowsPowerManagementTargetRequestValidator());
+        RuleFor(x => x.Settings).SetValidator(new WindowsPowerManagementSettingsRequestValidator());
+        RuleFor(x => x.Execution)
+            .Must(e => string.Equals(e.ScheduleType?.Trim(), "Queue", StringComparison.OrdinalIgnoreCase))
+            .WithMessage("scheduleType must be Queue for this endpoint.");
+    }
+}
+
+public sealed class WindowsPowerManagementTemplateQueueRequestValidator : AbstractValidator<WindowsPowerManagementTemplateQueueRequest>
+{
+    public WindowsPowerManagementTemplateQueueRequestValidator()
+    {
+        RuleFor(x => x.Target).SetValidator(new WindowsPowerManagementTargetRequestValidator());
+        RuleFor(x => x.Settings).SetValidator(new WindowsPowerManagementSettingsRequestValidator());
+        RuleFor(x => x.Execution)
+            .Must(e => string.Equals(e.ScheduleType?.Trim(), "QueueTemplate", StringComparison.OrdinalIgnoreCase))
+            .WithMessage("scheduleType must be QueueTemplate for this endpoint.");
+
+        RuleFor(x => x.Execution.TemplateId)
+            .NotNull()
+            .GreaterThan(0)
+            .WithMessage("templateId must be greater than 0.");
+
+        RuleFor(x => x.Execution.TemplateName)
+            .NotEmpty()
+            .MaximumLength(200)
+            .WithMessage("templateName is required.");
+    }
+}
+
+public sealed class WindowsPowerManagementTargetRequestValidator : AbstractValidator<WindowsPowerManagementTargetRequest>
+{
+    public WindowsPowerManagementTargetRequestValidator()
+    {
+        RuleFor(x => x.MacAddress)
+            .NotEmpty()
+            .MaximumLength(300)
+            .Must(HaveXpOsSuffix)
+            .WithMessage("macAddress must include :XP suffix.");
+
+        RuleFor(x => x.OsType)
+            .NotEmpty()
+            .Must(os => string.Equals(os.Trim(), "XP", StringComparison.OrdinalIgnoreCase))
+            .WithMessage("osType must be XP.");
+
+        RuleFor(x => x)
+            .Must(x => SystemSettingExecuteNowRequestValidator.ExtractOsSuffix(x.MacAddress) == "XP")
+            .WithMessage("target.osType must match macAddress suffix.");
+    }
+
+    private static bool HaveXpOsSuffix(string macAddress) =>
+        SystemSettingExecuteNowRequestValidator.ExtractOsSuffix(macAddress) == "XP";
+}
+
+public sealed class WindowsPowerManagementSettingsRequestValidator : AbstractValidator<WindowsPowerManagementSettingsRequest>
+{
+    public const int MaxPlanNameLength = 50;
+    public const int MaxTimeoutTextLength = 32;
+
+    public WindowsPowerManagementSettingsRequestValidator()
+    {
+        RuleFor(x => x.PlanName)
+            .NotEmpty()
+            .MaximumLength(MaxPlanNameLength);
+
+        RuleFor(x => x.DisplayTimeoutText).MaximumLength(MaxTimeoutTextLength);
+        RuleFor(x => x.SleepTimeoutText).MaximumLength(MaxTimeoutTextLength);
+        RuleFor(x => x.HardDiskTimeoutText).MaximumLength(MaxTimeoutTextLength);
+        RuleFor(x => x.PowerButtonAction).MaximumLength(MaxTimeoutTextLength);
+        RuleFor(x => x.SleepButtonAction).MaximumLength(MaxTimeoutTextLength);
+        RuleFor(x => x.SystemStandbyTimeoutText).MaximumLength(MaxTimeoutTextLength);
+
+        RuleFor(x => x)
+            .Must(HasAtLeastOneOption)
+            .WithMessage("At least one power option must be provided (display, sleep, hard disk, button actions, system standby, or optionGroups).");
+    }
+
+    private static bool HasAtLeastOneOption(WindowsPowerManagementSettingsRequest settings)
+    {
+        if (settings.OptionGroups is { Count: > 0 })
+        {
+            return settings.OptionGroups.Any(g => g.Settings.Count > 0);
+        }
+
+        return !string.IsNullOrWhiteSpace(settings.DisplayTimeoutText) ||
+               !string.IsNullOrWhiteSpace(settings.SleepTimeoutText) ||
+               !string.IsNullOrWhiteSpace(settings.HardDiskTimeoutText) ||
+               !string.IsNullOrWhiteSpace(settings.PowerButtonAction) ||
+               !string.IsNullOrWhiteSpace(settings.SleepButtonAction) ||
+               !string.IsNullOrWhiteSpace(settings.SystemStandbyTimeoutText);
+    }
+}
+
+public sealed class WindowsPowerManagementHistoryQueryValidator : AbstractValidator<WindowsPowerManagementHistoryQuery>
+{
+    public WindowsPowerManagementHistoryQueryValidator()
+    {
+        RuleFor(x => x.Page).GreaterThan(0);
+        RuleFor(x => x.PageSize).InclusiveBetween(1, 100);
+    }
+}
+
+public sealed class WindowsPowerManagementExecuteNowBulkRequestValidator : AbstractValidator<WindowsPowerManagementExecuteNowBulkRequest>
+{
+    public WindowsPowerManagementExecuteNowBulkRequestValidator()
+    {
+        RuleFor(x => x.Targets).NotEmpty();
+        RuleForEach(x => x.Targets).SetValidator(new WindowsPowerManagementTargetRequestValidator());
+        RuleFor(x => x.Settings).SetValidator(new WindowsPowerManagementSettingsRequestValidator());
+        RuleFor(x => x.Execution)
+            .Must(e => string.Equals(e.ScheduleType?.Trim(), "InstantApply", StringComparison.OrdinalIgnoreCase))
+            .WithMessage("scheduleType must be InstantApply for this endpoint.");
+    }
+}
+
+public sealed class WindowsPowerManagementExecuteNowGroupRequestValidator : AbstractValidator<WindowsPowerManagementExecuteNowGroupRequest>
+{
+    public WindowsPowerManagementExecuteNowGroupRequestValidator()
+    {
+        RuleFor(x => x.GroupId).NotEmpty();
+        RuleFor(x => x.Settings).SetValidator(new WindowsPowerManagementSettingsRequestValidator());
+        RuleFor(x => x.Execution)
+            .Must(e => string.Equals(e.ScheduleType?.Trim(), "InstantApply", StringComparison.OrdinalIgnoreCase))
+            .WithMessage("scheduleType must be InstantApply for this endpoint.");
+    }
+}
+
+public sealed class WindowsPowerManagementAdvancedSettingsRequestValidator : AbstractValidator<WindowsPowerManagementAdvancedSettingsRequest>
+{
+    public WindowsPowerManagementAdvancedSettingsRequestValidator()
+    {
+        RuleFor(x => x.PlanName)
+            .NotEmpty()
+            .MaximumLength(WindowsPowerManagementSettingsRequestValidator.MaxPlanNameLength);
+
+        RuleFor(x => x)
+            .Must(HasAtLeastOneAdvancedOption)
+            .WithMessage("At least one advanced power option group with settings is required.");
+
+        RuleForEach(x => x.OptionGroups).ChildRules(group =>
+        {
+            group.RuleFor(g => g.OptionName).NotEmpty().MaximumLength(100);
+            group.RuleFor(g => g.Settings).NotEmpty();
+            group.RuleForEach(g => g.Settings).ChildRules(setting =>
+            {
+                setting.RuleFor(s => s.SettingName).NotEmpty().MaximumLength(100);
+                setting.RuleFor(s => s.SettingValue).NotEmpty().MaximumLength(100);
+            });
+        });
+    }
+
+    private static bool HasAtLeastOneAdvancedOption(WindowsPowerManagementAdvancedSettingsRequest settings)
+    {
+        if (settings.OptionGroups is not { Count: > 0 })
+        {
+            return false;
+        }
+
+        return settings.OptionGroups.Any(g =>
+            g.Settings.Count > 0 && WindowsPowerManagementCatalog.IsAdvancedOptionGroup(g));
+    }
+}
+
+public sealed class WindowsPowerManagementAdvancedExecuteNowRequestValidator : AbstractValidator<WindowsPowerManagementAdvancedExecuteNowRequest>
+{
+    public WindowsPowerManagementAdvancedExecuteNowRequestValidator()
+    {
+        RuleFor(x => x.Target).SetValidator(new WindowsPowerManagementTargetRequestValidator());
+        RuleFor(x => x.Settings).SetValidator(new WindowsPowerManagementAdvancedSettingsRequestValidator());
+        RuleFor(x => x.Execution)
+            .Must(e => string.Equals(e.ScheduleType?.Trim(), "InstantApply", StringComparison.OrdinalIgnoreCase))
+            .WithMessage("scheduleType must be InstantApply for this endpoint.");
+    }
+}
+
+public sealed class WindowsPowerManagementAdvancedQueueRequestValidator : AbstractValidator<WindowsPowerManagementAdvancedQueueRequest>
+{
+    public WindowsPowerManagementAdvancedQueueRequestValidator()
+    {
+        RuleFor(x => x.Target).SetValidator(new WindowsPowerManagementTargetRequestValidator());
+        RuleFor(x => x.Settings).SetValidator(new WindowsPowerManagementAdvancedSettingsRequestValidator());
+        RuleFor(x => x.Execution)
+            .Must(e => string.Equals(e.ScheduleType?.Trim(), "Queue", StringComparison.OrdinalIgnoreCase))
+            .WithMessage("scheduleType must be Queue for this endpoint.");
+    }
+}
+
+public sealed class WindowsPowerManagementAdvancedTemplateQueueRequestValidator : AbstractValidator<WindowsPowerManagementAdvancedTemplateQueueRequest>
+{
+    public WindowsPowerManagementAdvancedTemplateQueueRequestValidator()
+    {
+        RuleFor(x => x.Target).SetValidator(new WindowsPowerManagementTargetRequestValidator());
+        RuleFor(x => x.Settings).SetValidator(new WindowsPowerManagementAdvancedSettingsRequestValidator());
+        RuleFor(x => x.Execution)
+            .Must(e => string.Equals(e.ScheduleType?.Trim(), "QueueTemplate", StringComparison.OrdinalIgnoreCase))
+            .WithMessage("scheduleType must be QueueTemplate for this endpoint.");
+
+        RuleFor(x => x.Execution.TemplateId)
+            .NotNull()
+            .GreaterThan(0)
+            .WithMessage("templateId must be greater than 0.");
+
+        RuleFor(x => x.Execution.TemplateName)
+            .NotEmpty()
+            .MaximumLength(200)
+            .WithMessage("templateName is required.");
+    }
+}
+
+public sealed class WindowsPowerManagementAdvancedExecuteNowBulkRequestValidator : AbstractValidator<WindowsPowerManagementAdvancedExecuteNowBulkRequest>
+{
+    public WindowsPowerManagementAdvancedExecuteNowBulkRequestValidator()
+    {
+        RuleFor(x => x.Targets).NotEmpty();
+        RuleForEach(x => x.Targets).SetValidator(new WindowsPowerManagementTargetRequestValidator());
+        RuleFor(x => x.Settings).SetValidator(new WindowsPowerManagementAdvancedSettingsRequestValidator());
+        RuleFor(x => x.Execution)
+            .Must(e => string.Equals(e.ScheduleType?.Trim(), "InstantApply", StringComparison.OrdinalIgnoreCase))
+            .WithMessage("scheduleType must be InstantApply for this endpoint.");
+    }
+}
+
+public sealed class WindowsPowerManagementAdvancedExecuteNowGroupRequestValidator : AbstractValidator<WindowsPowerManagementAdvancedExecuteNowGroupRequest>
+{
+    public WindowsPowerManagementAdvancedExecuteNowGroupRequestValidator()
+    {
+        RuleFor(x => x.GroupId).NotEmpty();
+        RuleFor(x => x.Settings).SetValidator(new WindowsPowerManagementAdvancedSettingsRequestValidator());
+        RuleFor(x => x.Execution)
+            .Must(e => string.Equals(e.ScheduleType?.Trim(), "InstantApply", StringComparison.OrdinalIgnoreCase))
+            .WithMessage("scheduleType must be InstantApply for this endpoint.");
+    }
+}

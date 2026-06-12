@@ -4,6 +4,7 @@ using Intellinode.Domain.Enums;
 using Intellinode.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -12,9 +13,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace Intellinode.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(IntellinodeDbContext))]
-    partial class IntellinodeDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260612080837_AddWindowsPowerManagementSettingsSnapshots")]
+    partial class AddWindowsPowerManagementSettingsSnapshots
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -2628,65 +2631,6 @@ namespace Intellinode.Infrastructure.Persistence.Migrations
                         .HasName("pk_tenant_agent_defaults");
 
                     b.ToTable("tenant_agent_defaults", "intellinode");
-                });
-
-            modelBuilder.Entity("Intellinode.Domain.Entities.WindowsPowerAdvancedOptionMaster", b =>
-                {
-                    b.Property<int>("Id")
-                        .HasColumnType("integer")
-                        .HasColumnName("id");
-
-                    b.Property<string>("DisplayText")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)")
-                        .HasColumnName("display_text");
-
-                    b.Property<bool>("IsActive")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("boolean")
-                        .HasDefaultValue(true)
-                        .HasColumnName("is_active");
-
-                    b.Property<string>("OptionName")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)")
-                        .HasColumnName("option_name");
-
-                    b.Property<string>("PlanName")
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)")
-                        .HasColumnName("plan_name");
-
-                    b.Property<string>("SettingName")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)")
-                        .HasColumnName("setting_name");
-
-                    b.Property<int>("SortOrder")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer")
-                        .HasDefaultValue(0)
-                        .HasColumnName("sort_order");
-
-                    b.Property<string>("ValueText")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)")
-                        .HasColumnName("value_text");
-
-                    b.HasKey("Id")
-                        .HasName("pk_windows_power_advanced_option_master");
-
-                    b.HasIndex("OptionName", "IsActive")
-                        .HasDatabaseName("ix_windows_power_advanced_option_master_option_name_is_active");
-
-                    b.HasIndex("PlanName", "OptionName", "SettingName", "IsActive")
-                        .HasDatabaseName("ix_windows_power_advanced_option_master_plan_name_option_name_");
-
-                    b.ToTable("windows_power_advanced_option_master", "intellinode");
                 });
 
             modelBuilder.Entity("Intellinode.Domain.Entities.WindowsPowerPlanMaster", b =>

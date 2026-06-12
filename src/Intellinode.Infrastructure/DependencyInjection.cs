@@ -30,6 +30,8 @@ public static class DependencyInjection
         services.Configure<WindowsDateTimeOptions>(configuration.GetSection(WindowsDateTimeOptions.SectionName));
         services.Configure<WindowsRegionLocationOptions>(configuration.GetSection(WindowsRegionLocationOptions.SectionName));
         services.Configure<WindowsRegionalFormatOptions>(configuration.GetSection(WindowsRegionalFormatOptions.SectionName));
+        services.Configure<PowerManagementReferenceOptions>(configuration.GetSection(PowerManagementReferenceOptions.SectionName));
+        services.Configure<WindowsPowerManagementOptions>(configuration.GetSection(WindowsPowerManagementOptions.SectionName));
 
         var connectionString = configuration.GetConnectionString("DefaultConnection")
             ?? throw new InvalidOperationException("Connection string 'DefaultConnection' is not configured.");
@@ -72,6 +74,7 @@ public static class DependencyInjection
         services.AddScoped<WindowsEthernetSetupTaskAckHandler>();
         services.AddScoped<WindowsWirelessSetupTaskAckHandler>();
         services.AddScoped<WindowsWirelessPropertiesTaskAckHandler>();
+        services.AddScoped<WindowsPowerManagementTaskAckHandler>();
         services.AddScoped<IAgentTaskService, AgentTaskService>();
         services.AddScoped<IDeviceRemoteSettingsService, DeviceRemoteSettingsService>();
         services.AddScoped<IDeviceAgentAdvancedSettingsService, DeviceAgentAdvancedSettingsService>();
@@ -99,6 +102,10 @@ public static class DependencyInjection
         services.AddScoped<IWindowsWirelessSetupSettingsService, WindowsWirelessSetupSettingsService>();
         services.AddScoped<IWindowsWirelessSetupPayloadBuilder, WindowsWirelessSetupPayloadBuilder>();
         services.AddScoped<ITimeAndLanguageReferenceService, TimeAndLanguageReferenceService>();
+        services.AddScoped<IPowerManagementReferenceService, PowerManagementReferenceService>();
+        services.AddScoped<IWindowsPowerManagementPayloadBuilder, WindowsPowerManagementPayloadBuilder>();
+        services.AddScoped<IWindowsPowerManagementTaskPayloadHydrator, WindowsPowerManagementTaskPayloadHydrator>();
+        services.AddScoped<IWindowsPowerManagementSettingsService, WindowsPowerManagementSettingsService>();
         services.AddScoped<EffectiveAgentSettingsResolver>();
         services.AddScoped<IEffectiveAgentSettingsResolver>(sp => sp.GetRequiredService<EffectiveAgentSettingsResolver>());
         services.AddSingleton<ITokenService, TokenService>();

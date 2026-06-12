@@ -4,6 +4,7 @@ using Intellinode.Domain.Enums;
 using Intellinode.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -12,9 +13,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace Intellinode.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(IntellinodeDbContext))]
-    partial class IntellinodeDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260612072136_AddWindowsPowerManagementReferenceAndDeviceSettings")]
+    partial class AddWindowsPowerManagementReferenceAndDeviceSettings
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -1613,43 +1616,6 @@ namespace Intellinode.Infrastructure.Persistence.Migrations
                         });
                 });
 
-            modelBuilder.Entity("Intellinode.Domain.Entities.DeviceWindowsPowerManagementSettingsSnapshot", b =>
-                {
-                    b.Property<Guid>("DeviceId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("device_id");
-
-                    b.Property<long>("SettingsVersion")
-                        .HasColumnType("bigint")
-                        .HasColumnName("settings_version");
-
-                    b.Property<string>("ActivePlanName")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)")
-                        .HasColumnName("active_plan_name");
-
-                    b.Property<int>("AgentAction")
-                        .HasColumnType("integer")
-                        .HasColumnName("agent_action");
-
-                    b.Property<DateTime>("CreatedUtc")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("created_utc");
-
-                    b.Property<string>("SettingsJson")
-                        .IsRequired()
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("jsonb")
-                        .HasDefaultValue("{}")
-                        .HasColumnName("settings_json");
-
-                    b.HasKey("DeviceId", "SettingsVersion")
-                        .HasName("pk_device_windows_power_management_settings_snapshots");
-
-                    b.ToTable("device_windows_power_management_settings_snapshots", "intellinode");
-                });
-
             modelBuilder.Entity("Intellinode.Domain.Entities.DeviceWindowsRegionLocationSettings", b =>
                 {
                     b.Property<Guid>("DeviceId")
@@ -2630,65 +2596,6 @@ namespace Intellinode.Infrastructure.Persistence.Migrations
                     b.ToTable("tenant_agent_defaults", "intellinode");
                 });
 
-            modelBuilder.Entity("Intellinode.Domain.Entities.WindowsPowerAdvancedOptionMaster", b =>
-                {
-                    b.Property<int>("Id")
-                        .HasColumnType("integer")
-                        .HasColumnName("id");
-
-                    b.Property<string>("DisplayText")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)")
-                        .HasColumnName("display_text");
-
-                    b.Property<bool>("IsActive")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("boolean")
-                        .HasDefaultValue(true)
-                        .HasColumnName("is_active");
-
-                    b.Property<string>("OptionName")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)")
-                        .HasColumnName("option_name");
-
-                    b.Property<string>("PlanName")
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)")
-                        .HasColumnName("plan_name");
-
-                    b.Property<string>("SettingName")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)")
-                        .HasColumnName("setting_name");
-
-                    b.Property<int>("SortOrder")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer")
-                        .HasDefaultValue(0)
-                        .HasColumnName("sort_order");
-
-                    b.Property<string>("ValueText")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)")
-                        .HasColumnName("value_text");
-
-                    b.HasKey("Id")
-                        .HasName("pk_windows_power_advanced_option_master");
-
-                    b.HasIndex("OptionName", "IsActive")
-                        .HasDatabaseName("ix_windows_power_advanced_option_master_option_name_is_active");
-
-                    b.HasIndex("PlanName", "OptionName", "SettingName", "IsActive")
-                        .HasDatabaseName("ix_windows_power_advanced_option_master_plan_name_option_name_");
-
-                    b.ToTable("windows_power_advanced_option_master", "intellinode");
-                });
-
             modelBuilder.Entity("Intellinode.Domain.Entities.WindowsPowerPlanMaster", b =>
                 {
                     b.Property<int>("Id")
@@ -3077,18 +2984,6 @@ namespace Intellinode.Infrastructure.Persistence.Migrations
                     b.Navigation("Device");
                 });
 
-            modelBuilder.Entity("Intellinode.Domain.Entities.DeviceWindowsPowerManagementSettingsSnapshot", b =>
-                {
-                    b.HasOne("Intellinode.Domain.Entities.Device", "Device")
-                        .WithMany("WindowsPowerManagementSnapshots")
-                        .HasForeignKey("DeviceId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired()
-                        .HasConstraintName("fk_device_windows_power_management_settings_snapshots_devices_");
-
-                    b.Navigation("Device");
-                });
-
             modelBuilder.Entity("Intellinode.Domain.Entities.DeviceWindowsRegionLocationSettings", b =>
                 {
                     b.HasOne("Intellinode.Domain.Entities.Device", "Device")
@@ -3273,8 +3168,6 @@ namespace Intellinode.Infrastructure.Persistence.Migrations
                     b.Navigation("WindowsEthernetSetupSettings");
 
                     b.Navigation("WindowsPowerManagementSettings");
-
-                    b.Navigation("WindowsPowerManagementSnapshots");
 
                     b.Navigation("WindowsRegionLocationSettings");
 

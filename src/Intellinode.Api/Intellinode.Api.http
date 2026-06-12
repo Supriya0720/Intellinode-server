@@ -2736,6 +2736,360 @@ Authorization: Bearer {{adminToken}}
 # ] } }
 
 
+### Power Management — Reference APIs (PR1: read-only master data)
+
+# FusionX parity: XP_PowerPlan names + basic UI timeout/action dropdowns.
+# Apply APIs (basic/advanced power plan) are PR2–PR3 — not available in PR1.
+# Separate from generic "Power Management" shutdown tasks (moduleName: Power Management).
+
+### Power Management PR1 — List power plans
+# @name powerMgmtGetPowerPlans
+GET {{Intellinode.Api_HostAddress}}/api/v1/admin/device-config/power-management/reference/power-plans
+Authorization: Bearer {{adminToken}}
+
+# Expected: 200 success=true; data[] with id, planName, isDefault (Balanced default)
+
+
+### Power Management PR1 — List display timeouts
+# @name powerMgmtGetDisplayTimeouts
+GET {{Intellinode.Api_HostAddress}}/api/v1/admin/device-config/power-management/reference/timeouts?category=Display
+Authorization: Bearer {{adminToken}}
+
+# Expected: 200 success=true; data[] with id, displayText, valueSeconds (null=Never), category=Display
+
+
+### Power Management PR1 — Include inactive master rows (optional query)
+GET {{Intellinode.Api_HostAddress}}/api/v1/admin/device-config/power-management/reference/power-plans?includeInactive=true
+Authorization: Bearer {{adminToken}}
+
+
+@powerManagementMac = 00-11-22-33-44-66:XP
+
+
+### Windows Power Management PR2 — Get current by MAC
+# @name powerMgmtGetCurrent
+GET {{Intellinode.Api_HostAddress}}/api/v1/admin/device-config/windows-power-management/{{powerManagementMac}}
+Authorization: Bearer {{adminToken}}
+
+# Expected: 200 with data.settings.planName, settingsVersion, lastApplyStatus
+
+
+### Windows Power Management PR2 — Execute now (basic 5 option groups)
+# @name powerMgmtExecuteNow
+POST {{Intellinode.Api_HostAddress}}/api/v1/admin/device-config/windows-power-management/execute-now
+Content-Type: application/json
+Authorization: Bearer {{adminToken}}
+
+{
+  "target": {
+    "macAddress": "{{powerManagementMac}}",
+    "osType": "XP"
+  },
+  "settings": {
+    "planName": "Balanced",
+    "displayTimeoutText": "10 minutes",
+    "sleepTimeoutText": "30 minutes",
+    "hardDiskTimeoutText": "Never",
+    "powerButtonAction": "Sleep",
+    "sleepButtonAction": "Do nothing",
+    "systemStandbyTimeoutText": "15 minutes"
+  },
+  "execution": {
+    "agentAction": "0",
+    "scheduleType": "InstantApply"
+  },
+  "options": {
+    "dryRun": false,
+    "returnLegacySummary": true,
+    "correlationId": "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"
+  }
+}
+
+# Expected: 200 success=true, data.taskId; ModuleName=Power Management Settings, FunctionName=Now
+# ExtraData={{powerManagementMac}}&PMO,Balanced; stored functionParameter={"settingsVersion":N}
+
+
+@powerMgmtTaskId = {{powerMgmtExecuteNow.response.body.data.taskId}}
+
+
+### Windows Power Management PR2 — Queue (scheduled apply)
+# @name powerMgmtQueue
+POST {{Intellinode.Api_HostAddress}}/api/v1/admin/device-config/windows-power-management/queue
+Content-Type: application/json
+Authorization: Bearer {{adminToken}}
+
+{
+  "target": {
+    "macAddress": "{{powerManagementMac}}",
+    "osType": "XP"
+  },
+  "settings": {
+    "planName": "Balanced",
+    "displayTimeoutText": "15 minutes",
+    "sleepTimeoutText": "Never"
+  },
+  "execution": {
+    "agentAction": "0",
+    "scheduleType": "Queue"
+  },
+  "options": {
+    "dryRun": false,
+    "returnLegacySummary": true,
+    "correlationId": "cccccccc-cccc-cccc-cccc-cccccccccccc"
+  }
+}
+
+# Expected: 200; FunctionName=Update, scheduleType=Queue; snapshot row created for hydration
+
+
+### Windows Power Management PR2 — Get apply history
+# @name powerMgmtGetApplyHistory
+GET {{Intellinode.Api_HostAddress}}/api/v1/admin/device-config/windows-power-management/apply-history/{{powerManagementMac}}?page=1&pageSize=20
+Authorization: Bearer {{adminToken}}
+
+# Expected: 200 with Power Management Settings tasks and SettingsKind.WindowsPowerManagement logs
+
+
+### Windows Power Management PR2 — Agent poll pending (hydrated payload)
+# @name powerMgmtAgentPollPending
+GET {{Intellinode.Api_HostAddress}}/api/v1/agent/tasks/pending
+Authorization: Bearer {{agentToken}}
+
+# Expected: 200; functionParameter is hydrated WinCELinux.XPPowerManagement (not compact settingsVersion ref)
+
+
+### Windows Power Management PR2 — Agent ack completed
+# @name powerMgmtAgentAckCompleted
+POST {{Intellinode.Api_HostAddress}}/api/v1/agent/tasks/ack
+Content-Type: application/json
+Authorization: Bearer {{agentToken}}
+
+{
+  "acks": [
+    {
+      "taskId": "{{powerMgmtTaskId}}",
+      "legacyTaskId": 1,
+      "status": "Completed"
+    }
+  ]
+}
+
+# Expected: 204; lastApplyStatus=Applied, lastAppliedVersion matches settingsVersion
+
+
+### Windows Power Management PR3 — Advanced reference catalog
+# @name powerMgmtGetAdvancedOptions
+GET {{Intellinode.Api_HostAddress}}/api/v1/admin/device-config/power-management/reference/advanced-options?planName=Balanced
+Authorization: Bearer {{adminToken}}
+
+# Expected: 200; data[] grouped by optionName with settings[].values[] (displayText + valueText)
+
+
+### Windows Power Management PR3 — Execute now (advanced option groups)
+# @name powerMgmtAdvancedExecuteNow
+POST {{Intellinode.Api_HostAddress}}/api/v1/admin/device-config/windows-power-management/advanced/execute-now
+Content-Type: application/json
+Authorization: Bearer {{adminToken}}
+
+{
+  "target": {
+    "macAddress": "{{powerManagementMac}}",
+    "osType": "XP"
+  },
+  "settings": {
+    "planName": "Balanced",
+    "isActive": true,
+    "optionGroups": [
+      {
+        "optionName": "Sleep",
+        "settings": [
+          { "settingName": "Allow hybrid sleep", "settingValue": "Off" },
+          { "settingName": "Allow wake timers", "settingValue": "Enable" },
+          { "settingName": "Hibernate after", "settingValue": "300 Minutes" }
+        ]
+      },
+      {
+        "optionName": "USB selective suspend setting",
+        "settings": [
+          { "settingName": "USB selective suspend setting", "settingValue": "Disable" }
+        ]
+      },
+      {
+        "optionName": "Minimum processor state",
+        "settings": [
+          { "settingName": "Minimum processor state", "settingValue": "10 Minutes" }
+        ]
+      },
+      {
+        "optionName": "Maximum processor state",
+        "settings": [
+          { "settingName": "Maximum processor state", "settingValue": "100" }
+        ]
+      }
+    ]
+  },
+  "execution": {
+    "agentAction": "0",
+    "scheduleType": "InstantApply"
+  },
+  "options": {
+    "dryRun": false,
+    "returnLegacySummary": true,
+    "correlationId": "dddddddd-dddd-dddd-dddd-dddddddddddd"
+  }
+}
+
+# Expected: 200; merges with existing basic groups in settings_json; compact task ref still <=512 chars
+
+
+### Windows Power Management PR3 — Queue advanced apply
+POST {{Intellinode.Api_HostAddress}}/api/v1/admin/device-config/windows-power-management/advanced/queue
+Content-Type: application/json
+Authorization: Bearer {{adminToken}}
+
+{
+  "target": {
+    "macAddress": "{{powerManagementMac}}",
+    "osType": "XP"
+  },
+  "settings": {
+    "planName": "Balanced",
+    "optionGroups": [
+      {
+        "optionName": "Link state power management",
+        "settings": [
+          { "settingName": "Link state power management", "settingValue": "Maximum power savings" }
+        ]
+      },
+      {
+        "optionName": "When playing video",
+        "settings": [
+          { "settingName": "When playing video", "settingValue": "Optimize power saving" }
+        ]
+      }
+    ]
+  },
+  "execution": {
+    "agentAction": "0",
+    "scheduleType": "Queue"
+  },
+  "options": {
+    "dryRun": false,
+    "returnLegacySummary": false
+  }
+}
+
+# Expected: 200; snapshot row created; agent poll hydrates full basic+advanced payload
+
+
+### Windows Power Management PR3 — Agent poll (verify advanced groups hydrated)
+GET {{Intellinode.Api_HostAddress}}/api/v1/agent/tasks/pending
+Authorization: Bearer {{agentToken}}
+
+# Expected: hydrated payload includes advanced option groups (e.g. USB selective suspend, strText3/strText4 when present)
+
+
+### Windows Power Management PR4 — Template queue (SysView / ExecuteLaterTemplate parity)
+# @name powerMgmtTemplateQueue
+POST {{Intellinode.Api_HostAddress}}/api/v1/admin/device-config/windows-power-management/template-queue
+Content-Type: application/json
+Authorization: Bearer {{adminToken}}
+
+{
+  "target": {
+    "macAddress": "{{powerManagementMac}}",
+    "osType": "XP"
+  },
+  "settings": {
+    "planName": "Balanced",
+    "displayTimeoutText": "10 minutes",
+    "sleepTimeoutText": "30 minutes",
+    "hardDiskTimeoutText": "Never",
+    "powerButtonAction": "Sleep",
+    "sleepButtonAction": "Do nothing"
+  },
+  "execution": {
+    "agentAction": "0",
+    "scheduleType": "QueueTemplate",
+    "templateId": 101,
+    "templateName": "BranchPowerTemplate"
+  },
+  "options": {
+    "dryRun": false,
+    "returnLegacySummary": true,
+    "correlationId": "eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee"
+  }
+}
+
+# Expected: 200; data.execution.scheduleType=QueueTemplate; data.template populated; task.functionName=QueueTemplate; extraData still {mac}&PMO,{planName}
+
+
+### Windows Power Management PR4 — Advanced template queue
+POST {{Intellinode.Api_HostAddress}}/api/v1/admin/device-config/windows-power-management/advanced/template-queue
+Content-Type: application/json
+Authorization: Bearer {{adminToken}}
+
+{
+  "target": {
+    "macAddress": "{{powerManagementMac}}",
+    "osType": "XP"
+  },
+  "settings": {
+    "planName": "Balanced",
+    "optionGroups": [
+      {
+        "optionName": "Link state power management",
+        "settings": [
+          { "settingName": "Link state power management", "settingValue": "Maximum power savings" }
+        ]
+      },
+      {
+        "optionName": "When playing video",
+        "settings": [
+          { "settingName": "When playing video", "settingValue": "Optimize power saving" }
+        ]
+      }
+    ]
+  },
+  "execution": {
+    "agentAction": "0",
+    "scheduleType": "QueueTemplate",
+    "templateId": 202,
+    "templateName": "AdvancedBranchTemplate"
+  },
+  "options": {
+    "dryRun": false,
+    "returnLegacySummary": false
+  }
+}
+
+# Expected: 200; merges advanced groups into stored JSON; same compact ref + PMO extraData; apply log applyMode=template
+
+
+### Windows Power Management PR2 — Execute now bulk
+POST {{Intellinode.Api_HostAddress}}/api/v1/admin/device-config/windows-power-management/execute-now/bulk
+Content-Type: application/json
+Authorization: Bearer {{adminToken}}
+
+{
+  "targets": [
+    { "macAddress": "{{powerManagementMac}}", "osType": "XP" }
+  ],
+  "settings": {
+    "planName": "Balanced",
+    "displayTimeoutText": "10 minutes"
+  },
+  "execution": {
+    "agentAction": "0",
+    "scheduleType": "InstantApply"
+  },
+  "options": {
+    "dryRun": false,
+    "returnLegacySummary": false
+  }
+}
+
+
 ### Time and Language — Reference APIs (PR1: read-only master data)
 
 # FusionX parity: RegionAndLocationMaster (Identifier L=location, R=region/language) and ddlTimeZone options
