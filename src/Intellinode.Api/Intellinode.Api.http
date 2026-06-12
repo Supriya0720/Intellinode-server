@@ -2736,6 +2736,559 @@ Authorization: Bearer {{adminToken}}
 # ] } }
 
 
+### Time and Language — Reference APIs (PR1: read-only master data)
+
+# FusionX parity: RegionAndLocationMaster (Identifier L=location, R=region/language) and ddlTimeZone options
+# from UCWindowsDateTimeSettings.ascx. World / id 39070 excluded from locations. Apply APIs (date/time,
+# region, regional format) are PR2–PR4 — not available in PR1.
+
+### Time and Language — Get locations (Identifier = L)
+# @name timeLangGetLocations
+GET {{Intellinode.Api_HostAddress}}/api/v1/admin/device-config/time-and-language/reference/locations
+Authorization: Bearer {{adminToken}}
+
+# Expected: 200 success=true; data[] with id, identifier=L, value (geo location name); excludes World/39070
+
+
+### Time and Language — Get regions / languages (Identifier = R)
+# @name timeLangGetRegions
+GET {{Intellinode.Api_HostAddress}}/api/v1/admin/device-config/time-and-language/reference/regions
+Authorization: Bearer {{adminToken}}
+
+# Expected: 200 success=true; data[] with id, identifier=R, value, bcp47Code (e.g. en-US, hi-IN)
+
+
+### Time and Language — Get Windows time zones
+# @name timeLangGetTimeZones
+GET {{Intellinode.Api_HostAddress}}/api/v1/admin/device-config/time-and-language/reference/time-zones
+Authorization: Bearer {{adminToken}}
+
+# Expected: 200 success=true; data[] with id, displayName, windowsTzKey (FusionX ddlTimeZone class / MUI_Display)
+
+
+### Time and Language — Include inactive master rows (optional query)
+GET {{Intellinode.Api_HostAddress}}/api/v1/admin/device-config/time-and-language/reference/locations?includeInactive=true
+Authorization: Bearer {{adminToken}}
+
+# Expected: 200; includes rows where is_active=false when seeded
+
+
+### Windows Date & Time Setup APIs (Windows :XP only, v1)
+
+# FusionX: System Settings → Time and Language → Date & Time (DateTime / TimeZone / TimeServerSynchro tabs).
+# Inline JSON in functionParameter (WinCELinux.XPDATE_TIME) — no hydration. One module_name per applyMode:
+#   ManualDateTime → DateTime (signal suffix DT)
+#   TimeZone       → TimeZone (signal suffix TZ)
+#   TimeServer     → TimeServerSynchro (signal suffix TS)
+# Pending task for the SAME module_name blocks a new apply (409 ApplyBlocked); different tabs do not block each other.
+# TimeZone apply validates timeZoneDisplay + windowsTzKey against GET .../time-and-language/reference/time-zones.
+
+@dateTimeMac = 00-11-22-33-44-55:XP
+
+### Windows Date & Time — Get current by MAC
+# @name dateTimeGetCurrent
+GET {{Intellinode.Api_HostAddress}}/api/v1/admin/device-config/windows-date-time/{{dateTimeMac}}
+Authorization: Bearer {{adminToken}}
+
+# Expected: 200 with data.settings.applyMode, settingsVersion, lastApplyStatus
+
+
+### Windows Date & Time — Execute now (ManualDateTime)
+# @name dateTimeExecuteNowManual
+POST {{Intellinode.Api_HostAddress}}/api/v1/admin/device-config/windows-date-time/execute-now
+Content-Type: application/json
+Authorization: Bearer {{adminToken}}
+
+{
+  "target": {
+    "macAddress": "{{dateTimeMac}}",
+    "osType": "XP"
+  },
+  "settings": {
+    "applyMode": "ManualDateTime",
+    "currentDateLocal": "2026-06-11",
+    "currentTimeLocal": "14:30"
+  },
+  "execution": {
+    "agentAction": "0",
+    "scheduleType": "InstantApply"
+  },
+  "options": {
+    "dryRun": false,
+    "returnLegacySummary": true,
+    "correlationId": "11111111-1111-1111-1111-111111111111"
+  }
+}
+
+# Expected: 200 success=true, data.taskId; task ModuleName=DateTime, FunctionName=Now, ExtraData={{dateTimeMac}}&DT
+# functionParameter contains WinCELinux.XPDATE_TIME with DtDate/DtTime populated
+
+
+@dateTimeManualTaskId = {{dateTimeExecuteNowManual.response.body.data.taskId}}
+
+
+### Windows Date & Time — Execute now (TimeZone)
+# @name dateTimeExecuteNowTimeZone
+POST {{Intellinode.Api_HostAddress}}/api/v1/admin/device-config/windows-date-time/execute-now
+Content-Type: application/json
+Authorization: Bearer {{adminToken}}
+
+{
+  "target": {
+    "macAddress": "{{dateTimeMac}}",
+    "osType": "XP"
+  },
+  "settings": {
+    "applyMode": "TimeZone",
+    "timeZoneDisplay": "(UTC+05:30) Chennai, Kolkata, Mumbai, New Delhi",
+    "windowsTzKey": "490"
+  },
+  "execution": {
+    "agentAction": "0",
+    "scheduleType": "InstantApply"
+  },
+  "options": {
+    "dryRun": false,
+    "returnLegacySummary": true,
+    "correlationId": "22222222-2222-2222-2222-222222222222"
+  }
+}
+
+# Expected: 200; ModuleName=TimeZone, ExtraData suffix TZ, payload strTimeZone + MUI_Display=490
+
+
+### Windows Date & Time — Execute now (TimeServer / NTP)
+# @name dateTimeExecuteNowTimeServer
+POST {{Intellinode.Api_HostAddress}}/api/v1/admin/device-config/windows-date-time/execute-now
+Content-Type: application/json
+Authorization: Bearer {{adminToken}}
+
+{
+  "target": {
+    "macAddress": "{{dateTimeMac}}",
+    "osType": "XP"
+  },
+  "settings": {
+    "applyMode": "TimeServer",
+    "timeServer": "time.windows.com"
+  },
+  "execution": {
+    "agentAction": "0",
+    "scheduleType": "InstantApply"
+  },
+  "options": {
+    "dryRun": false,
+    "returnLegacySummary": true,
+    "correlationId": "33333333-3333-3333-3333-333333333333"
+  }
+}
+
+# Expected: 200; ModuleName=TimeServerSynchro, ExtraData suffix TS, payload TimeServer=time.windows.com
+
+
+### Windows Date & Time — Queue (scheduled TimeZone apply)
+# @name dateTimeQueueTimeZone
+POST {{Intellinode.Api_HostAddress}}/api/v1/admin/device-config/windows-date-time/queue
+Content-Type: application/json
+Authorization: Bearer {{adminToken}}
+
+{
+  "target": {
+    "macAddress": "{{dateTimeMac}}",
+    "osType": "XP"
+  },
+  "settings": {
+    "applyMode": "TimeZone",
+    "timeZoneDisplay": "(UTC+00:00) Dublin, Edinburgh, Lisbon, London",
+    "windowsTzKey": "2670"
+  },
+  "execution": {
+    "agentAction": "0",
+    "scheduleType": "Queue"
+  },
+  "options": {
+    "dryRun": false,
+    "returnLegacySummary": true,
+    "correlationId": "44444444-4444-4444-4444-444444444444"
+  }
+}
+
+# Expected: 200; FunctionName=Update (queued)
+
+
+### Windows Date & Time — Apply history
+# @name dateTimeGetApplyHistory
+GET {{Intellinode.Api_HostAddress}}/api/v1/admin/device-config/windows-date-time/apply-history/{{dateTimeMac}}?page=1&pageSize=20
+Authorization: Bearer {{adminToken}}
+
+# Expected: 200 with DateTime / TimeZone / TimeServerSynchro tasks and SettingsKind.WindowsDateTimeSetup logs
+
+
+### Windows Date & Time — Agent poll pending tasks (inline payload)
+# @name dateTimeAgentPoll
+GET {{Intellinode.Api_HostAddress}}/api/v1/agent/tasks/pending?macAddress={{dateTimeMac}}
+Authorization: Bearer {{agentToken}}
+
+# Expected: pending task with full XPDATE_TIME JSON in functionParameter (no hydration)
+
+
+### Windows Date & Time — Agent ack completed
+# @name dateTimeAgentAckCompleted
+POST {{Intellinode.Api_HostAddress}}/api/v1/agent/tasks/ack
+Content-Type: application/json
+Authorization: Bearer {{agentToken}}
+
+{
+  "acks": [
+    {
+      "taskId": "{{dateTimeManualTaskId}}",
+      "legacyTaskId": 1,
+      "status": "Completed"
+    }
+  ]
+}
+
+# Expected: 204; lastApplyStatus=Applied, lastAppliedVersion matches settingsVersion
+
+
+### Windows Date & Time — Execute now bulk (TimeServer)
+POST {{Intellinode.Api_HostAddress}}/api/v1/admin/device-config/windows-date-time/execute-now/bulk
+Content-Type: application/json
+Authorization: Bearer {{adminToken}}
+
+{
+  "targets": [
+    { "macAddress": "{{dateTimeMac}}", "osType": "XP" }
+  ],
+  "settings": {
+    "applyMode": "TimeServer",
+    "timeServer": "time.nist.gov"
+  },
+  "execution": {
+    "agentAction": "0",
+    "scheduleType": "InstantApply"
+  },
+  "options": {
+    "dryRun": false,
+    "returnLegacySummary": true,
+    "correlationId": "55555555-5555-5555-5555-555555555555"
+  }
+}
+
+# Expected: 200 with per-target Results; blocked targets include reason (e.g. PendingTaskExists)
+
+
+### Windows Region & Location APIs (Windows :XP only, v1)
+
+# FusionX: System Settings → Time and Language → Region and Location tab.
+# Inline JSON in functionParameter (WinCELinux.RegionAndLocation) — no hydration.
+# module_name=Region And Location Settings, signal suffix RLS (default).
+# Validate geo/language via PR1 reference APIs before apply:
+#   GET .../time-and-language/reference/locations (Identifier L, excludes World/39070)
+#   GET .../time-and-language/reference/regions (Identifier R, includes bcp47Code)
+# Pending task for the SAME module_name blocks re-apply (409 ApplyBlocked); DateTime/TimeZone tasks do not block.
+
+@regionLocationMac = 00-11-22-33-44-55:XP
+
+### Windows Region & Location — Get current by MAC
+# @name regionLocationGetCurrent
+GET {{Intellinode.Api_HostAddress}}/api/v1/admin/device-config/windows-region-location/{{regionLocationMac}}
+Authorization: Bearer {{adminToken}}
+
+# Expected: 200 with data.settings.geoId, languageCode, bcp47Code, settingsVersion, lastApplyStatus
+
+
+### Windows Region & Location — Execute now (United States + en-US)
+# @name regionLocationExecuteNow
+POST {{Intellinode.Api_HostAddress}}/api/v1/admin/device-config/windows-region-location/execute-now
+Content-Type: application/json
+Authorization: Bearer {{adminToken}}
+
+{
+  "target": {
+    "macAddress": "{{regionLocationMac}}",
+    "osType": "XP"
+  },
+  "settings": {
+    "geoId": 244,
+    "locationName": "United States",
+    "languageCode": 1033,
+    "bcp47Code": "en-US",
+    "languageDescription": "English (United States)"
+  },
+  "execution": {
+    "agentAction": "0",
+    "scheduleType": "InstantApply"
+  },
+  "options": {
+    "dryRun": false,
+    "returnLegacySummary": true,
+    "correlationId": "66666666-6666-6666-6666-666666666666"
+  }
+}
+
+# Expected: 200 success=true, data.taskId; ModuleName=Region And Location Settings, FunctionName=Now
+# ExtraData={{regionLocationMac}}&RLS; payload WinCELinux.RegionAndLocation with GeoID/Location/BCP47Code/LanguageCode/LanguageDescription
+
+
+@regionLocationTaskId = {{regionLocationExecuteNow.response.body.data.taskId}}
+
+
+### Windows Region & Location — Queue (scheduled apply)
+# @name regionLocationQueue
+POST {{Intellinode.Api_HostAddress}}/api/v1/admin/device-config/windows-region-location/queue
+Content-Type: application/json
+Authorization: Bearer {{adminToken}}
+
+{
+  "target": {
+    "macAddress": "{{regionLocationMac}}",
+    "osType": "XP"
+  },
+  "settings": {
+    "geoId": 244,
+    "locationName": "United States",
+    "languageCode": 1033,
+    "bcp47Code": "en-US",
+    "languageDescription": "English (United States)"
+  },
+  "execution": {
+    "agentAction": "0",
+    "scheduleType": "Queue"
+  },
+  "options": {
+    "dryRun": false,
+    "returnLegacySummary": true,
+    "correlationId": "77777777-7777-7777-7777-777777777777"
+  }
+}
+
+# Expected: 200; FunctionName=Update, scheduleType=Queue
+
+
+### Windows Region & Location — Get apply history
+# @name regionLocationGetApplyHistory
+GET {{Intellinode.Api_HostAddress}}/api/v1/admin/device-config/windows-region-location/apply-history/{{regionLocationMac}}?page=1&pageSize=20
+Authorization: Bearer {{adminToken}}
+
+# Expected: 200 with Region And Location Settings tasks and SettingsKind.WindowsRegionLocation logs
+
+
+### Windows Region & Location — Agent ack completed
+# @name regionLocationAgentAckCompleted
+POST {{Intellinode.Api_HostAddress}}/api/v1/agent/tasks/ack
+Content-Type: application/json
+Authorization: Bearer {{agentToken}}
+
+{
+  "acks": [
+    {
+      "taskId": "{{regionLocationTaskId}}",
+      "legacyTaskId": 1,
+      "status": "Completed"
+    }
+  ]
+}
+
+# Expected: 204; lastApplyStatus=Applied, lastAppliedVersion matches settingsVersion
+
+
+### Windows Region & Location — Execute now bulk
+POST {{Intellinode.Api_HostAddress}}/api/v1/admin/device-config/windows-region-location/execute-now/bulk
+Content-Type: application/json
+Authorization: Bearer {{adminToken}}
+
+{
+  "targets": [
+    { "macAddress": "{{regionLocationMac}}", "osType": "XP" }
+  ],
+  "settings": {
+    "geoId": 244,
+    "locationName": "United States",
+    "languageCode": 1033,
+    "bcp47Code": "en-US",
+    "languageDescription": "English (United States)"
+  },
+  "execution": {
+    "agentAction": "0",
+    "scheduleType": "InstantApply"
+  },
+  "options": {
+    "dryRun": false,
+    "returnLegacySummary": true,
+    "correlationId": "88888888-8888-8888-8888-888888888888"
+  }
+}
+
+# Expected: 200 with per-target Results
+
+
+### Windows Regional Format APIs (Windows :XP only, v1)
+
+# FusionX: System Settings → Time and Language → Date & Time Format tab.
+# Inline JSON in functionParameter (WinCELinux.RegionalSettings) — no hydration.
+# module_name=Regional Settings, signal suffix RS (default).
+# Agent JSON uses FusionX spelling: strTimeSeperator, strDateSeperator (not American "Separator").
+# strMinyear / strMaxyear always empty in payload; TimeSample is stored only (not sent to agent).
+# Optional presets: GET .../time-and-language/reference/format-presets
+# Pending task for the SAME module_name blocks re-apply (409 ApplyBlocked); PR2/PR3 tasks do not block.
+
+@regionalFormatMac = 00-11-22-33-44-55:XP
+
+### Windows Regional Format — Get format presets (reference)
+# @name regionalFormatGetPresets
+GET {{Intellinode.Api_HostAddress}}/api/v1/admin/device-config/time-and-language/reference/format-presets
+Authorization: Bearer {{adminToken}}
+
+# Expected: 200 with shortDateFormats, longDateFormats, timeFormats, dateSeparators, timeSeparators
+
+
+### Windows Regional Format — Get current by MAC
+# @name regionalFormatGetCurrent
+GET {{Intellinode.Api_HostAddress}}/api/v1/admin/device-config/windows-regional-format/{{regionalFormatMac}}
+Authorization: Bearer {{adminToken}}
+
+# Expected: 200 with data.settings.timeFormat, shortDateFormat, longDateFormat, settingsVersion, lastApplyStatus
+
+
+### Windows Regional Format — Execute now (UK-style dd/MM/yyyy)
+# @name regionalFormatExecuteNow
+POST {{Intellinode.Api_HostAddress}}/api/v1/admin/device-config/windows-regional-format/execute-now
+Content-Type: application/json
+Authorization: Bearer {{adminToken}}
+
+{
+  "target": {
+    "macAddress": "{{regionalFormatMac}}",
+    "osType": "XP"
+  },
+  "settings": {
+    "timeFormat": "HH:mm:ss",
+    "timeSeparator": ":",
+    "amSymbol": "AM",
+    "pmSymbol": "PM",
+    "shortDateFormat": "dd/MM/yyyy",
+    "dateSeparator": "/",
+    "longDateFormat": "dddd, MMMM dd, yyyy",
+    "shortDateSample": "11/06/2026",
+    "longDateSample": "Thursday, June 11, 2026",
+    "timeSample": "14:30:00"
+  },
+  "execution": {
+    "agentAction": "0",
+    "scheduleType": "InstantApply"
+  },
+  "options": {
+    "dryRun": false,
+    "returnLegacySummary": true,
+    "correlationId": "99999999-9999-9999-9999-999999999999"
+  }
+}
+
+# Expected: 200 success=true, data.taskId; ModuleName=Regional Settings, FunctionName=Now
+# ExtraData={{regionalFormatMac}}&RS; payload WinCELinux.RegionalSettings with FusionX property names
+
+
+@regionalFormatTaskId = {{regionalFormatExecuteNow.response.body.data.taskId}}
+
+
+### Windows Regional Format — Queue (scheduled apply)
+# @name regionalFormatQueue
+POST {{Intellinode.Api_HostAddress}}/api/v1/admin/device-config/windows-regional-format/queue
+Content-Type: application/json
+Authorization: Bearer {{adminToken}}
+
+{
+  "target": {
+    "macAddress": "{{regionalFormatMac}}",
+    "osType": "XP"
+  },
+  "settings": {
+    "timeFormat": "HH:mm:ss",
+    "timeSeparator": ":",
+    "amSymbol": "AM",
+    "pmSymbol": "PM",
+    "shortDateFormat": "dd/MM/yyyy",
+    "dateSeparator": "/",
+    "longDateFormat": "dddd, MMMM dd, yyyy",
+    "shortDateSample": "11/06/2026",
+    "longDateSample": "Thursday, June 11, 2026"
+  },
+  "execution": {
+    "agentAction": "0",
+    "scheduleType": "Queue"
+  },
+  "options": {
+    "dryRun": false,
+    "returnLegacySummary": true,
+    "correlationId": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
+  }
+}
+
+# Expected: 200; FunctionName=Update, scheduleType=Queue
+
+
+### Windows Regional Format — Get apply history
+# @name regionalFormatGetApplyHistory
+GET {{Intellinode.Api_HostAddress}}/api/v1/admin/device-config/windows-regional-format/apply-history/{{regionalFormatMac}}?page=1&pageSize=20
+Authorization: Bearer {{adminToken}}
+
+# Expected: 200 with Regional Settings tasks and SettingsKind.WindowsRegionalFormat logs
+
+
+### Windows Regional Format — Agent ack completed
+# @name regionalFormatAgentAckCompleted
+POST {{Intellinode.Api_HostAddress}}/api/v1/agent/tasks/ack
+Content-Type: application/json
+Authorization: Bearer {{agentToken}}
+
+{
+  "acks": [
+    {
+      "taskId": "{{regionalFormatTaskId}}",
+      "legacyTaskId": 1,
+      "status": "Completed"
+    }
+  ]
+}
+
+# Expected: 204; lastApplyStatus=Applied, lastAppliedVersion matches settingsVersion
+
+
+### Windows Regional Format — Execute now bulk
+POST {{Intellinode.Api_HostAddress}}/api/v1/admin/device-config/windows-regional-format/execute-now/bulk
+Content-Type: application/json
+Authorization: Bearer {{adminToken}}
+
+{
+  "targets": [
+    { "macAddress": "{{regionalFormatMac}}", "osType": "XP" }
+  ],
+  "settings": {
+    "timeFormat": "HH:mm:ss",
+    "timeSeparator": ":",
+    "amSymbol": "AM",
+    "pmSymbol": "PM",
+    "shortDateFormat": "dd/MM/yyyy",
+    "dateSeparator": "/",
+    "longDateFormat": "dddd, MMMM dd, yyyy",
+    "shortDateSample": "11/06/2026",
+    "longDateSample": "Thursday, June 11, 2026"
+  },
+  "execution": {
+    "agentAction": "0",
+    "scheduleType": "InstantApply"
+  },
+  "options": {
+    "dryRun": false,
+    "returnLegacySummary": true,
+    "correlationId": "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"
+  }
+}
+
+# Expected: 200 with per-target Results
+
+
 ### Windows Wireless Properties APIs (Windows :XP only, v1)
 
 # Prerequisite: device enrolled with MAC suffix :XP and admin logged in (@adminToken).

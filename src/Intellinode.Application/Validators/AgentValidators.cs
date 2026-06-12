@@ -1075,6 +1075,649 @@ internal static class WindowsComputerNameTestValidationMacAddress
     public const string Value = "AA:BB:CC:DD:EE:10:XP";
 }
 
+public sealed class WindowsDateTimeExecuteNowRequestValidator : AbstractValidator<WindowsDateTimeExecuteNowRequest>
+{
+    public WindowsDateTimeExecuteNowRequestValidator()
+    {
+        RuleFor(x => x.Target).SetValidator(new WindowsDateTimeTargetRequestValidator());
+        RuleFor(x => x.Settings).SetValidator(new WindowsDateTimeSettingsRequestValidator());
+        RuleFor(x => x.Execution)
+            .Must(e => string.Equals(e.ScheduleType?.Trim(), "InstantApply", StringComparison.OrdinalIgnoreCase))
+            .WithMessage("scheduleType must be InstantApply for this endpoint.");
+        RuleFor(x => x)
+            .Must(x => WindowsDateTimeSettingsRequestValidation.PayloadWithinLimit(
+                x.Settings,
+                ParseAgentAction(x.Execution.AgentAction)))
+            .WithMessage($"Serialized agent payload exceeds {WindowsDateTimeSettingsRequestValidation.MaxFunctionParameterLength} characters.");
+    }
+
+    private static int ParseAgentAction(string? agentAction) =>
+        int.TryParse(agentAction?.Trim(), out var value) ? value : 0;
+}
+
+public sealed class WindowsDateTimeQueueRequestValidator : AbstractValidator<WindowsDateTimeQueueRequest>
+{
+    public WindowsDateTimeQueueRequestValidator()
+    {
+        RuleFor(x => x.Target).SetValidator(new WindowsDateTimeTargetRequestValidator());
+        RuleFor(x => x.Settings).SetValidator(new WindowsDateTimeSettingsRequestValidator());
+        RuleFor(x => x.Execution)
+            .Must(e => string.Equals(e.ScheduleType?.Trim(), "Queue", StringComparison.OrdinalIgnoreCase))
+            .WithMessage("scheduleType must be Queue for this endpoint.");
+        RuleFor(x => x)
+            .Must(x => WindowsDateTimeSettingsRequestValidation.PayloadWithinLimit(
+                x.Settings,
+                ParseAgentAction(x.Execution.AgentAction)))
+            .WithMessage($"Serialized agent payload exceeds {WindowsDateTimeSettingsRequestValidation.MaxFunctionParameterLength} characters.");
+    }
+
+    private static int ParseAgentAction(string? agentAction) =>
+        int.TryParse(agentAction?.Trim(), out var value) ? value : 0;
+}
+
+public sealed class WindowsDateTimeTargetRequestValidator : AbstractValidator<WindowsDateTimeTargetRequest>
+{
+    public WindowsDateTimeTargetRequestValidator()
+    {
+        RuleFor(x => x.MacAddress)
+            .NotEmpty()
+            .MaximumLength(300)
+            .Must(HaveXpOsSuffix)
+            .WithMessage("macAddress must include :XP suffix.");
+
+        RuleFor(x => x.OsType)
+            .NotEmpty()
+            .Must(os => string.Equals(os.Trim(), "XP", StringComparison.OrdinalIgnoreCase))
+            .WithMessage("osType must be XP.");
+
+        RuleFor(x => x)
+            .Must(x =>
+            {
+                var suffix = SystemSettingExecuteNowRequestValidator.ExtractOsSuffix(x.MacAddress);
+                return suffix == "XP";
+            })
+            .WithMessage("target.osType must match macAddress suffix.");
+    }
+
+    private static bool HaveXpOsSuffix(string macAddress)
+    {
+        var suffix = SystemSettingExecuteNowRequestValidator.ExtractOsSuffix(macAddress);
+        return suffix == "XP";
+    }
+}
+
+public sealed class WindowsDateTimeSettingsRequestValidator : AbstractValidator<WindowsDateTimeSettingsRequest>
+{
+    public const int MaxTimeZoneDisplayLength = 200;
+    public const int MaxWindowsTzKeyLength = 50;
+    public const int MaxTimeServerLength = 255;
+    private static readonly System.Text.RegularExpressions.Regex TimePattern =
+        new(@"^([01]?[0-9]|2[0-3]):[0-5][0-9]$", System.Text.RegularExpressions.RegexOptions.Compiled);
+
+    public WindowsDateTimeSettingsRequestValidator()
+    {
+        RuleFor(x => x.ApplyMode).IsInEnum();
+        RuleFor(x => x.TimeZoneDisplay).MaximumLength(MaxTimeZoneDisplayLength);
+        RuleFor(x => x.WindowsTzKey).MaximumLength(MaxWindowsTzKeyLength);
+        RuleFor(x => x.TimeServer).MaximumLength(MaxTimeServerLength);
+
+        RuleFor(x => x.CurrentDateLocal)
+            .NotNull()
+            .When(x => x.ApplyMode == WindowsDateTimeApplyMode.ManualDateTime)
+            .WithMessage("currentDateLocal is required for ManualDateTime.");
+
+        RuleFor(x => x.CurrentTimeLocal)
+            .NotEmpty()
+            .When(x => x.ApplyMode == WindowsDateTimeApplyMode.ManualDateTime)
+            .WithMessage("currentTimeLocal is required for ManualDateTime.");
+
+        RuleFor(x => x.CurrentTimeLocal)
+            .Must(t => t is not null && TimePattern.IsMatch(t.Trim()))
+            .When(x => x.ApplyMode == WindowsDateTimeApplyMode.ManualDateTime && !string.IsNullOrWhiteSpace(x.CurrentTimeLocal))
+            .WithMessage("currentTimeLocal must match 24-hour HH:mm format.");
+
+        RuleFor(x => x.TimeZoneDisplay)
+            .NotEmpty()
+            .When(x => x.ApplyMode == WindowsDateTimeApplyMode.TimeZone)
+            .WithMessage("timeZoneDisplay is required for TimeZone.");
+
+        RuleFor(x => x.WindowsTzKey)
+            .NotNull()
+            .When(x => x.ApplyMode == WindowsDateTimeApplyMode.TimeZone)
+            .WithMessage("windowsTzKey is required for TimeZone.");
+
+        RuleFor(x => x.TimeServer)
+            .NotEmpty()
+            .When(x => x.ApplyMode == WindowsDateTimeApplyMode.TimeServer)
+            .WithMessage("timeServer is required for TimeServer.");
+    }
+}
+
+public sealed class WindowsDateTimeHistoryQueryValidator : AbstractValidator<WindowsDateTimeHistoryQuery>
+{
+    public WindowsDateTimeHistoryQueryValidator()
+    {
+        RuleFor(x => x.Page).GreaterThanOrEqualTo(1);
+        RuleFor(x => x.PageSize).InclusiveBetween(1, 100);
+
+        RuleFor(x => x.Status)
+            .Must(s => string.IsNullOrWhiteSpace(s) || s is "Pending" or "Delivered" or "Applied" or "Failed")
+            .WithMessage("status must be one of Pending, Delivered, Applied, Failed.");
+
+        RuleFor(x => x)
+            .Must(x => !x.FromUtc.HasValue || !x.ToUtc.HasValue || x.FromUtc <= x.ToUtc)
+            .WithMessage("fromUtc must be less than or equal to toUtc.");
+    }
+}
+
+internal static class WindowsDateTimeSettingsRequestValidation
+{
+    public const int MaxFunctionParameterLength = 512;
+
+    public static bool PayloadWithinLimit(WindowsDateTimeSettingsRequest settings, int agentAction)
+    {
+        var parsedTime = ParseTimeLocal(settings.CurrentTimeLocal);
+        var payload = SerializePayload(settings, parsedTime, agentAction);
+        return payload.Length <= MaxFunctionParameterLength;
+    }
+
+    private static TimeOnly? ParseTimeLocal(string? currentTimeLocal)
+    {
+        if (string.IsNullOrWhiteSpace(currentTimeLocal))
+        {
+            return null;
+        }
+
+        if (TimeOnly.TryParseExact(currentTimeLocal.Trim(), "HH:mm", out var hhmm))
+        {
+            return hhmm;
+        }
+
+        return TimeOnly.TryParseExact(currentTimeLocal.Trim(), "H:mm", out var hmm) ? hmm : null;
+    }
+
+    private static string SerializePayload(
+        WindowsDateTimeSettingsRequest settings,
+        TimeOnly? parsedTime,
+        int agentAction)
+    {
+        var strTimeZone = string.Empty;
+        var dtDate = string.Empty;
+        var dtTime = string.Empty;
+        var timeServer = string.Empty;
+        var muiDisplay = string.Empty;
+
+        switch (settings.ApplyMode)
+        {
+            case WindowsDateTimeApplyMode.ManualDateTime:
+                if (settings.CurrentDateLocal is { } date && parsedTime is { } time)
+                {
+                    dtDate = new DateTime(date.Year, date.Month, date.Day, 0, 0, 0)
+                        .ToString("yyyy-MM-ddTHH:mm:ss");
+                    dtTime = new DateTime(date.Year, date.Month, date.Day, time.Hour, time.Minute, time.Second)
+                        .ToString("yyyy-MM-ddTHH:mm:ss");
+                }
+
+                break;
+
+            case WindowsDateTimeApplyMode.TimeZone:
+                strTimeZone = settings.TimeZoneDisplay?.Trim() ?? string.Empty;
+                muiDisplay = settings.WindowsTzKey?.Trim() ?? string.Empty;
+                break;
+
+            case WindowsDateTimeApplyMode.TimeServer:
+                timeServer = settings.TimeServer?.Trim() ?? string.Empty;
+                break;
+        }
+
+        var inner = new
+        {
+            strTimeZone,
+            DtDate = dtDate,
+            DtTime = dtTime,
+            TimeServer = timeServer,
+            MUI_Display = muiDisplay,
+            TaskID = 0,
+            AgentAction = agentAction
+        };
+
+        return System.Text.Json.JsonSerializer.Serialize(new { WinCELinux = new { XPDATE_TIME = inner } });
+    }
+}
+
+public sealed class WindowsDateTimeExecuteNowBulkRequestValidator : AbstractValidator<WindowsDateTimeExecuteNowBulkRequest>
+{
+    public const int MaxTargets = 500;
+
+    public WindowsDateTimeExecuteNowBulkRequestValidator()
+    {
+        RuleFor(x => x.Targets)
+            .NotEmpty()
+            .WithMessage("At least one target is required.");
+
+        RuleFor(x => x.Targets)
+            .Must(targets => targets.Count <= MaxTargets)
+            .WithMessage($"At most {MaxTargets} targets are allowed.");
+
+        RuleForEach(x => x.Targets).SetValidator(new WindowsDateTimeTargetRequestValidator());
+        RuleFor(x => x.Settings).SetValidator(new WindowsDateTimeSettingsRequestValidator());
+        RuleFor(x => x.Execution)
+            .Must(e => string.Equals(e.ScheduleType?.Trim(), "InstantApply", StringComparison.OrdinalIgnoreCase))
+            .WithMessage("scheduleType must be InstantApply for this endpoint.");
+
+        RuleFor(x => x)
+            .Must(x => WindowsDateTimeSettingsRequestValidation.PayloadWithinLimit(
+                x.Settings,
+                int.TryParse(x.Execution.AgentAction?.Trim(), out var value) ? value : 0))
+            .WithMessage($"Serialized agent payload exceeds {WindowsDateTimeSettingsRequestValidation.MaxFunctionParameterLength} characters.");
+    }
+}
+
+public sealed class WindowsDateTimeExecuteNowGroupRequestValidator : AbstractValidator<WindowsDateTimeExecuteNowGroupRequest>
+{
+    public WindowsDateTimeExecuteNowGroupRequestValidator()
+    {
+        RuleFor(x => x.GroupId).NotEmpty();
+        RuleFor(x => x.Settings).SetValidator(new WindowsDateTimeSettingsRequestValidator());
+        RuleFor(x => x.Execution)
+            .Must(e => string.Equals(e.ScheduleType?.Trim(), "InstantApply", StringComparison.OrdinalIgnoreCase))
+            .WithMessage("scheduleType must be InstantApply for this endpoint.");
+
+        RuleFor(x => x)
+            .Must(x => WindowsDateTimeSettingsRequestValidation.PayloadWithinLimit(
+                x.Settings,
+                int.TryParse(x.Execution.AgentAction?.Trim(), out var value) ? value : 0))
+            .WithMessage($"Serialized agent payload exceeds {WindowsDateTimeSettingsRequestValidation.MaxFunctionParameterLength} characters.");
+    }
+}
+
+public sealed class WindowsRegionLocationExecuteNowRequestValidator : AbstractValidator<WindowsRegionLocationExecuteNowRequest>
+{
+    public WindowsRegionLocationExecuteNowRequestValidator()
+    {
+        RuleFor(x => x.Target).SetValidator(new WindowsRegionLocationTargetRequestValidator());
+        RuleFor(x => x.Settings).SetValidator(new WindowsRegionLocationSettingsRequestValidator());
+        RuleFor(x => x.Execution)
+            .Must(e => string.Equals(e.ScheduleType?.Trim(), "InstantApply", StringComparison.OrdinalIgnoreCase))
+            .WithMessage("scheduleType must be InstantApply for this endpoint.");
+        RuleFor(x => x)
+            .Must(x => WindowsRegionLocationSettingsRequestValidation.PayloadWithinLimit(
+                x.Settings,
+                ParseAgentAction(x.Execution.AgentAction)))
+            .WithMessage($"Serialized agent payload exceeds {WindowsRegionLocationSettingsRequestValidation.MaxFunctionParameterLength} characters.");
+    }
+
+    private static int ParseAgentAction(string? agentAction) =>
+        int.TryParse(agentAction?.Trim(), out var value) ? value : 0;
+}
+
+public sealed class WindowsRegionLocationQueueRequestValidator : AbstractValidator<WindowsRegionLocationQueueRequest>
+{
+    public WindowsRegionLocationQueueRequestValidator()
+    {
+        RuleFor(x => x.Target).SetValidator(new WindowsRegionLocationTargetRequestValidator());
+        RuleFor(x => x.Settings).SetValidator(new WindowsRegionLocationSettingsRequestValidator());
+        RuleFor(x => x.Execution)
+            .Must(e => string.Equals(e.ScheduleType?.Trim(), "Queue", StringComparison.OrdinalIgnoreCase))
+            .WithMessage("scheduleType must be Queue for this endpoint.");
+        RuleFor(x => x)
+            .Must(x => WindowsRegionLocationSettingsRequestValidation.PayloadWithinLimit(
+                x.Settings,
+                ParseAgentAction(x.Execution.AgentAction)))
+            .WithMessage($"Serialized agent payload exceeds {WindowsRegionLocationSettingsRequestValidation.MaxFunctionParameterLength} characters.");
+    }
+
+    private static int ParseAgentAction(string? agentAction) =>
+        int.TryParse(agentAction?.Trim(), out var value) ? value : 0;
+}
+
+public sealed class WindowsRegionLocationTargetRequestValidator : AbstractValidator<WindowsRegionLocationTargetRequest>
+{
+    public WindowsRegionLocationTargetRequestValidator()
+    {
+        RuleFor(x => x.MacAddress)
+            .NotEmpty()
+            .MaximumLength(300)
+            .Must(HaveXpOsSuffix)
+            .WithMessage("macAddress must include :XP suffix.");
+
+        RuleFor(x => x.OsType)
+            .NotEmpty()
+            .Must(os => string.Equals(os.Trim(), "XP", StringComparison.OrdinalIgnoreCase))
+            .WithMessage("osType must be XP.");
+
+        RuleFor(x => x)
+            .Must(x =>
+            {
+                var suffix = SystemSettingExecuteNowRequestValidator.ExtractOsSuffix(x.MacAddress);
+                return suffix == "XP";
+            })
+            .WithMessage("target.osType must match macAddress suffix.");
+    }
+
+    private static bool HaveXpOsSuffix(string macAddress)
+    {
+        var suffix = SystemSettingExecuteNowRequestValidator.ExtractOsSuffix(macAddress);
+        return suffix == "XP";
+    }
+}
+
+public sealed class WindowsRegionLocationSettingsRequestValidator : AbstractValidator<WindowsRegionLocationSettingsRequest>
+{
+    public const int MaxLocationNameLength = 200;
+    public const int MaxBcp47CodeLength = 20;
+    public const int MaxLanguageDescriptionLength = 200;
+
+    private static readonly System.Text.RegularExpressions.Regex Bcp47Pattern =
+        new(@"^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$", System.Text.RegularExpressions.RegexOptions.Compiled);
+
+    public WindowsRegionLocationSettingsRequestValidator()
+    {
+        RuleFor(x => x.GeoId).GreaterThan(0);
+        RuleFor(x => x.LanguageCode).GreaterThan(0);
+        RuleFor(x => x.LocationName)
+            .NotEmpty()
+            .MaximumLength(MaxLocationNameLength);
+        RuleFor(x => x.Bcp47Code)
+            .NotEmpty()
+            .MaximumLength(MaxBcp47CodeLength)
+            .Must(code => Bcp47Pattern.IsMatch(code.Trim()))
+            .WithMessage("bcp47Code must be a valid BCP47-style locale tag (e.g. en-US).");
+        RuleFor(x => x.LanguageDescription)
+            .NotEmpty()
+            .MaximumLength(MaxLanguageDescriptionLength);
+    }
+}
+
+public sealed class WindowsRegionLocationHistoryQueryValidator : AbstractValidator<WindowsRegionLocationHistoryQuery>
+{
+    public WindowsRegionLocationHistoryQueryValidator()
+    {
+        RuleFor(x => x.Page).GreaterThanOrEqualTo(1);
+        RuleFor(x => x.PageSize).InclusiveBetween(1, 100);
+
+        RuleFor(x => x.Status)
+            .Must(s => string.IsNullOrWhiteSpace(s) || s is "Pending" or "Delivered" or "Applied" or "Failed")
+            .WithMessage("status must be one of Pending, Delivered, Applied, Failed.");
+
+        RuleFor(x => x)
+            .Must(x => !x.FromUtc.HasValue || !x.ToUtc.HasValue || x.FromUtc <= x.ToUtc)
+            .WithMessage("fromUtc must be less than or equal to toUtc.");
+    }
+}
+
+internal static class WindowsRegionLocationSettingsRequestValidation
+{
+    public const int MaxFunctionParameterLength = 512;
+
+    public static bool PayloadWithinLimit(WindowsRegionLocationSettingsRequest settings, int agentAction)
+    {
+        var payload = SerializePayload(settings, agentAction);
+        return payload.Length <= MaxFunctionParameterLength;
+    }
+
+    private static string SerializePayload(WindowsRegionLocationSettingsRequest settings, int agentAction)
+    {
+        var inner = new
+        {
+            GeoID = settings.GeoId,
+            Location = settings.LocationName?.Trim() ?? string.Empty,
+            BCP47Code = settings.Bcp47Code?.Trim() ?? string.Empty,
+            LanguageCode = settings.LanguageCode,
+            LanguageDescription = settings.LanguageDescription?.Trim() ?? string.Empty,
+            TaskID = 0,
+            AgentAction = agentAction
+        };
+
+        return System.Text.Json.JsonSerializer.Serialize(new { WinCELinux = new { RegionAndLocation = inner } });
+    }
+}
+
+public sealed class WindowsRegionLocationExecuteNowBulkRequestValidator : AbstractValidator<WindowsRegionLocationExecuteNowBulkRequest>
+{
+    public const int MaxTargets = 500;
+
+    public WindowsRegionLocationExecuteNowBulkRequestValidator()
+    {
+        RuleFor(x => x.Targets)
+            .NotEmpty()
+            .WithMessage("At least one target is required.");
+
+        RuleFor(x => x.Targets)
+            .Must(targets => targets.Count <= MaxTargets)
+            .WithMessage($"At most {MaxTargets} targets are allowed.");
+
+        RuleForEach(x => x.Targets).SetValidator(new WindowsRegionLocationTargetRequestValidator());
+        RuleFor(x => x.Settings).SetValidator(new WindowsRegionLocationSettingsRequestValidator());
+        RuleFor(x => x.Execution)
+            .Must(e => string.Equals(e.ScheduleType?.Trim(), "InstantApply", StringComparison.OrdinalIgnoreCase))
+            .WithMessage("scheduleType must be InstantApply for this endpoint.");
+
+        RuleFor(x => x)
+            .Must(x => WindowsRegionLocationSettingsRequestValidation.PayloadWithinLimit(
+                x.Settings,
+                int.TryParse(x.Execution.AgentAction?.Trim(), out var value) ? value : 0))
+            .WithMessage($"Serialized agent payload exceeds {WindowsRegionLocationSettingsRequestValidation.MaxFunctionParameterLength} characters.");
+    }
+}
+
+public sealed class WindowsRegionLocationExecuteNowGroupRequestValidator : AbstractValidator<WindowsRegionLocationExecuteNowGroupRequest>
+{
+    public WindowsRegionLocationExecuteNowGroupRequestValidator()
+    {
+        RuleFor(x => x.GroupId).NotEmpty();
+        RuleFor(x => x.Settings).SetValidator(new WindowsRegionLocationSettingsRequestValidator());
+        RuleFor(x => x.Execution)
+            .Must(e => string.Equals(e.ScheduleType?.Trim(), "InstantApply", StringComparison.OrdinalIgnoreCase))
+            .WithMessage("scheduleType must be InstantApply for this endpoint.");
+
+        RuleFor(x => x)
+            .Must(x => WindowsRegionLocationSettingsRequestValidation.PayloadWithinLimit(
+                x.Settings,
+                int.TryParse(x.Execution.AgentAction?.Trim(), out var value) ? value : 0))
+            .WithMessage($"Serialized agent payload exceeds {WindowsRegionLocationSettingsRequestValidation.MaxFunctionParameterLength} characters.");
+    }
+}
+
+public sealed class WindowsRegionalFormatExecuteNowRequestValidator : AbstractValidator<WindowsRegionalFormatExecuteNowRequest>
+{
+    public WindowsRegionalFormatExecuteNowRequestValidator()
+    {
+        RuleFor(x => x.Target).SetValidator(new WindowsRegionalFormatTargetRequestValidator());
+        RuleFor(x => x.Settings).SetValidator(new WindowsRegionalFormatSettingsRequestValidator());
+        RuleFor(x => x.Execution)
+            .Must(e => string.Equals(e.ScheduleType?.Trim(), "InstantApply", StringComparison.OrdinalIgnoreCase))
+            .WithMessage("scheduleType must be InstantApply for this endpoint.");
+        RuleFor(x => x)
+            .Must(x => WindowsRegionalFormatSettingsRequestValidation.PayloadWithinLimit(
+                x.Settings,
+                ParseAgentAction(x.Execution.AgentAction)))
+            .WithMessage($"Serialized agent payload exceeds {WindowsRegionalFormatSettingsRequestValidation.MaxFunctionParameterLength} characters.");
+    }
+
+    private static int ParseAgentAction(string? agentAction) =>
+        int.TryParse(agentAction?.Trim(), out var value) ? value : 0;
+}
+
+public sealed class WindowsRegionalFormatQueueRequestValidator : AbstractValidator<WindowsRegionalFormatQueueRequest>
+{
+    public WindowsRegionalFormatQueueRequestValidator()
+    {
+        RuleFor(x => x.Target).SetValidator(new WindowsRegionalFormatTargetRequestValidator());
+        RuleFor(x => x.Settings).SetValidator(new WindowsRegionalFormatSettingsRequestValidator());
+        RuleFor(x => x.Execution)
+            .Must(e => string.Equals(e.ScheduleType?.Trim(), "Queue", StringComparison.OrdinalIgnoreCase))
+            .WithMessage("scheduleType must be Queue for this endpoint.");
+        RuleFor(x => x)
+            .Must(x => WindowsRegionalFormatSettingsRequestValidation.PayloadWithinLimit(
+                x.Settings,
+                ParseAgentAction(x.Execution.AgentAction)))
+            .WithMessage($"Serialized agent payload exceeds {WindowsRegionalFormatSettingsRequestValidation.MaxFunctionParameterLength} characters.");
+    }
+
+    private static int ParseAgentAction(string? agentAction) =>
+        int.TryParse(agentAction?.Trim(), out var value) ? value : 0;
+}
+
+public sealed class WindowsRegionalFormatTargetRequestValidator : AbstractValidator<WindowsRegionalFormatTargetRequest>
+{
+    public WindowsRegionalFormatTargetRequestValidator()
+    {
+        RuleFor(x => x.MacAddress)
+            .NotEmpty()
+            .MaximumLength(300)
+            .Must(HaveXpOsSuffix)
+            .WithMessage("macAddress must include :XP suffix.");
+
+        RuleFor(x => x.OsType)
+            .NotEmpty()
+            .Must(os => string.Equals(os.Trim(), "XP", StringComparison.OrdinalIgnoreCase))
+            .WithMessage("osType must be XP.");
+
+        RuleFor(x => x)
+            .Must(x =>
+            {
+                var suffix = SystemSettingExecuteNowRequestValidator.ExtractOsSuffix(x.MacAddress);
+                return suffix == "XP";
+            })
+            .WithMessage("target.osType must match macAddress suffix.");
+    }
+
+    private static bool HaveXpOsSuffix(string macAddress)
+    {
+        var suffix = SystemSettingExecuteNowRequestValidator.ExtractOsSuffix(macAddress);
+        return suffix == "XP";
+    }
+}
+
+public sealed class WindowsRegionalFormatSettingsRequestValidator : AbstractValidator<WindowsRegionalFormatSettingsRequest>
+{
+    public const int MaxTimeFormatLength = 50;
+    public const int MaxSeparatorLength = 5;
+    public const int MaxSymbolLength = 10;
+    public const int MaxShortDateFormatLength = 50;
+    public const int MaxLongDateFormatLength = 100;
+    public const int MaxShortDateSampleLength = 50;
+    public const int MaxLongDateSampleLength = 100;
+    public const int MaxTimeSampleLength = 50;
+
+    public WindowsRegionalFormatSettingsRequestValidator()
+    {
+        RuleFor(x => x.TimeFormat).NotEmpty().MaximumLength(MaxTimeFormatLength);
+        RuleFor(x => x.TimeSeparator)
+            .NotEmpty()
+            .MinimumLength(1)
+            .MaximumLength(MaxSeparatorLength);
+        RuleFor(x => x.AmSymbol).NotEmpty().MaximumLength(MaxSymbolLength);
+        RuleFor(x => x.PmSymbol).NotEmpty().MaximumLength(MaxSymbolLength);
+        RuleFor(x => x.ShortDateFormat).NotEmpty().MaximumLength(MaxShortDateFormatLength);
+        RuleFor(x => x.DateSeparator)
+            .NotEmpty()
+            .MinimumLength(1)
+            .MaximumLength(MaxSeparatorLength);
+        RuleFor(x => x.LongDateFormat).NotEmpty().MaximumLength(MaxLongDateFormatLength);
+        RuleFor(x => x.ShortDateSample).NotEmpty().MaximumLength(MaxShortDateSampleLength);
+        RuleFor(x => x.LongDateSample).NotEmpty().MaximumLength(MaxLongDateSampleLength);
+        RuleFor(x => x.TimeSample).MaximumLength(MaxTimeSampleLength);
+    }
+}
+
+public sealed class WindowsRegionalFormatHistoryQueryValidator : AbstractValidator<WindowsRegionalFormatHistoryQuery>
+{
+    public WindowsRegionalFormatHistoryQueryValidator()
+    {
+        RuleFor(x => x.Page).GreaterThanOrEqualTo(1);
+        RuleFor(x => x.PageSize).InclusiveBetween(1, 100);
+
+        RuleFor(x => x.Status)
+            .Must(s => string.IsNullOrWhiteSpace(s) || s is "Pending" or "Delivered" or "Applied" or "Failed")
+            .WithMessage("status must be one of Pending, Delivered, Applied, Failed.");
+
+        RuleFor(x => x)
+            .Must(x => !x.FromUtc.HasValue || !x.ToUtc.HasValue || x.FromUtc <= x.ToUtc)
+            .WithMessage("fromUtc must be less than or equal to toUtc.");
+    }
+}
+
+internal static class WindowsRegionalFormatSettingsRequestValidation
+{
+    public const int MaxFunctionParameterLength = 512;
+
+    public static bool PayloadWithinLimit(WindowsRegionalFormatSettingsRequest settings, int agentAction)
+    {
+        var payload = SerializePayload(settings, agentAction);
+        return payload.Length <= MaxFunctionParameterLength;
+    }
+
+    private static string SerializePayload(WindowsRegionalFormatSettingsRequest settings, int agentAction)
+    {
+        var inner = new
+        {
+            strTimeFormat = settings.TimeFormat?.Trim() ?? string.Empty,
+            strTimeSeperator = settings.TimeSeparator?.Trim() ?? string.Empty,
+            strAMsymbol = settings.AmSymbol?.Trim() ?? string.Empty,
+            strPMsymbol = settings.PmSymbol?.Trim() ?? string.Empty,
+            strMinyear = string.Empty,
+            strMaxyear = string.Empty,
+            strShortDateFormat = settings.ShortDateFormat?.Trim() ?? string.Empty,
+            strDateSeperator = settings.DateSeparator?.Trim() ?? string.Empty,
+            strLongDateFormat = settings.LongDateFormat?.Trim() ?? string.Empty,
+            strShortDateSample = settings.ShortDateSample?.Trim() ?? string.Empty,
+            strLongDateSample = settings.LongDateSample?.Trim() ?? string.Empty,
+            TaskID = 0,
+            AgentAction = agentAction
+        };
+
+        return System.Text.Json.JsonSerializer.Serialize(new { WinCELinux = new { RegionalSettings = inner } });
+    }
+}
+
+public sealed class WindowsRegionalFormatExecuteNowBulkRequestValidator : AbstractValidator<WindowsRegionalFormatExecuteNowBulkRequest>
+{
+    public const int MaxTargets = 500;
+
+    public WindowsRegionalFormatExecuteNowBulkRequestValidator()
+    {
+        RuleFor(x => x.Targets)
+            .NotEmpty()
+            .WithMessage("At least one target is required.");
+
+        RuleFor(x => x.Targets)
+            .Must(targets => targets.Count <= MaxTargets)
+            .WithMessage($"At most {MaxTargets} targets are allowed.");
+
+        RuleForEach(x => x.Targets).SetValidator(new WindowsRegionalFormatTargetRequestValidator());
+        RuleFor(x => x.Settings).SetValidator(new WindowsRegionalFormatSettingsRequestValidator());
+        RuleFor(x => x.Execution)
+            .Must(e => string.Equals(e.ScheduleType?.Trim(), "InstantApply", StringComparison.OrdinalIgnoreCase))
+            .WithMessage("scheduleType must be InstantApply for this endpoint.");
+
+        RuleFor(x => x)
+            .Must(x => WindowsRegionalFormatSettingsRequestValidation.PayloadWithinLimit(
+                x.Settings,
+                int.TryParse(x.Execution.AgentAction?.Trim(), out var value) ? value : 0))
+            .WithMessage($"Serialized agent payload exceeds {WindowsRegionalFormatSettingsRequestValidation.MaxFunctionParameterLength} characters.");
+    }
+}
+
+public sealed class WindowsRegionalFormatExecuteNowGroupRequestValidator : AbstractValidator<WindowsRegionalFormatExecuteNowGroupRequest>
+{
+    public WindowsRegionalFormatExecuteNowGroupRequestValidator()
+    {
+        RuleFor(x => x.GroupId).NotEmpty();
+        RuleFor(x => x.Settings).SetValidator(new WindowsRegionalFormatSettingsRequestValidator());
+        RuleFor(x => x.Execution)
+            .Must(e => string.Equals(e.ScheduleType?.Trim(), "InstantApply", StringComparison.OrdinalIgnoreCase))
+            .WithMessage("scheduleType must be InstantApply for this endpoint.");
+
+        RuleFor(x => x)
+            .Must(x => WindowsRegionalFormatSettingsRequestValidation.PayloadWithinLimit(
+                x.Settings,
+                int.TryParse(x.Execution.AgentAction?.Trim(), out var value) ? value : 0))
+            .WithMessage($"Serialized agent payload exceeds {WindowsRegionalFormatSettingsRequestValidation.MaxFunctionParameterLength} characters.");
+    }
+}
+
 public sealed class WindowsEthernetSetupExecuteNowRequestValidator : AbstractValidator<WindowsEthernetSetupExecuteNowRequest>
 {
     public WindowsEthernetSetupExecuteNowRequestValidator()

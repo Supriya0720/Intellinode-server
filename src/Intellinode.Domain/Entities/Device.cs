@@ -53,6 +53,9 @@ public class Device
     public DeviceDisplaySettings? DisplaySettings { get; set; }
     public DeviceWindows8021xSettings? Windows8021xSettings { get; set; }
     public DeviceWindowsComputerNameSettings? WindowsComputerNameSettings { get; set; }
+    public DeviceWindowsDateTimeSettings? WindowsDateTimeSettings { get; set; }
+    public DeviceWindowsRegionLocationSettings? WindowsRegionLocationSettings { get; set; }
+    public DeviceWindowsRegionalFormatSettings? WindowsRegionalFormatSettings { get; set; }
     public DeviceWindowsEthernetSettings? WindowsEthernetSetupSettings { get; set; }
     public DeviceWindowsWirelessSetupSettings? WindowsWirelessSetupSettings { get; set; }
     public ICollection<DeviceWindows8021xSettingsSnapshot> Windows8021xSnapshots { get; set; } = [];

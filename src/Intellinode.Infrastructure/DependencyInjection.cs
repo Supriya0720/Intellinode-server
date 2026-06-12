@@ -26,6 +26,10 @@ public static class DependencyInjection
         services.Configure<WindowsEthernetSetupOptions>(configuration.GetSection(WindowsEthernetSetupOptions.SectionName));
         services.Configure<WindowsWirelessSetupOptions>(configuration.GetSection(WindowsWirelessSetupOptions.SectionName));
         services.Configure<WindowsWirelessPropertiesOptions>(configuration.GetSection(WindowsWirelessPropertiesOptions.SectionName));
+        services.Configure<TimeAndLanguageReferenceOptions>(configuration.GetSection(TimeAndLanguageReferenceOptions.SectionName));
+        services.Configure<WindowsDateTimeOptions>(configuration.GetSection(WindowsDateTimeOptions.SectionName));
+        services.Configure<WindowsRegionLocationOptions>(configuration.GetSection(WindowsRegionLocationOptions.SectionName));
+        services.Configure<WindowsRegionalFormatOptions>(configuration.GetSection(WindowsRegionalFormatOptions.SectionName));
 
         var connectionString = configuration.GetConnectionString("DefaultConnection")
             ?? throw new InvalidOperationException("Connection string 'DefaultConnection' is not configured.");
@@ -62,6 +66,9 @@ public static class DependencyInjection
         services.AddScoped<DisplayTaskAckHandler>();
         services.AddScoped<Windows8021xTaskAckHandler>();
         services.AddScoped<WindowsComputerNameTaskAckHandler>();
+        services.AddScoped<WindowsDateTimeTaskAckHandler>();
+        services.AddScoped<WindowsRegionLocationTaskAckHandler>();
+        services.AddScoped<WindowsRegionalFormatTaskAckHandler>();
         services.AddScoped<WindowsEthernetSetupTaskAckHandler>();
         services.AddScoped<WindowsWirelessSetupTaskAckHandler>();
         services.AddScoped<WindowsWirelessPropertiesTaskAckHandler>();
@@ -81,10 +88,17 @@ public static class DependencyInjection
         services.AddScoped<IWindowsWirelessPropertiesSettingsService, WindowsWirelessPropertiesSettingsService>();
         services.AddScoped<IWindowsComputerNamePayloadBuilder, WindowsComputerNamePayloadBuilder>();
         services.AddScoped<IWindowsComputerNameSettingsService, WindowsComputerNameSettingsService>();
+        services.AddScoped<IWindowsDateTimePayloadBuilder, WindowsDateTimePayloadBuilder>();
+        services.AddScoped<IWindowsDateTimeSettingsService, WindowsDateTimeSettingsService>();
+        services.AddScoped<IWindowsRegionLocationPayloadBuilder, WindowsRegionLocationPayloadBuilder>();
+        services.AddScoped<IWindowsRegionLocationSettingsService, WindowsRegionLocationSettingsService>();
+        services.AddScoped<IWindowsRegionalFormatPayloadBuilder, WindowsRegionalFormatPayloadBuilder>();
+        services.AddScoped<IWindowsRegionalFormatSettingsService, WindowsRegionalFormatSettingsService>();
         services.AddScoped<IWindowsEthernetSetupSettingsService, WindowsEthernetSetupSettingsService>();
         services.AddScoped<IWindowsEthernetSetupPayloadBuilder, WindowsEthernetSetupPayloadBuilder>();
         services.AddScoped<IWindowsWirelessSetupSettingsService, WindowsWirelessSetupSettingsService>();
         services.AddScoped<IWindowsWirelessSetupPayloadBuilder, WindowsWirelessSetupPayloadBuilder>();
+        services.AddScoped<ITimeAndLanguageReferenceService, TimeAndLanguageReferenceService>();
         services.AddScoped<EffectiveAgentSettingsResolver>();
         services.AddScoped<IEffectiveAgentSettingsResolver>(sp => sp.GetRequiredService<EffectiveAgentSettingsResolver>());
         services.AddSingleton<ITokenService, TokenService>();

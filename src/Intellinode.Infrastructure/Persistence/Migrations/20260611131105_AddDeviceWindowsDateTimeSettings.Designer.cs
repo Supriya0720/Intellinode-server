@@ -4,6 +4,7 @@ using Intellinode.Domain.Enums;
 using Intellinode.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -12,9 +13,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace Intellinode.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(IntellinodeDbContext))]
-    partial class IntellinodeDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260611131105_AddDeviceWindowsDateTimeSettings")]
+    partial class AddDeviceWindowsDateTimeSettings
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -1535,221 +1538,6 @@ namespace Intellinode.Infrastructure.Persistence.Migrations
                         });
                 });
 
-            modelBuilder.Entity("Intellinode.Domain.Entities.DeviceWindowsRegionLocationSettings", b =>
-                {
-                    b.Property<Guid>("DeviceId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("device_id");
-
-                    b.Property<int>("AgentAction")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer")
-                        .HasDefaultValue(0)
-                        .HasColumnName("agent_action");
-
-                    b.Property<string>("Bcp47Code")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)")
-                        .HasColumnName("bcp47code");
-
-                    b.Property<DateTime>("CreatedUtc")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("created_utc");
-
-                    b.Property<int>("GeoId")
-                        .HasColumnType("integer")
-                        .HasColumnName("geo_id");
-
-                    b.Property<int>("LanguageCode")
-                        .HasColumnType("integer")
-                        .HasColumnName("language_code");
-
-                    b.Property<string>("LanguageDescription")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("character varying(200)")
-                        .HasColumnName("language_description");
-
-                    b.Property<DateTime?>("LastAppliedUtc")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("last_applied_utc");
-
-                    b.Property<long?>("LastAppliedVersion")
-                        .HasColumnType("bigint")
-                        .HasColumnName("last_applied_version");
-
-                    b.Property<string>("LastApplyMessage")
-                        .HasMaxLength(500)
-                        .HasColumnType("character varying(500)")
-                        .HasColumnName("last_apply_message");
-
-                    b.Property<string>("LastApplyStatus")
-                        .HasMaxLength(32)
-                        .HasColumnType("character varying(32)")
-                        .HasColumnName("last_apply_status");
-
-                    b.Property<string>("LocationName")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("character varying(200)")
-                        .HasColumnName("location_name");
-
-                    b.Property<bool>("PendingApply")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("boolean")
-                        .HasDefaultValue(false)
-                        .HasColumnName("pending_apply");
-
-                    b.Property<long>("SettingsVersion")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("bigint")
-                        .HasDefaultValue(1L)
-                        .HasColumnName("settings_version");
-
-                    b.Property<Guid?>("UpdatedBy")
-                        .HasColumnType("uuid")
-                        .HasColumnName("updated_by");
-
-                    b.Property<DateTime>("UpdatedUtc")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("updated_utc");
-
-                    b.HasKey("DeviceId")
-                        .HasName("pk_device_windows_region_location_settings");
-
-                    b.ToTable("device_windows_region_location_settings", "intellinode", t =>
-                        {
-                            t.HasCheckConstraint("ck_device_windows_region_location_settings_settings_version", "settings_version >= 0");
-                        });
-                });
-
-            modelBuilder.Entity("Intellinode.Domain.Entities.DeviceWindowsRegionalFormatSettings", b =>
-                {
-                    b.Property<Guid>("DeviceId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("device_id");
-
-                    b.Property<int>("AgentAction")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer")
-                        .HasDefaultValue(0)
-                        .HasColumnName("agent_action");
-
-                    b.Property<string>("AmSymbol")
-                        .IsRequired()
-                        .HasMaxLength(10)
-                        .HasColumnType("character varying(10)")
-                        .HasColumnName("am_symbol");
-
-                    b.Property<DateTime>("CreatedUtc")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("created_utc");
-
-                    b.Property<string>("DateSeparator")
-                        .IsRequired()
-                        .HasMaxLength(5)
-                        .HasColumnType("character varying(5)")
-                        .HasColumnName("date_separator");
-
-                    b.Property<DateTime?>("LastAppliedUtc")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("last_applied_utc");
-
-                    b.Property<long?>("LastAppliedVersion")
-                        .HasColumnType("bigint")
-                        .HasColumnName("last_applied_version");
-
-                    b.Property<string>("LastApplyMessage")
-                        .HasMaxLength(500)
-                        .HasColumnType("character varying(500)")
-                        .HasColumnName("last_apply_message");
-
-                    b.Property<string>("LastApplyStatus")
-                        .HasMaxLength(32)
-                        .HasColumnType("character varying(32)")
-                        .HasColumnName("last_apply_status");
-
-                    b.Property<string>("LongDateFormat")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)")
-                        .HasColumnName("long_date_format");
-
-                    b.Property<string>("LongDateSample")
-                        .IsRequired()
-                        .ValueGeneratedOnAdd()
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)")
-                        .HasDefaultValue("")
-                        .HasColumnName("long_date_sample");
-
-                    b.Property<bool>("PendingApply")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("boolean")
-                        .HasDefaultValue(false)
-                        .HasColumnName("pending_apply");
-
-                    b.Property<string>("PmSymbol")
-                        .IsRequired()
-                        .HasMaxLength(10)
-                        .HasColumnType("character varying(10)")
-                        .HasColumnName("pm_symbol");
-
-                    b.Property<long>("SettingsVersion")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("bigint")
-                        .HasDefaultValue(1L)
-                        .HasColumnName("settings_version");
-
-                    b.Property<string>("ShortDateFormat")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)")
-                        .HasColumnName("short_date_format");
-
-                    b.Property<string>("ShortDateSample")
-                        .IsRequired()
-                        .ValueGeneratedOnAdd()
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)")
-                        .HasDefaultValue("")
-                        .HasColumnName("short_date_sample");
-
-                    b.Property<string>("TimeFormat")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)")
-                        .HasColumnName("time_format");
-
-                    b.Property<string>("TimeSample")
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)")
-                        .HasColumnName("time_sample");
-
-                    b.Property<string>("TimeSeparator")
-                        .IsRequired()
-                        .HasMaxLength(5)
-                        .HasColumnType("character varying(5)")
-                        .HasColumnName("time_separator");
-
-                    b.Property<Guid?>("UpdatedBy")
-                        .HasColumnType("uuid")
-                        .HasColumnName("updated_by");
-
-                    b.Property<DateTime>("UpdatedUtc")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("updated_utc");
-
-                    b.HasKey("DeviceId")
-                        .HasName("pk_device_windows_regional_format_settings");
-
-                    b.ToTable("device_windows_regional_format_settings", "intellinode", t =>
-                        {
-                            t.HasCheckConstraint("ck_device_windows_regional_format_settings_settings_version", "settings_version >= 0");
-                        });
-                });
-
             modelBuilder.Entity("Intellinode.Domain.Entities.DeviceWindowsWirelessProfileSettings", b =>
                 {
                     b.Property<long>("ProfileKey")
@@ -2805,30 +2593,6 @@ namespace Intellinode.Infrastructure.Persistence.Migrations
                     b.Navigation("Device");
                 });
 
-            modelBuilder.Entity("Intellinode.Domain.Entities.DeviceWindowsRegionLocationSettings", b =>
-                {
-                    b.HasOne("Intellinode.Domain.Entities.Device", "Device")
-                        .WithOne("WindowsRegionLocationSettings")
-                        .HasForeignKey("Intellinode.Domain.Entities.DeviceWindowsRegionLocationSettings", "DeviceId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired()
-                        .HasConstraintName("fk_device_windows_region_location_settings_devices_device_id");
-
-                    b.Navigation("Device");
-                });
-
-            modelBuilder.Entity("Intellinode.Domain.Entities.DeviceWindowsRegionalFormatSettings", b =>
-                {
-                    b.HasOne("Intellinode.Domain.Entities.Device", "Device")
-                        .WithOne("WindowsRegionalFormatSettings")
-                        .HasForeignKey("Intellinode.Domain.Entities.DeviceWindowsRegionalFormatSettings", "DeviceId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired()
-                        .HasConstraintName("fk_device_windows_regional_format_settings_devices_device_id");
-
-                    b.Navigation("Device");
-                });
-
             modelBuilder.Entity("Intellinode.Domain.Entities.DeviceWindowsWirelessProfileSettings", b =>
                 {
                     b.HasOne("Intellinode.Domain.Entities.Device", "Device")
@@ -2987,10 +2751,6 @@ namespace Intellinode.Infrastructure.Persistence.Migrations
                     b.Navigation("WindowsDateTimeSettings");
 
                     b.Navigation("WindowsEthernetSetupSettings");
-
-                    b.Navigation("WindowsRegionLocationSettings");
-
-                    b.Navigation("WindowsRegionalFormatSettings");
 
                     b.Navigation("WindowsWirelessProfileSnapshots");
 

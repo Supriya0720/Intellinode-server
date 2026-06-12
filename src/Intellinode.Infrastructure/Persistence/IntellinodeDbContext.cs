@@ -31,6 +31,11 @@ public sealed class IntellinodeDbContext : DbContext, IIntellinodeDbContext
     public DbSet<DeviceWindows8021xSettings> DeviceWindows8021xSettings => Set<DeviceWindows8021xSettings>();
     public DbSet<DeviceWindows8021xSettingsSnapshot> DeviceWindows8021xSettingsSnapshots => Set<DeviceWindows8021xSettingsSnapshot>();
     public DbSet<DeviceWindowsComputerNameSettings> DeviceWindowsComputerNameSettings => Set<DeviceWindowsComputerNameSettings>();
+    public DbSet<DeviceWindowsDateTimeSettings> DeviceWindowsDateTimeSettings => Set<DeviceWindowsDateTimeSettings>();
+    public DbSet<DeviceWindowsRegionLocationSettings> DeviceWindowsRegionLocationSettings =>
+        Set<DeviceWindowsRegionLocationSettings>();
+    public DbSet<DeviceWindowsRegionalFormatSettings> DeviceWindowsRegionalFormatSettings =>
+        Set<DeviceWindowsRegionalFormatSettings>();
     public DbSet<DeviceWindowsEthernetSettings> DeviceWindowsEthernetSettings => Set<DeviceWindowsEthernetSettings>();
     public DbSet<DeviceWindowsWirelessSetupSettings> DeviceWindowsWirelessSetupSettings => Set<DeviceWindowsWirelessSetupSettings>();
     public DbSet<DeviceWindowsWirelessProfileSettings> DeviceWindowsWirelessProfileSettings => Set<DeviceWindowsWirelessProfileSettings>();
@@ -41,6 +46,8 @@ public sealed class IntellinodeDbContext : DbContext, IIntellinodeDbContext
     public DbSet<GroupAgentAdvancedSettings> GroupAgentAdvancedSettings => Set<GroupAgentAdvancedSettings>();
     public DbSet<DeviceSettingsApplyLog> DeviceSettingsApplyLogs => Set<DeviceSettingsApplyLog>();
     public DbSet<DiscoverLookup> DiscoverLookups => Set<DiscoverLookup>();
+    public DbSet<RegionAndLocationMaster> RegionAndLocationMasters => Set<RegionAndLocationMaster>();
+    public DbSet<WindowsTimeZoneMaster> WindowsTimeZoneMasters => Set<WindowsTimeZoneMaster>();
     public DbSet<AgentCommunicationLog> AgentCommunicationLogs => Set<AgentCommunicationLog>();
     public DbSet<ExceptionLog> ExceptionLogs => Set<ExceptionLog>();
 
@@ -76,7 +83,7 @@ public sealed class IntellinodeDbContext : DbContext, IIntellinodeDbContext
             modelBuilder,
             "settings_kind",
             SchemaName,
-            ["General", "Advanced", "Keyboard", "Mouse", "Display", "Windows8021x", "WindowsComputerName", "WindowsEthernetSetup", "WindowsWirelessSetup", "WindowsWirelessProperties"]);
+            ["General", "Advanced", "Keyboard", "Mouse", "Display", "Windows8021x", "WindowsComputerName", "WindowsEthernetSetup", "WindowsWirelessSetup", "WindowsWirelessProperties", "WindowsDateTimeSetup", "WindowsRegionLocation", "WindowsRegionalFormat"]);
         NpgsqlModelBuilderExtensions.HasPostgresEnum(
             modelBuilder,
             "settings_apply_status",
@@ -351,6 +358,76 @@ public sealed class IntellinodeDbContext : DbContext, IIntellinodeDbContext
             entity.HasOne(x => x.Device)
                 .WithOne(x => x.WindowsComputerNameSettings)
                 .HasForeignKey<DeviceWindowsComputerNameSettings>(x => x.DeviceId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<DeviceWindowsDateTimeSettings>(entity =>
+        {
+            entity.ToTable("device_windows_date_time_settings");
+            entity.HasKey(x => x.DeviceId);
+            entity.Property(x => x.TimeZoneDisplay).HasMaxLength(200);
+            entity.Property(x => x.WindowsTzKey).HasMaxLength(50);
+            entity.Property(x => x.TimeServer).HasMaxLength(255);
+            entity.Property(x => x.LastApplyStatus).HasMaxLength(32);
+            entity.Property(x => x.LastApplyMessage).HasMaxLength(500);
+            entity.Property(x => x.SettingsVersion).HasDefaultValue(1L);
+            entity.Property(x => x.PendingApply).HasDefaultValue(false);
+            entity.Property(x => x.AgentAction).HasDefaultValue(0);
+            entity.ToTable(t => t.HasCheckConstraint(
+                "ck_device_windows_date_time_settings_settings_version",
+                "settings_version >= 0"));
+            entity.HasOne(x => x.Device)
+                .WithOne(x => x.WindowsDateTimeSettings)
+                .HasForeignKey<DeviceWindowsDateTimeSettings>(x => x.DeviceId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<DeviceWindowsRegionLocationSettings>(entity =>
+        {
+            entity.ToTable("device_windows_region_location_settings");
+            entity.HasKey(x => x.DeviceId);
+            entity.Property(x => x.LocationName).HasMaxLength(200);
+            entity.Property(x => x.Bcp47Code).HasMaxLength(20);
+            entity.Property(x => x.LanguageDescription).HasMaxLength(200);
+            entity.Property(x => x.LastApplyStatus).HasMaxLength(32);
+            entity.Property(x => x.LastApplyMessage).HasMaxLength(500);
+            entity.Property(x => x.SettingsVersion).HasDefaultValue(1L);
+            entity.Property(x => x.PendingApply).HasDefaultValue(false);
+            entity.Property(x => x.AgentAction).HasDefaultValue(0);
+            entity.ToTable(t => t.HasCheckConstraint(
+                "ck_device_windows_region_location_settings_settings_version",
+                "settings_version >= 0"));
+            entity.HasOne(x => x.Device)
+                .WithOne(x => x.WindowsRegionLocationSettings)
+                .HasForeignKey<DeviceWindowsRegionLocationSettings>(x => x.DeviceId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<DeviceWindowsRegionalFormatSettings>(entity =>
+        {
+            entity.ToTable("device_windows_regional_format_settings");
+            entity.HasKey(x => x.DeviceId);
+            entity.Property(x => x.TimeFormat).HasMaxLength(50);
+            entity.Property(x => x.TimeSeparator).HasMaxLength(5);
+            entity.Property(x => x.AmSymbol).HasMaxLength(10);
+            entity.Property(x => x.PmSymbol).HasMaxLength(10);
+            entity.Property(x => x.ShortDateFormat).HasMaxLength(50);
+            entity.Property(x => x.DateSeparator).HasMaxLength(5);
+            entity.Property(x => x.LongDateFormat).HasMaxLength(100);
+            entity.Property(x => x.ShortDateSample).HasMaxLength(50).HasDefaultValue(string.Empty);
+            entity.Property(x => x.LongDateSample).HasMaxLength(100).HasDefaultValue(string.Empty);
+            entity.Property(x => x.TimeSample).HasMaxLength(50);
+            entity.Property(x => x.LastApplyStatus).HasMaxLength(32);
+            entity.Property(x => x.LastApplyMessage).HasMaxLength(500);
+            entity.Property(x => x.SettingsVersion).HasDefaultValue(1L);
+            entity.Property(x => x.PendingApply).HasDefaultValue(false);
+            entity.Property(x => x.AgentAction).HasDefaultValue(0);
+            entity.ToTable(t => t.HasCheckConstraint(
+                "ck_device_windows_regional_format_settings_settings_version",
+                "settings_version >= 0"));
+            entity.HasOne(x => x.Device)
+                .WithOne(x => x.WindowsRegionalFormatSettings)
+                .HasForeignKey<DeviceWindowsRegionalFormatSettings>(x => x.DeviceId)
                 .OnDelete(DeleteBehavior.Cascade);
         });
 
@@ -653,6 +730,36 @@ public sealed class IntellinodeDbContext : DbContext, IIntellinodeDbContext
             entity.Property(x => x.HttpMethod).HasMaxLength(16);
             entity.HasIndex(x => x.LoggedUtc)
                 .IsDescending(true);
+        });
+
+        modelBuilder.Entity<RegionAndLocationMaster>(entity =>
+        {
+            entity.ToTable("region_and_location_master");
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.Id).ValueGeneratedNever();
+            entity.Property(x => x.Identifier)
+                .HasColumnType("character(1)")
+                .HasMaxLength(1);
+            entity.Property(x => x.Value).HasMaxLength(200);
+            entity.Property(x => x.Bcp47Code).HasMaxLength(20);
+            entity.Property(x => x.SortOrder).HasDefaultValue(0);
+            entity.Property(x => x.IsActive).HasDefaultValue(true);
+            entity.HasIndex(x => new { x.Identifier, x.IsActive });
+        });
+
+        modelBuilder.Entity<WindowsTimeZoneMaster>(entity =>
+        {
+            entity.ToTable("windows_time_zone_master");
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.Id)
+                .ValueGeneratedOnAdd()
+                .UseIdentityByDefaultColumn();
+            entity.Property(x => x.DisplayName).HasMaxLength(200);
+            entity.Property(x => x.WindowsTzKey).HasMaxLength(50);
+            entity.Property(x => x.SortOrder).HasDefaultValue(0);
+            entity.Property(x => x.IsActive).HasDefaultValue(true);
+            entity.HasIndex(x => x.DisplayName).IsUnique();
+            entity.HasIndex(x => x.IsActive);
         });
     }
 }

@@ -518,6 +518,141 @@ public interface IWindowsWirelessSetupPayloadBuilder
     string BuildWirelessPayload(WindowsWirelessSetupPayloadRequest request);
 }
 
+public interface ITimeAndLanguageReferenceService
+{
+    Task<TimeAndLanguageReferenceResult<RegionLocationMasterDto>> GetLocationsAsync(
+        bool includeInactive = false,
+        CancellationToken cancellationToken = default);
+
+    Task<TimeAndLanguageReferenceResult<RegionLocationMasterDto>> GetRegionsAsync(
+        bool includeInactive = false,
+        CancellationToken cancellationToken = default);
+
+    Task<TimeAndLanguageReferenceResult<WindowsTimeZoneMasterDto>> GetTimeZonesAsync(
+        bool includeInactive = false,
+        CancellationToken cancellationToken = default);
+}
+
+public interface IWindowsDateTimePayloadBuilder
+{
+    string BuildPayload(WindowsDateTimePayloadRequest request);
+    string GetModuleNameForApplyMode(WindowsDateTimeApplyMode mode);
+    string GetSignalSuffixForApplyMode(WindowsDateTimeApplyMode mode);
+}
+
+public interface IWindowsDateTimeSettingsService
+{
+    Task<WindowsDateTimeExecuteNowResult> ExecuteNowAsync(
+        WindowsDateTimeExecuteNowRequest request,
+        Guid? adminId = null,
+        CancellationToken cancellationToken = default);
+
+    Task<WindowsDateTimeQueueResult> QueueAsync(
+        WindowsDateTimeQueueRequest request,
+        Guid? adminId = null,
+        CancellationToken cancellationToken = default);
+
+    Task<WindowsDateTimeCurrentResult> GetCurrentAsync(
+        string macAddress,
+        CancellationToken cancellationToken = default);
+
+    Task<WindowsDateTimeHistoryResult> GetApplyHistoryAsync(
+        string macAddress,
+        WindowsDateTimeHistoryQuery query,
+        CancellationToken cancellationToken = default);
+
+    Task<WindowsDateTimeBulkResult> ExecuteNowBulkAsync(
+        WindowsDateTimeExecuteNowBulkRequest request,
+        Guid? adminId = null,
+        CancellationToken cancellationToken = default);
+
+    Task<WindowsDateTimeBulkResult> ExecuteNowGroupAsync(
+        Guid groupId,
+        WindowsDateTimeExecuteNowGroupRequest request,
+        Guid? adminId = null,
+        CancellationToken cancellationToken = default);
+}
+
+public interface IWindowsRegionLocationPayloadBuilder
+{
+    string BuildPayload(WindowsRegionLocationPayloadRequest request);
+    string GetModuleName();
+    string GetSignalSuffix();
+}
+
+public interface IWindowsRegionLocationSettingsService
+{
+    Task<WindowsRegionLocationExecuteNowResult> ExecuteNowAsync(
+        WindowsRegionLocationExecuteNowRequest request,
+        Guid? adminId = null,
+        CancellationToken cancellationToken = default);
+
+    Task<WindowsRegionLocationQueueResult> QueueAsync(
+        WindowsRegionLocationQueueRequest request,
+        Guid? adminId = null,
+        CancellationToken cancellationToken = default);
+
+    Task<WindowsRegionLocationCurrentResult> GetCurrentAsync(
+        string macAddress,
+        CancellationToken cancellationToken = default);
+
+    Task<WindowsRegionLocationHistoryResult> GetApplyHistoryAsync(
+        string macAddress,
+        WindowsRegionLocationHistoryQuery query,
+        CancellationToken cancellationToken = default);
+
+    Task<WindowsRegionLocationBulkResult> ExecuteNowBulkAsync(
+        WindowsRegionLocationExecuteNowBulkRequest request,
+        Guid? adminId = null,
+        CancellationToken cancellationToken = default);
+
+    Task<WindowsRegionLocationBulkResult> ExecuteNowGroupAsync(
+        Guid groupId,
+        WindowsRegionLocationExecuteNowGroupRequest request,
+        Guid? adminId = null,
+        CancellationToken cancellationToken = default);
+}
+
+public interface IWindowsRegionalFormatPayloadBuilder
+{
+    string BuildPayload(WindowsRegionalFormatPayloadRequest request);
+    string GetModuleName();
+    string GetSignalSuffix();
+}
+
+public interface IWindowsRegionalFormatSettingsService
+{
+    Task<WindowsRegionalFormatExecuteNowResult> ExecuteNowAsync(
+        WindowsRegionalFormatExecuteNowRequest request,
+        Guid? adminId = null,
+        CancellationToken cancellationToken = default);
+
+    Task<WindowsRegionalFormatQueueResult> QueueAsync(
+        WindowsRegionalFormatQueueRequest request,
+        Guid? adminId = null,
+        CancellationToken cancellationToken = default);
+
+    Task<WindowsRegionalFormatCurrentResult> GetCurrentAsync(
+        string macAddress,
+        CancellationToken cancellationToken = default);
+
+    Task<WindowsRegionalFormatHistoryResult> GetApplyHistoryAsync(
+        string macAddress,
+        WindowsRegionalFormatHistoryQuery query,
+        CancellationToken cancellationToken = default);
+
+    Task<WindowsRegionalFormatBulkResult> ExecuteNowBulkAsync(
+        WindowsRegionalFormatExecuteNowBulkRequest request,
+        Guid? adminId = null,
+        CancellationToken cancellationToken = default);
+
+    Task<WindowsRegionalFormatBulkResult> ExecuteNowGroupAsync(
+        Guid groupId,
+        WindowsRegionalFormatExecuteNowGroupRequest request,
+        Guid? adminId = null,
+        CancellationToken cancellationToken = default);
+}
+
 public interface IIntellinodeDbContext
 {
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);

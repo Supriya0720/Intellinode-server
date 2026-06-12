@@ -19,5 +19,11 @@ public enum SettingsKind
     /// <summary>FusionX module "Wireless" (Network Settings → Wireless Setup / Wi‑Fi IP).</summary>
     WindowsWirelessSetup,
     /// <summary>FusionX module "Wireless Network Security" (Network Settings → Wireless Properties).</summary>
-    WindowsWirelessProperties
+    WindowsWirelessProperties,
+    /// <summary>FusionX modules DateTime / TimeZone / TimeServerSynchro (System Settings → Time and Language).</summary>
+    WindowsDateTimeSetup,
+    /// <summary>FusionX "Region And Location Settings" (System Settings → Time and Language).</summary>
+    WindowsRegionLocation,
+    /// <summary>FusionX "Regional Settings" (System Settings → Time and Language).</summary>
+    WindowsRegionalFormat
 }

@@ -21,6 +21,9 @@ public sealed class AgentTaskService : IAgentTaskService
     private readonly DisplayTaskAckHandler _displayTaskAckHandler;
     private readonly Windows8021xTaskAckHandler _windows8021xTaskAckHandler;
     private readonly WindowsComputerNameTaskAckHandler _windowsComputerNameTaskAckHandler;
+    private readonly WindowsDateTimeTaskAckHandler _windowsDateTimeTaskAckHandler;
+    private readonly WindowsRegionLocationTaskAckHandler _windowsRegionLocationTaskAckHandler;
+    private readonly WindowsRegionalFormatTaskAckHandler _windowsRegionalFormatTaskAckHandler;
     private readonly WindowsEthernetSetupTaskAckHandler _windowsEthernetSetupTaskAckHandler;
     private readonly WindowsWirelessSetupTaskAckHandler _windowsWirelessSetupTaskAckHandler;
     private readonly WindowsWirelessPropertiesTaskAckHandler _windowsWirelessPropertiesTaskAckHandler;
@@ -35,6 +38,9 @@ public sealed class AgentTaskService : IAgentTaskService
         DisplayTaskAckHandler displayTaskAckHandler,
         Windows8021xTaskAckHandler windows8021xTaskAckHandler,
         WindowsComputerNameTaskAckHandler windowsComputerNameTaskAckHandler,
+        WindowsDateTimeTaskAckHandler windowsDateTimeTaskAckHandler,
+        WindowsRegionLocationTaskAckHandler windowsRegionLocationTaskAckHandler,
+        WindowsRegionalFormatTaskAckHandler windowsRegionalFormatTaskAckHandler,
         WindowsEthernetSetupTaskAckHandler windowsEthernetSetupTaskAckHandler,
         WindowsWirelessSetupTaskAckHandler windowsWirelessSetupTaskAckHandler,
         WindowsWirelessPropertiesTaskAckHandler windowsWirelessPropertiesTaskAckHandler,
@@ -48,6 +54,9 @@ public sealed class AgentTaskService : IAgentTaskService
         _displayTaskAckHandler = displayTaskAckHandler;
         _windows8021xTaskAckHandler = windows8021xTaskAckHandler;
         _windowsComputerNameTaskAckHandler = windowsComputerNameTaskAckHandler;
+        _windowsDateTimeTaskAckHandler = windowsDateTimeTaskAckHandler;
+        _windowsRegionLocationTaskAckHandler = windowsRegionLocationTaskAckHandler;
+        _windowsRegionalFormatTaskAckHandler = windowsRegionalFormatTaskAckHandler;
         _windowsEthernetSetupTaskAckHandler = windowsEthernetSetupTaskAckHandler;
         _windowsWirelessSetupTaskAckHandler = windowsWirelessSetupTaskAckHandler;
         _windowsWirelessPropertiesTaskAckHandler = windowsWirelessPropertiesTaskAckHandler;
@@ -139,6 +148,9 @@ public sealed class AgentTaskService : IAgentTaskService
             .Include(d => d.DisplaySettings)
             .Include(d => d.Windows8021xSettings)
             .Include(d => d.WindowsComputerNameSettings)
+            .Include(d => d.WindowsDateTimeSettings)
+            .Include(d => d.WindowsRegionLocationSettings)
+            .Include(d => d.WindowsRegionalFormatSettings)
             .Include(d => d.WindowsWirelessProfiles)
             .FirstOrDefaultAsync(d => d.Id == deviceId, cancellationToken);
 
@@ -202,6 +214,36 @@ public sealed class AgentTaskService : IAgentTaskService
             if (WindowsComputerNameTaskAckHandler.IsComputerNameTask(task))
             {
                 await _windowsComputerNameTaskAckHandler.ApplyAckAsync(
+                    device,
+                    task,
+                    status,
+                    ack.Reason,
+                    cancellationToken);
+            }
+
+            if (WindowsDateTimeTaskAckHandler.IsDateTimeTask(task))
+            {
+                await _windowsDateTimeTaskAckHandler.ApplyAckAsync(
+                    device,
+                    task,
+                    status,
+                    ack.Reason,
+                    cancellationToken);
+            }
+
+            if (WindowsRegionLocationTaskAckHandler.IsRegionLocationTask(task))
+            {
+                await _windowsRegionLocationTaskAckHandler.ApplyAckAsync(
+                    device,
+                    task,
+                    status,
+                    ack.Reason,
+                    cancellationToken);
+            }
+
+            if (WindowsRegionalFormatTaskAckHandler.IsRegionalFormatTask(task))
+            {
+                await _windowsRegionalFormatTaskAckHandler.ApplyAckAsync(
                     device,
                     task,
                     status,
