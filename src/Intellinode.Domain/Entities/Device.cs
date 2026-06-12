@@ -63,5 +63,7 @@ public class Device
     public ICollection<DeviceWindowsWirelessProfileSettingsSnapshot> WindowsWirelessProfileSnapshots { get; set; } = [];
     public DeviceWindowsPowerManagementSettings? WindowsPowerManagementSettings { get; set; }
     public ICollection<DeviceWindowsPowerManagementSettingsSnapshot> WindowsPowerManagementSnapshots { get; set; } = [];
+    public DeviceWindowsScreenSaverSettings? WindowsScreenSaverSettings { get; set; }
+    public ICollection<DeviceWindowsScreenSaverSettingsSnapshot> WindowsScreenSaverSnapshots { get; set; } = [];
     public DeviceAgentAdvancedSettings? AgentAdvancedSettings { get; set; }
 }

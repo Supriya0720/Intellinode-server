@@ -55,6 +55,10 @@ public sealed class IntellinodeDbContext : DbContext, IIntellinodeDbContext
         Set<DeviceWindowsPowerManagementSettings>();
     public DbSet<DeviceWindowsPowerManagementSettingsSnapshot> DeviceWindowsPowerManagementSettingsSnapshots =>
         Set<DeviceWindowsPowerManagementSettingsSnapshot>();
+    public DbSet<DeviceWindowsScreenSaverSettings> DeviceWindowsScreenSaverSettings =>
+        Set<DeviceWindowsScreenSaverSettings>();
+    public DbSet<DeviceWindowsScreenSaverSettingsSnapshot> DeviceWindowsScreenSaverSettingsSnapshots =>
+        Set<DeviceWindowsScreenSaverSettingsSnapshot>();
     public DbSet<AgentCommunicationLog> AgentCommunicationLogs => Set<AgentCommunicationLog>();
     public DbSet<ExceptionLog> ExceptionLogs => Set<ExceptionLog>();
 
@@ -372,6 +376,51 @@ public sealed class IntellinodeDbContext : DbContext, IIntellinodeDbContext
                 .HasDefaultValue("{}");
             entity.HasOne(x => x.Device)
                 .WithMany(x => x.WindowsPowerManagementSnapshots)
+                .HasForeignKey(x => x.DeviceId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<DeviceWindowsScreenSaverSettings>(entity =>
+        {
+            entity.ToTable("device_windows_screen_saver_settings");
+            entity.HasKey(x => x.DeviceId);
+            entity.Property(x => x.ScreenSaverName).HasMaxLength(128);
+            entity.Property(x => x.SourceType).HasMaxLength(32).HasDefaultValue("Browse");
+            entity.Property(x => x.RepositoryJson)
+                .HasColumnName("repository_json")
+                .HasColumnType("jsonb");
+            entity.Property(x => x.LastApplyStatus).HasMaxLength(32);
+            entity.Property(x => x.LastApplyMessage).HasMaxLength(500);
+            entity.Property(x => x.AgentAction).HasDefaultValue(0);
+            entity.Property(x => x.SettingsVersion).HasDefaultValue(1L);
+            entity.Property(x => x.PendingApply).HasDefaultValue(false);
+            entity.ToTable(t => t.HasCheckConstraint(
+                "ck_device_windows_screen_saver_settings_settings_version",
+                "settings_version >= 0"));
+            entity.ToTable(t => t.HasCheckConstraint(
+                "ck_device_windows_screen_saver_settings_timeout_minutes",
+                "timeout_minutes >= 0"));
+            entity.HasOne(x => x.Device)
+                .WithOne(x => x.WindowsScreenSaverSettings)
+                .HasForeignKey<DeviceWindowsScreenSaverSettings>(x => x.DeviceId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<DeviceWindowsScreenSaverSettingsSnapshot>(entity =>
+        {
+            entity.ToTable("device_windows_screen_saver_settings_snapshots");
+            entity.HasKey(x => new { x.DeviceId, x.SettingsVersion });
+            entity.Property(x => x.ScreenSaverName).HasMaxLength(128);
+            entity.Property(x => x.SourceType).HasMaxLength(32).HasDefaultValue("Browse");
+            entity.Property(x => x.RepositoryJson)
+                .HasColumnName("repository_json")
+                .HasColumnType("jsonb");
+            entity.Property(x => x.AgentAction).HasDefaultValue(0);
+            entity.ToTable(t => t.HasCheckConstraint(
+                "ck_device_windows_screen_saver_settings_snapshots_timeout_minutes",
+                "timeout_minutes >= 0"));
+            entity.HasOne(x => x.Device)
+                .WithMany(x => x.WindowsScreenSaverSnapshots)
                 .HasForeignKey(x => x.DeviceId)
                 .OnDelete(DeleteBehavior.Cascade);
         });

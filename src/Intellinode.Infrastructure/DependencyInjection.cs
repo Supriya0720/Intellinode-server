@@ -32,6 +32,7 @@ public static class DependencyInjection
         services.Configure<WindowsRegionalFormatOptions>(configuration.GetSection(WindowsRegionalFormatOptions.SectionName));
         services.Configure<PowerManagementReferenceOptions>(configuration.GetSection(PowerManagementReferenceOptions.SectionName));
         services.Configure<WindowsPowerManagementOptions>(configuration.GetSection(WindowsPowerManagementOptions.SectionName));
+        services.Configure<WindowsScreenSaverOptions>(configuration.GetSection(WindowsScreenSaverOptions.SectionName));
 
         var connectionString = configuration.GetConnectionString("DefaultConnection")
             ?? throw new InvalidOperationException("Connection string 'DefaultConnection' is not configured.");
@@ -75,7 +76,9 @@ public static class DependencyInjection
         services.AddScoped<WindowsWirelessSetupTaskAckHandler>();
         services.AddScoped<WindowsWirelessPropertiesTaskAckHandler>();
         services.AddScoped<WindowsPowerManagementTaskAckHandler>();
-        services.AddScoped<IAgentTaskService, AgentTaskService>();
+        services.AddScoped<WindowsScreenSaverTaskAckHandler>();
+        services.AddScoped<AgentTaskService>();
+        services.AddScoped<IAgentTaskService, ScreenSaverHydratingAgentTaskService>();
         services.AddScoped<IDeviceRemoteSettingsService, DeviceRemoteSettingsService>();
         services.AddScoped<IDeviceAgentAdvancedSettingsService, DeviceAgentAdvancedSettingsService>();
         services.AddScoped<IGroupRemoteSettingsService, GroupRemoteSettingsService>();
@@ -106,6 +109,9 @@ public static class DependencyInjection
         services.AddScoped<IWindowsPowerManagementPayloadBuilder, WindowsPowerManagementPayloadBuilder>();
         services.AddScoped<IWindowsPowerManagementTaskPayloadHydrator, WindowsPowerManagementTaskPayloadHydrator>();
         services.AddScoped<IWindowsPowerManagementSettingsService, WindowsPowerManagementSettingsService>();
+        services.AddScoped<IWindowsScreenSaverPayloadBuilder, WindowsScreenSaverPayloadBuilder>();
+        services.AddScoped<IWindowsScreenSaverTaskPayloadHydrator, WindowsScreenSaverTaskPayloadHydrator>();
+        services.AddScoped<IWindowsScreenSaverSettingsService, WindowsScreenSaverSettingsService>();
         services.AddScoped<EffectiveAgentSettingsResolver>();
         services.AddScoped<IEffectiveAgentSettingsResolver>(sp => sp.GetRequiredService<EffectiveAgentSettingsResolver>());
         services.AddSingleton<ITokenService, TokenService>();

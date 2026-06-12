@@ -27,5 +27,7 @@ public enum SettingsKind
     /// <summary>FusionX "Regional Settings" (System Settings → Time and Language).</summary>
     WindowsRegionalFormat,
     /// <summary>FusionX module "Power Management Settings" (System Settings → Power Management).</summary>
-    WindowsPowerManagement
+    WindowsPowerManagement,
+    /// <summary>FusionX User Settings → Screen Saver (ModuleType "ScreenSaver").</summary>
+    WindowsScreenSaver
 }

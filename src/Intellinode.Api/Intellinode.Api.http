@@ -4440,3 +4440,234 @@ Authorization: Bearer {{agentToken}}
 }
 
 # Expected: last_apply_status=Failed, last_apply_message truncated to 500 chars
+
+
+###############################################################################
+# Windows Screen Saver (PR1 read, PR2 apply)
+# FusionX User Settings → Screen Saver; ModuleName=ScreenSaver, signal SCR.
+# PR3 adds repository/upload hydration.
+###############################################################################
+
+@screenSaverMac = 00-11-22-33-44-55:XP
+
+### Windows Screen Saver — Get current by MAC
+# @name screenSaverGetCurrent
+GET {{Intellinode.Api_HostAddress}}/api/v1/admin/device-config/screen-saver/{{screenSaverMac}}
+Authorization: Bearer {{adminToken}}
+
+# Expected: 200 with data.settings.screenSaverName, timeoutMinutes, settingsVersion; compat.source=device|none
+
+
+### Windows Screen Saver — Get catalog stub by MAC
+# @name screenSaverGetCatalog
+GET {{Intellinode.Api_HostAddress}}/api/v1/admin/device-config/screen-saver/{{screenSaverMac}}/catalog
+Authorization: Bearer {{adminToken}}
+
+# Expected: 200 with empty items[] and compat.source=stub until agent inventory is wired
+
+
+### Windows Screen Saver — Execute now (instant apply)
+# @name screenSaverExecuteNow
+POST {{Intellinode.Api_HostAddress}}/api/v1/admin/device-config/screen-saver/execute-now
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "target": {
+    "macAddress": "{{screenSaverMac}}",
+    "osType": "XP"
+  },
+  "settings": {
+    "screenSaverName": "Bubbles.scr",
+    "timeoutMinutes": 10,
+    "passwordProtected": true,
+    "preventUserChanges": true
+  },
+  "execution": {
+    "agentAction": "0",
+    "scheduleType": "InstantApply"
+  },
+  "options": {
+    "dryRun": false,
+    "returnLegacySummary": true,
+    "correlationId": "00000000-0000-0000-0000-000000000101"
+  }
+}
+
+# Expected: 200 with data.taskId, execution.status=Pending, inline XPScreenSaver payload queued as Now
+
+
+### Windows Screen Saver — Queue apply
+# @name screenSaverQueue
+POST {{Intellinode.Api_HostAddress}}/api/v1/admin/device-config/screen-saver/queue
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "target": {
+    "macAddress": "{{screenSaverMac}}",
+    "osType": "XP"
+  },
+  "settings": {
+    "screenSaverName": "Mystify.scr",
+    "timeoutMinutes": 15,
+    "passwordProtected": false,
+    "preventUserChanges": false
+  },
+  "execution": {
+    "agentAction": "0",
+    "scheduleType": "Queue"
+  },
+  "options": {
+    "dryRun": false,
+    "returnLegacySummary": true,
+    "correlationId": "00000000-0000-0000-0000-000000000102"
+  }
+}
+
+# Expected: 200 with data.taskId, execution.scheduleType=Queue, function Update
+
+
+### Windows Screen Saver — Apply history
+# @name screenSaverApplyHistory
+GET {{Intellinode.Api_HostAddress}}/api/v1/admin/device-config/screen-saver/apply-history/{{screenSaverMac}}?page=1&pageSize=20
+Authorization: Bearer {{adminToken}}
+
+# Expected: 200 with merged task + apply-log items for SettingsKind.WindowsScreenSaver
+
+
+### Windows Screen Saver — Queue repository apply (PR3 hydration)
+# @name screenSaverQueueRepository
+POST {{Intellinode.Api_HostAddress}}/api/v1/admin/device-config/screen-saver/queue
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "target": {
+    "macAddress": "{{screenSaverMac}}",
+    "osType": "XP"
+  },
+  "settings": {
+    "screenSaverName": "Custom.scr",
+    "timeoutMinutes": 20,
+    "passwordProtected": true,
+    "preventUserChanges": false,
+    "sourceType": "Repository",
+    "upload": false,
+    "repository": {
+      "connectionId": 1,
+      "downloadIp": "10.0.0.5",
+      "ftpFolderPath": "/screen-savers",
+      "ftpPassword": "secret",
+      "ftpSslType": "None",
+      "ftpUsername": "ftpuser",
+      "loggedInUserId": 1,
+      "port": 21,
+      "protocolType": "FTP",
+      "connectionName": "Repo-01",
+      "domainNameForRepository": "CORP"
+    }
+  },
+  "execution": {
+    "agentAction": "0",
+    "scheduleType": "Queue"
+  },
+  "options": {
+    "dryRun": false,
+    "returnLegacySummary": true,
+    "correlationId": "00000000-0000-0000-0000-000000000103"
+  }
+}
+
+# Expected: 200 with compact {"settingsVersion":N} in task; full payload hydrated at agent poll
+
+
+### Windows Screen Saver PR4 — Template queue (SysView / ExecuteLaterTemplate parity)
+# @name screenSaverTemplateQueue
+POST {{Intellinode.Api_HostAddress}}/api/v1/admin/device-config/screen-saver/template-queue
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "target": {
+    "macAddress": "{{screenSaverMac}}",
+    "osType": "XP"
+  },
+  "settings": {
+    "screenSaverName": "Ribbons.scr",
+    "timeoutMinutes": 5,
+    "passwordProtected": false,
+    "preventUserChanges": true
+  },
+  "execution": {
+    "agentAction": "0",
+    "scheduleType": "QueueTemplate",
+    "templateId": 42,
+    "templateName": "Standard Screen Saver"
+  },
+  "options": {
+    "dryRun": false,
+    "returnLegacySummary": true,
+    "correlationId": "00000000-0000-0000-0000-000000000104"
+  }
+}
+
+# Expected: 200 with execution.scheduleType=QueueTemplate, function QueueTemplate, apply_mode=template
+
+
+### Windows Screen Saver PR4 — Execute now bulk
+# @name screenSaverExecuteNowBulk
+POST {{Intellinode.Api_HostAddress}}/api/v1/admin/device-config/screen-saver/execute-now/bulk
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "targets": [
+    { "macAddress": "{{screenSaverMac}}", "osType": "XP" },
+    { "macAddress": "00-11-22-33-44-66:XP", "osType": "XP" }
+  ],
+  "settings": {
+    "screenSaverName": "Blank.scr",
+    "timeoutMinutes": 1,
+    "passwordProtected": false,
+    "preventUserChanges": false
+  },
+  "execution": {
+    "agentAction": "0",
+    "scheduleType": "InstantApply"
+  },
+  "options": {
+    "dryRun": false,
+    "returnLegacySummary": true,
+    "correlationId": "00000000-0000-0000-0000-000000000105"
+  }
+}
+
+# Expected: 200 with per-target Pending/Blocked results
+
+
+### Windows Screen Saver PR4 — Execute now group
+# @name screenSaverExecuteNowGroup
+POST {{Intellinode.Api_HostAddress}}/api/v1/admin/device-config/screen-saver/execute-now/group/00000000-0000-0000-0000-000000000201
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "settings": {
+    "screenSaverName": "Bubbles.scr",
+    "timeoutMinutes": 10,
+    "passwordProtected": true,
+    "preventUserChanges": true
+  },
+  "execution": {
+    "agentAction": "0",
+    "scheduleType": "InstantApply"
+  },
+  "options": {
+    "dryRun": false,
+    "returnLegacySummary": true,
+    "correlationId": "00000000-0000-0000-0000-000000000106"
+  }
+}
+
+# Expected: 200 bulk response for active devices in group; 404 if groupId unknown

@@ -562,6 +562,74 @@ public interface IWindowsPowerManagementPayloadBuilder
     string BuildExtraData(string macAddress, string planName, string? signalSuffix = null);
 }
 
+public interface IWindowsScreenSaverPayloadBuilder
+{
+    string BuildAgentPayload(WindowsScreenSaverPayloadRequest request);
+    WindowsScreenSaverPayloadRequest MapToPayloadRequest(
+        DeviceWindowsScreenSaverSettings settings,
+        long taskId,
+        int agentAction);
+    WindowsScreenSaverPayloadRequest MapToPayloadRequest(
+        DeviceWindowsScreenSaverSettingsSnapshot snapshot,
+        long taskId,
+        int agentAction);
+    string BuildCompactTaskReference(long settingsVersion);
+    bool TryParseCompactTaskReference(string stored, out long settingsVersion);
+    string BuildExtraData(string macAddress, string? signalSuffix = null);
+}
+
+public interface IWindowsScreenSaverTaskPayloadHydrator
+{
+    bool CanHydrate(string moduleName);
+    Task<string?> HydrateFunctionParameterAsync(
+        string storedFunctionParameter,
+        Guid deviceId,
+        int legacyTaskId = 0,
+        CancellationToken cancellationToken = default);
+}
+
+public interface IWindowsScreenSaverSettingsService
+{
+    Task<WindowsScreenSaverExecuteNowResult> ExecuteNowAsync(
+        WindowsScreenSaverExecuteNowRequest request,
+        Guid? adminId = null,
+        CancellationToken cancellationToken = default);
+
+    Task<WindowsScreenSaverQueueResult> QueueAsync(
+        WindowsScreenSaverQueueRequest request,
+        Guid? adminId = null,
+        CancellationToken cancellationToken = default);
+
+    Task<WindowsScreenSaverQueueResult> TemplateQueueAsync(
+        WindowsScreenSaverTemplateQueueRequest request,
+        Guid? adminId = null,
+        CancellationToken cancellationToken = default);
+
+    Task<WindowsScreenSaverBulkResult> ExecuteNowBulkAsync(
+        WindowsScreenSaverExecuteNowBulkRequest request,
+        Guid? adminId = null,
+        CancellationToken cancellationToken = default);
+
+    Task<WindowsScreenSaverBulkResult> ExecuteNowGroupAsync(
+        Guid groupId,
+        WindowsScreenSaverExecuteNowGroupRequest request,
+        Guid? adminId = null,
+        CancellationToken cancellationToken = default);
+
+    Task<WindowsScreenSaverCurrentResult> GetCurrentAsync(
+        string macAddress,
+        CancellationToken cancellationToken = default);
+
+    Task<WindowsScreenSaverCatalogResult> GetCatalogAsync(
+        string macAddress,
+        CancellationToken cancellationToken = default);
+
+    Task<WindowsScreenSaverHistoryResult> GetApplyHistoryAsync(
+        string macAddress,
+        WindowsScreenSaverHistoryQuery query,
+        CancellationToken cancellationToken = default);
+}
+
 public interface IWindowsPowerManagementTaskPayloadHydrator
 {
     bool CanHydrate(string moduleName);

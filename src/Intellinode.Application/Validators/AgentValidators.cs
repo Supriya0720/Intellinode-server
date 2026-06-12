@@ -3,6 +3,7 @@ using System.Net.Sockets;
 using FluentValidation;
 using Intellinode.Application.Contracts.Admin;
 using Intellinode.Application.Contracts.Agents;
+using Intellinode.Application.Validation;
 using Intellinode.Domain.Enums;
 
 namespace Intellinode.Application.Validators;
@@ -453,6 +454,117 @@ public sealed class KeyboardSettingsRequestValidator : AbstractValidator<Keyboar
 public sealed class KeyboardHistoryQueryValidator : AbstractValidator<KeyboardHistoryQuery>
 {
     public KeyboardHistoryQueryValidator()
+    {
+        RuleFor(x => x.Page).GreaterThanOrEqualTo(1);
+        RuleFor(x => x.PageSize).InclusiveBetween(1, 100);
+
+        RuleFor(x => x.Status)
+            .Must(s => string.IsNullOrWhiteSpace(s) || s is "Pending" or "Delivered" or "Applied" or "Failed")
+            .WithMessage("status must be one of Pending, Delivered, Applied, Failed.");
+
+        RuleFor(x => x)
+            .Must(x => !x.FromUtc.HasValue || !x.ToUtc.HasValue || x.FromUtc <= x.ToUtc)
+            .WithMessage("fromUtc must be less than or equal to toUtc.");
+    }
+}
+
+public sealed class WindowsScreenSaverExecuteNowRequestValidator : AbstractValidator<WindowsScreenSaverExecuteNowRequest>
+{
+    public WindowsScreenSaverExecuteNowRequestValidator()
+    {
+        RuleFor(x => x.Target).SetValidator(new WindowsScreenSaverTargetRequestValidator());
+        RuleFor(x => x.Settings).SetValidator(new WindowsScreenSaverSettingsRequestValidator());
+        RuleFor(x => x.Execution)
+            .Must(e => string.Equals(e.ScheduleType?.Trim(), "InstantApply", StringComparison.OrdinalIgnoreCase))
+            .WithMessage("scheduleType must be InstantApply for this endpoint.");
+        RuleFor(x => x)
+            .Must(x => WindowsScreenSaverRequestValidation.PayloadWithinLimit(
+                x.Settings,
+                ParseAgentAction(x.Execution.AgentAction)))
+            .WithMessage($"Serialized agent payload exceeds {WindowsScreenSaverRequestValidation.MaxFunctionParameterLength} characters.");
+        RuleFor(x => x.Settings)
+            .Must(settings => WindowsScreenSaverRequestValidation.ValidateRepositorySettings(settings) is null)
+            .WithMessage(x => WindowsScreenSaverRequestValidation.ValidateRepositorySettings(x.Settings) ?? "Invalid screen saver settings.");
+    }
+
+    private static int ParseAgentAction(string? agentAction) =>
+        int.TryParse(agentAction?.Trim(), out var value) ? value : 0;
+}
+
+public sealed class WindowsScreenSaverQueueRequestValidator : AbstractValidator<WindowsScreenSaverQueueRequest>
+{
+    public WindowsScreenSaverQueueRequestValidator()
+    {
+        RuleFor(x => x.Target).SetValidator(new WindowsScreenSaverTargetRequestValidator());
+        RuleFor(x => x.Settings).SetValidator(new WindowsScreenSaverSettingsRequestValidator());
+        RuleFor(x => x.Execution)
+            .Must(e => string.Equals(e.ScheduleType?.Trim(), "Queue", StringComparison.OrdinalIgnoreCase))
+            .WithMessage("scheduleType must be Queue for this endpoint.");
+        RuleFor(x => x)
+            .Must(x => WindowsScreenSaverRequestValidation.PayloadWithinLimit(
+                x.Settings,
+                ParseAgentAction(x.Execution.AgentAction)))
+            .WithMessage($"Serialized agent payload exceeds {WindowsScreenSaverRequestValidation.MaxFunctionParameterLength} characters.");
+        RuleFor(x => x.Settings)
+            .Must(settings => WindowsScreenSaverRequestValidation.ValidateRepositorySettings(settings) is null)
+            .WithMessage(x => WindowsScreenSaverRequestValidation.ValidateRepositorySettings(x.Settings) ?? "Invalid screen saver settings.");
+    }
+
+    private static int ParseAgentAction(string? agentAction) =>
+        int.TryParse(agentAction?.Trim(), out var value) ? value : 0;
+}
+
+public sealed class WindowsScreenSaverTargetRequestValidator : AbstractValidator<WindowsScreenSaverTargetRequest>
+{
+    public WindowsScreenSaverTargetRequestValidator()
+    {
+        RuleFor(x => x.MacAddress)
+            .NotEmpty()
+            .MaximumLength(300)
+            .Must(HaveXpOsSuffix)
+            .WithMessage("macAddress must include :XP suffix.");
+
+        RuleFor(x => x.OsType)
+            .NotEmpty()
+            .Must(os => string.Equals(os.Trim(), "XP", StringComparison.OrdinalIgnoreCase))
+            .WithMessage("osType must be XP.");
+
+        RuleFor(x => x)
+            .Must(x =>
+            {
+                var suffix = SystemSettingExecuteNowRequestValidator.ExtractOsSuffix(x.MacAddress);
+                return suffix == "XP";
+            })
+            .WithMessage("target.osType must match macAddress suffix.");
+    }
+
+    private static bool HaveXpOsSuffix(string macAddress)
+    {
+        var suffix = SystemSettingExecuteNowRequestValidator.ExtractOsSuffix(macAddress);
+        return suffix == "XP";
+    }
+}
+
+public sealed class WindowsScreenSaverSettingsRequestValidator : AbstractValidator<WindowsScreenSaverSettingsRequest>
+{
+    public WindowsScreenSaverSettingsRequestValidator()
+    {
+        RuleFor(x => x.ScreenSaverName)
+            .NotEmpty()
+            .MaximumLength(WindowsScreenSaverModuleConstants.MaxScreenSaverNameLength);
+
+        RuleFor(x => x.TimeoutMinutes).GreaterThanOrEqualTo(0);
+
+        RuleFor(x => x.SourceType)
+            .Must(s => string.IsNullOrWhiteSpace(s)
+                       || WindowsScreenSaverModuleConstants.AllowedSourceTypes.Contains(s.Trim(), StringComparer.OrdinalIgnoreCase))
+            .WithMessage("sourceType must be one of Browse, Upload, Repository.");
+    }
+}
+
+public sealed class WindowsScreenSaverHistoryQueryValidator : AbstractValidator<WindowsScreenSaverHistoryQuery>
+{
+    public WindowsScreenSaverHistoryQueryValidator()
     {
         RuleFor(x => x.Page).GreaterThanOrEqualTo(1);
         RuleFor(x => x.PageSize).InclusiveBetween(1, 100);

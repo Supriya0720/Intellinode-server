@@ -1650,6 +1650,172 @@ namespace Intellinode.Infrastructure.Persistence.Migrations
                     b.ToTable("device_windows_power_management_settings_snapshots", "intellinode");
                 });
 
+            modelBuilder.Entity("Intellinode.Domain.Entities.DeviceWindowsScreenSaverSettings", b =>
+                {
+                    b.Property<Guid>("DeviceId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("device_id");
+
+                    b.Property<int>("AgentAction")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0)
+                        .HasColumnName("agent_action");
+
+                    b.Property<DateTime>("CreatedUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_utc");
+
+                    b.Property<DateTime?>("LastAppliedUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("last_applied_utc");
+
+                    b.Property<long?>("LastAppliedVersion")
+                        .HasColumnType("bigint")
+                        .HasColumnName("last_applied_version");
+
+                    b.Property<string>("LastApplyMessage")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("last_apply_message");
+
+                    b.Property<string>("LastApplyStatus")
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("last_apply_status");
+
+                    b.Property<bool>("PasswordProtected")
+                        .HasColumnType("boolean")
+                        .HasColumnName("password_protected");
+
+                    b.Property<bool>("PendingApply")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("pending_apply");
+
+                    b.Property<bool>("PreventUserChanges")
+                        .HasColumnType("boolean")
+                        .HasColumnName("prevent_user_changes");
+
+                    b.Property<string>("RepositoryJson")
+                        .HasColumnType("jsonb")
+                        .HasColumnName("repository_json");
+
+                    b.Property<string>("ScreenSaverName")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)")
+                        .HasColumnName("screen_saver_name");
+
+                    b.Property<long>("SettingsVersion")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasDefaultValue(1L)
+                        .HasColumnName("settings_version");
+
+                    b.Property<string>("SourceType")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasDefaultValue("Browse")
+                        .HasColumnName("source_type");
+
+                    b.Property<int>("TimeoutMinutes")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0)
+                        .HasColumnName("timeout_minutes");
+
+                    b.Property<Guid?>("UpdatedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("updated_by");
+
+                    b.Property<DateTime>("UpdatedUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_utc");
+
+                    b.Property<bool>("Upload")
+                        .HasColumnType("boolean")
+                        .HasColumnName("upload");
+
+                    b.HasKey("DeviceId")
+                        .HasName("pk_device_windows_screen_saver_settings");
+
+                    b.ToTable("device_windows_screen_saver_settings", "intellinode", t =>
+                        {
+                            t.HasCheckConstraint("ck_device_windows_screen_saver_settings_settings_version", "settings_version >= 0");
+
+                            t.HasCheckConstraint("ck_device_windows_screen_saver_settings_timeout_minutes", "timeout_minutes >= 0");
+                        });
+                });
+
+            modelBuilder.Entity("Intellinode.Domain.Entities.DeviceWindowsScreenSaverSettingsSnapshot", b =>
+                {
+                    b.Property<Guid>("DeviceId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("device_id");
+
+                    b.Property<long>("SettingsVersion")
+                        .HasColumnType("bigint")
+                        .HasColumnName("settings_version");
+
+                    b.Property<int>("AgentAction")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0)
+                        .HasColumnName("agent_action");
+
+                    b.Property<DateTime>("CreatedUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_utc");
+
+                    b.Property<bool>("PasswordProtected")
+                        .HasColumnType("boolean")
+                        .HasColumnName("password_protected");
+
+                    b.Property<bool>("PreventUserChanges")
+                        .HasColumnType("boolean")
+                        .HasColumnName("prevent_user_changes");
+
+                    b.Property<string>("RepositoryJson")
+                        .HasColumnType("jsonb")
+                        .HasColumnName("repository_json");
+
+                    b.Property<string>("ScreenSaverName")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)")
+                        .HasColumnName("screen_saver_name");
+
+                    b.Property<string>("SourceType")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasDefaultValue("Browse")
+                        .HasColumnName("source_type");
+
+                    b.Property<int>("TimeoutMinutes")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0)
+                        .HasColumnName("timeout_minutes");
+
+                    b.Property<bool>("Upload")
+                        .HasColumnType("boolean")
+                        .HasColumnName("upload");
+
+                    b.HasKey("DeviceId", "SettingsVersion")
+                        .HasName("pk_device_windows_screen_saver_settings_snapshots");
+
+                    b.ToTable("device_windows_screen_saver_settings_snapshots", "intellinode", t =>
+                        {
+                            t.HasCheckConstraint("ck_device_windows_screen_saver_settings_snapshots_timeout_minutes", "timeout_minutes >= 0");
+                        });
+                });
+
             modelBuilder.Entity("Intellinode.Domain.Entities.DeviceWindowsRegionLocationSettings", b =>
                 {
                     b.Property<Guid>("DeviceId")
@@ -3089,6 +3255,30 @@ namespace Intellinode.Infrastructure.Persistence.Migrations
                     b.Navigation("Device");
                 });
 
+            modelBuilder.Entity("Intellinode.Domain.Entities.DeviceWindowsScreenSaverSettings", b =>
+                {
+                    b.HasOne("Intellinode.Domain.Entities.Device", "Device")
+                        .WithOne("WindowsScreenSaverSettings")
+                        .HasForeignKey("Intellinode.Domain.Entities.DeviceWindowsScreenSaverSettings", "DeviceId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_device_windows_screen_saver_settings_devices_device_id");
+
+                    b.Navigation("Device");
+                });
+
+            modelBuilder.Entity("Intellinode.Domain.Entities.DeviceWindowsScreenSaverSettingsSnapshot", b =>
+                {
+                    b.HasOne("Intellinode.Domain.Entities.Device", "Device")
+                        .WithMany("WindowsScreenSaverSnapshots")
+                        .HasForeignKey("DeviceId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_device_windows_screen_saver_settings_snapshots_devices_devi");
+
+                    b.Navigation("Device");
+                });
+
             modelBuilder.Entity("Intellinode.Domain.Entities.DeviceWindowsRegionLocationSettings", b =>
                 {
                     b.HasOne("Intellinode.Domain.Entities.Device", "Device")
@@ -3275,6 +3465,10 @@ namespace Intellinode.Infrastructure.Persistence.Migrations
                     b.Navigation("WindowsPowerManagementSettings");
 
                     b.Navigation("WindowsPowerManagementSnapshots");
+
+                    b.Navigation("WindowsScreenSaverSettings");
+
+                    b.Navigation("WindowsScreenSaverSnapshots");
 
                     b.Navigation("WindowsRegionLocationSettings");
 
