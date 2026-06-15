@@ -36,16 +36,6 @@ Settings body matches `/queue` (browse or repository path per PR2/PR3). Template
 
 ---
 
-## Apply patch script
-
-If partial-class hosts were not updated automatically, run:
-
-```powershell
-./scripts/apply-screen-saver-pr4-patches.ps1
-```
-
----
-
 ## Related
 
 - [screen-saver-overview.md](./screen-saver-overview.md)
