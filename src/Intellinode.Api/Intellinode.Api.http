@@ -4459,6 +4459,231 @@ Authorization: Bearer {{adminToken}}
 
 
 ###############################################################################
+# Windows Wallpaper (PR0 spike, PR1 read)
+# FusionX User Settings → Wallpaper; ModuleName=Wallpaper, signal WPS.
+# PR3 adds repository/upload hydration.
+###############################################################################
+
+@wallpaperMac = 00-11-22-33-44-55:XP
+
+### Windows Wallpaper — Get current by MAC
+# @name wallpaperGetCurrent
+GET {{Intellinode.Api_HostAddress}}/api/v1/admin/device-config/wallpaper/{{wallpaperMac}}
+Authorization: Bearer {{adminToken}}
+
+# Expected: 200 with data.settings.sourceType, picturePath, picturePosition, settingsVersion; compat.source=device|none
+
+
+### Windows Wallpaper — Execute now (browse path, PR2)
+# @name wallpaperExecuteNow
+POST {{Intellinode.Api_HostAddress}}/api/v1/admin/device-config/wallpaper/execute-now
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "target": {
+    "macAddress": "{{wallpaperMac}}",
+    "osType": "XP"
+  },
+  "settings": {
+    "sourceType": "Browse",
+    "picturePath": "C:\\Wallpapers\\corp.jpg",
+    "picturePosition": "Stretch",
+    "preventUserChanges": true,
+    "upload": false
+  },
+  "execution": {
+    "agentAction": "0",
+    "scheduleType": "InstantApply"
+  },
+  "options": {
+    "dryRun": false,
+    "returnLegacySummary": true
+  }
+}
+
+# Expected: 200 with data.taskId, execution.status=Pending, extra_data signal WPS on queued task
+
+
+### Windows Wallpaper — Queue scheduled apply (PR2)
+# @name wallpaperQueue
+POST {{Intellinode.Api_HostAddress}}/api/v1/admin/device-config/wallpaper/queue
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "target": {
+    "macAddress": "{{wallpaperMac}}",
+    "osType": "XP"
+  },
+  "settings": {
+    "sourceType": "Browse",
+    "picturePath": "C:\\Wallpapers\\corp.jpg",
+    "picturePosition": "Center",
+    "preventUserChanges": false,
+    "upload": false
+  },
+  "execution": {
+    "agentAction": "0",
+    "scheduleType": "Queue"
+  },
+  "options": {
+    "dryRun": false,
+    "returnLegacySummary": true
+  }
+}
+
+# Expected: 200 with data.taskId and function Update
+
+
+### Windows Wallpaper — Queue repository apply (PR3 hydration)
+# @name wallpaperQueueRepository
+POST {{Intellinode.Api_HostAddress}}/api/v1/admin/device-config/wallpaper/queue
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "target": {
+    "macAddress": "{{wallpaperMac}}",
+    "osType": "XP"
+  },
+  "settings": {
+    "sourceType": "Repository",
+    "pictureName": "corp-wallpaper.jpg",
+    "picturePosition": "Stretch",
+    "preventUserChanges": true,
+    "upload": false,
+    "repository": {
+      "connectionId": 1,
+      "downloadIp": "10.0.0.5",
+      "ftpFolderPath": "/wallpapers",
+      "ftpPassword": "secret",
+      "ftpSslType": "None",
+      "ftpUsername": "ftpuser",
+      "loggedInUserId": 1,
+      "port": 21,
+      "protocolType": "FTP",
+      "connectionName": "Repo-01",
+      "domainNameForRepository": "CORP"
+    }
+  },
+  "execution": {
+    "agentAction": "0",
+    "scheduleType": "Queue"
+  },
+  "options": {
+    "dryRun": false,
+    "returnLegacySummary": true,
+    "correlationId": "00000000-0000-0000-0000-000000000104"
+  }
+}
+
+# Expected: 200 with compact functionParameter {"settingsVersion":N} stored; agent poll hydrates full XPWallPaper JSON
+
+
+### Windows Wallpaper PR4 — Template queue (SysView / ExecuteLaterTemplate parity)
+# @name wallpaperTemplateQueue
+POST {{Intellinode.Api_HostAddress}}/api/v1/admin/device-config/wallpaper/template-queue
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "target": {
+    "macAddress": "{{wallpaperMac}}",
+    "osType": "XP"
+  },
+  "settings": {
+    "sourceType": "Browse",
+    "picturePath": "C:\\Wallpapers\\template-default.jpg",
+    "picturePosition": "Center",
+    "preventUserChanges": true,
+    "upload": false
+  },
+  "execution": {
+    "agentAction": "0",
+    "scheduleType": "QueueTemplate",
+    "templateId": 42,
+    "templateName": "Standard Wallpaper"
+  },
+  "options": {
+    "dryRun": false,
+    "returnLegacySummary": true,
+    "correlationId": "00000000-0000-0000-0000-000000000105"
+  }
+}
+
+# Expected: 200 with execution.scheduleType=QueueTemplate, function QueueTemplate, apply_mode=template
+
+
+### Windows Wallpaper PR4 — Execute now bulk
+# @name wallpaperExecuteNowBulk
+POST {{Intellinode.Api_HostAddress}}/api/v1/admin/device-config/wallpaper/execute-now/bulk
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "targets": [
+    { "macAddress": "{{wallpaperMac}}", "osType": "XP" },
+    { "macAddress": "00-11-22-33-44-66:XP", "osType": "XP" }
+  ],
+  "settings": {
+    "sourceType": "Browse",
+    "picturePath": "C:\\Wallpapers\\bulk.jpg",
+    "picturePosition": "Stretch",
+    "preventUserChanges": false,
+    "upload": false
+  },
+  "execution": {
+    "agentAction": "0",
+    "scheduleType": "InstantApply"
+  },
+  "options": {
+    "dryRun": false,
+    "returnLegacySummary": true,
+    "correlationId": "00000000-0000-0000-0000-000000000106"
+  }
+}
+
+# Expected: 200 with per-target Pending/Blocked results
+
+
+### Windows Wallpaper PR4 — Execute now group
+# @name wallpaperExecuteNowGroup
+POST {{Intellinode.Api_HostAddress}}/api/v1/admin/device-config/wallpaper/execute-now/group/00000000-0000-0000-0000-000000000201
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "settings": {
+    "sourceType": "Browse",
+    "picturePath": "C:\\Wallpapers\\group.jpg",
+    "picturePosition": "Tile",
+    "preventUserChanges": true,
+    "upload": false
+  },
+  "execution": {
+    "agentAction": "0",
+    "scheduleType": "InstantApply"
+  },
+  "options": {
+    "dryRun": false,
+    "returnLegacySummary": true,
+    "correlationId": "00000000-0000-0000-0000-000000000107"
+  }
+}
+
+# Expected: 200 with per-target results for active devices in group
+
+
+### Windows Wallpaper — Apply history
+# @name wallpaperApplyHistory
+GET {{Intellinode.Api_HostAddress}}/api/v1/admin/device-config/wallpaper/apply-history/{{wallpaperMac}}?page=1&pageSize=20
+Authorization: Bearer {{adminToken}}
+
+# Expected: 200 with paginated apply history items
+
+
+###############################################################################
 # Windows Taskbar Properties (PR1 read)
 # FusionX User Settings → Taskbar Properties; ModuleName=Taskbar, signal TPR.
 ###############################################################################

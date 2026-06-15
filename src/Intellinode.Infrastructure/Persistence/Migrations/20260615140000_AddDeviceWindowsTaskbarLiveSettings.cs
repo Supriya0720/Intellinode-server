@@ -13,36 +13,27 @@ namespace Intellinode.Infrastructure.Persistence.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.CreateTable(
-                name: "device_windows_taskbar_live_settings",
-                schema: "intellinode",
-                columns: table => new
-                {
-                    device_id = table.Column<Guid>(type: "uuid", nullable: false),
-                    lock_taskbar = table.Column<bool>(type: "boolean", nullable: false, defaultValue: true),
-                    auto_hide_taskbar = table.Column<bool>(type: "boolean", nullable: false),
-                    keep_taskbar_on_top = table.Column<bool>(type: "boolean", nullable: false, defaultValue: true),
-                    group_similar_buttons = table.Column<bool>(type: "boolean", nullable: false, defaultValue: true),
-                    show_quick_launch = table.Column<bool>(type: "boolean", nullable: false),
-                    show_clock = table.Column<bool>(type: "boolean", nullable: false),
-                    hide_inactive_icons = table.Column<bool>(type: "boolean", nullable: false),
-                    collected_utc = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
-                    report_version = table.Column<long>(type: "bigint", nullable: false, defaultValue: 1L),
-                    created_utc = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
-                    updated_utc = table.Column<DateTime>(type: "timestamp with time zone", nullable: false)
-                },
-                constraints: table =>
-                {
-                    table.PrimaryKey("pk_device_windows_taskbar_live_settings", x => x.device_id);
-                    table.CheckConstraint("ck_device_windows_taskbar_live_settings_report_version", "report_version >= 1");
-                    table.ForeignKey(
-                        name: "fk_device_windows_taskbar_live_settings_devices_device_id",
-                        column: x => x.device_id,
-                        principalSchema: "intellinode",
-                        principalTable: "devices",
-                        principalColumn: "id",
-                        onDelete: ReferentialAction.Cascade);
-                });
+            migrationBuilder.Sql(
+                """
+                CREATE TABLE IF NOT EXISTS intellinode.device_windows_taskbar_live_settings (
+                    device_id uuid NOT NULL,
+                    lock_taskbar boolean NOT NULL DEFAULT true,
+                    auto_hide_taskbar boolean NOT NULL,
+                    keep_taskbar_on_top boolean NOT NULL DEFAULT true,
+                    group_similar_buttons boolean NOT NULL DEFAULT true,
+                    show_quick_launch boolean NOT NULL,
+                    show_clock boolean NOT NULL,
+                    hide_inactive_icons boolean NOT NULL,
+                    collected_utc timestamp with time zone NOT NULL,
+                    report_version bigint NOT NULL DEFAULT 1,
+                    created_utc timestamp with time zone NOT NULL,
+                    updated_utc timestamp with time zone NOT NULL,
+                    CONSTRAINT pk_device_windows_taskbar_live_settings PRIMARY KEY (device_id),
+                    CONSTRAINT ck_device_windows_taskbar_live_settings_report_version CHECK (report_version >= 1),
+                    CONSTRAINT fk_device_windows_taskbar_live_settings_devices_device_id
+                        FOREIGN KEY (device_id) REFERENCES intellinode.devices (id) ON DELETE CASCADE
+                );
+                """);
         }
 
         /// <inheritdoc />

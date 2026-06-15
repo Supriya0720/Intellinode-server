@@ -38,6 +38,7 @@ public static class DependencyInjection
         services.Configure<WindowsPowerManagementOptions>(configuration.GetSection(WindowsPowerManagementOptions.SectionName));
         services.Configure<WindowsScreenSaverOptions>(configuration.GetSection(WindowsScreenSaverOptions.SectionName));
         services.Configure<WindowsTaskbarOptions>(configuration.GetSection(WindowsTaskbarOptions.SectionName));
+        services.Configure<WindowsWallpaperOptions>(configuration.GetSection(WindowsWallpaperOptions.SectionName));
         services.Configure<WindowsUserInterfaceOptions>(configuration.GetSection(WindowsUserInterfaceOptions.SectionName));
 
         var connectionString = configuration.GetConnectionString("DefaultConnection")
@@ -84,9 +85,11 @@ public static class DependencyInjection
         services.AddScoped<WindowsPowerManagementTaskAckHandler>();
         services.AddScoped<WindowsScreenSaverTaskAckHandler>();
         services.AddScoped<WindowsTaskbarTaskAckHandler>();
+        services.AddScoped<WindowsWallpaperTaskAckHandler>();
         services.AddScoped<WindowsUserInterfaceTaskAckHandler>();
         services.AddScoped<AgentTaskService>();
         services.AddScoped<ScreenSaverHydratingAgentTaskService>();
+        services.AddScoped<WallpaperHydratingAgentTaskService>();
         services.AddScoped<UserInterfaceHydratingAgentTaskService>();
         services.AddScoped<IAgentTaskService, UserInterfaceHydratingAgentTaskService>();
         services.AddScoped<IDeviceRemoteSettingsService, DeviceRemoteSettingsService>();
@@ -124,6 +127,9 @@ public static class DependencyInjection
         services.AddScoped<IWindowsScreenSaverSettingsService, WindowsScreenSaverSettingsService>();
         services.AddScoped<IWindowsTaskbarPayloadBuilder, WindowsTaskbarPayloadBuilder>();
         services.AddScoped<IWindowsTaskbarSettingsService, WindowsTaskbarSettingsService>();
+        services.AddScoped<IWindowsWallpaperPayloadBuilder, WindowsWallpaperPayloadBuilder>();
+        services.AddScoped<IWindowsWallpaperTaskPayloadHydrator, WindowsWallpaperTaskPayloadHydrator>();
+        services.AddScoped<IWindowsWallpaperSettingsService, WindowsWallpaperSettingsService>();
         services.AddScoped<IWindowsUserInterfacePasswordProtector, WindowsUserInterfacePasswordProtector>();
         services.AddScoped<IWindowsUserInterfacePayloadBuilder, WindowsUserInterfacePayloadBuilder>();
         services.AddScoped<IWindowsUserInterfaceTaskPayloadHydrator, WindowsUserInterfaceTaskPayloadHydrator>();

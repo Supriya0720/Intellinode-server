@@ -5,21 +5,22 @@ using Microsoft.Extensions.Logging;
 namespace Intellinode.Infrastructure.Services;
 
 /// <summary>
-/// PR3: expands User Interface compact task references at agent poll time.
+/// PR3: expands Wallpaper compact task references at agent poll time (ADR-0006 Option B).
+/// Wraps <see cref="ScreenSaverHydratingAgentTaskService"/> without modifying its constructor surface.
 /// </summary>
-public sealed class UserInterfaceHydratingAgentTaskService : IAgentTaskService
+public sealed class WallpaperHydratingAgentTaskService : IAgentTaskService
 {
-    private readonly WallpaperHydratingAgentTaskService _inner;
-    private readonly IWindowsUserInterfaceTaskPayloadHydrator _userInterfaceHydrator;
-    private readonly ILogger<UserInterfaceHydratingAgentTaskService> _logger;
+    private readonly ScreenSaverHydratingAgentTaskService _inner;
+    private readonly IWindowsWallpaperTaskPayloadHydrator _wallpaperHydrator;
+    private readonly ILogger<WallpaperHydratingAgentTaskService> _logger;
 
-    public UserInterfaceHydratingAgentTaskService(
-        WallpaperHydratingAgentTaskService inner,
-        IWindowsUserInterfaceTaskPayloadHydrator userInterfaceHydrator,
-        ILogger<UserInterfaceHydratingAgentTaskService> logger)
+    public WallpaperHydratingAgentTaskService(
+        ScreenSaverHydratingAgentTaskService inner,
+        IWindowsWallpaperTaskPayloadHydrator wallpaperHydrator,
+        ILogger<WallpaperHydratingAgentTaskService> logger)
     {
         _inner = inner;
-        _userInterfaceHydrator = userInterfaceHydrator;
+        _wallpaperHydrator = wallpaperHydrator;
         _logger = logger;
     }
 
@@ -31,12 +32,12 @@ public sealed class UserInterfaceHydratingAgentTaskService : IAgentTaskService
 
         foreach (var task in response.Tasks)
         {
-            if (!_userInterfaceHydrator.CanHydrate(task.ModuleName))
+            if (!_wallpaperHydrator.CanHydrate(task.ModuleName))
             {
                 continue;
             }
 
-            var hydrated = await _userInterfaceHydrator.HydrateFunctionParameterAsync(
+            var hydrated = await _wallpaperHydrator.HydrateFunctionParameterAsync(
                 task.FunctionParameter,
                 deviceId,
                 task.LegacyTaskId,
@@ -49,7 +50,7 @@ public sealed class UserInterfaceHydratingAgentTaskService : IAgentTaskService
             }
 
             _logger.LogWarning(
-                "User interface task {TaskId} hydration failed for device {DeviceId}; returning compact functionParameter",
+                "Wallpaper task {TaskId} hydration failed for device {DeviceId}; returning compact functionParameter",
                 task.Id,
                 deviceId);
         }

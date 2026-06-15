@@ -4,6 +4,7 @@ using Intellinode.Domain.Enums;
 using Intellinode.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -12,9 +13,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace Intellinode.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(IntellinodeDbContext))]
-    partial class IntellinodeDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260615101424_AddDeviceWindowsWallpaperSettings")]
+    partial class AddDeviceWindowsWallpaperSettings
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -2403,70 +2406,6 @@ namespace Intellinode.Infrastructure.Persistence.Migrations
                         });
                 });
 
-            modelBuilder.Entity("Intellinode.Domain.Entities.DeviceWindowsWallpaperSettingsSnapshot", b =>
-                {
-                    b.Property<Guid>("DeviceId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("device_id");
-
-                    b.Property<long>("SettingsVersion")
-                        .HasColumnType("bigint")
-                        .HasColumnName("settings_version");
-
-                    b.Property<int>("AgentAction")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer")
-                        .HasDefaultValue(0)
-                        .HasColumnName("agent_action");
-
-                    b.Property<DateTime>("CreatedUtc")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("created_utc");
-
-                    b.Property<string>("PictureName")
-                        .IsRequired()
-                        .HasMaxLength(256)
-                        .HasColumnType("character varying(256)")
-                        .HasColumnName("picture_name");
-
-                    b.Property<string>("PicturePath")
-                        .IsRequired()
-                        .HasMaxLength(512)
-                        .HasColumnType("character varying(512)")
-                        .HasColumnName("picture_path");
-
-                    b.Property<string>("PicturePosition")
-                        .IsRequired()
-                        .HasMaxLength(32)
-                        .HasColumnType("character varying(32)")
-                        .HasColumnName("picture_position");
-
-                    b.Property<bool>("PreventUserChanges")
-                        .HasColumnType("boolean")
-                        .HasColumnName("prevent_user_changes");
-
-                    b.Property<string>("RepositoryJson")
-                        .HasColumnType("jsonb")
-                        .HasColumnName("repository_json");
-
-                    b.Property<string>("SourceType")
-                        .IsRequired()
-                        .ValueGeneratedOnAdd()
-                        .HasMaxLength(32)
-                        .HasColumnType("character varying(32)")
-                        .HasDefaultValue("Browse")
-                        .HasColumnName("source_type");
-
-                    b.Property<bool>("Upload")
-                        .HasColumnType("boolean")
-                        .HasColumnName("upload");
-
-                    b.HasKey("DeviceId", "SettingsVersion")
-                        .HasName("pk_device_windows_wallpaper_settings_snapshots");
-
-                    b.ToTable("device_windows_wallpaper_settings_snapshots", "intellinode");
-                });
-
             modelBuilder.Entity("Intellinode.Domain.Entities.DeviceWindowsWirelessProfileSettings", b =>
                 {
                     b.Property<long>("ProfileKey")
@@ -3799,18 +3738,6 @@ namespace Intellinode.Infrastructure.Persistence.Migrations
                     b.Navigation("Device");
                 });
 
-            modelBuilder.Entity("Intellinode.Domain.Entities.DeviceWindowsWallpaperSettingsSnapshot", b =>
-                {
-                    b.HasOne("Intellinode.Domain.Entities.Device", "Device")
-                        .WithMany("WindowsWallpaperSnapshots")
-                        .HasForeignKey("DeviceId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired()
-                        .HasConstraintName("fk_device_windows_wallpaper_settings_snapshots_devices_device_");
-
-                    b.Navigation("Device");
-                });
-
             modelBuilder.Entity("Intellinode.Domain.Entities.DeviceWindowsWirelessProfileSettings", b =>
                 {
                     b.HasOne("Intellinode.Domain.Entities.Device", "Device")
@@ -3991,8 +3918,6 @@ namespace Intellinode.Infrastructure.Persistence.Migrations
                     b.Navigation("WindowsUserInterfaceSnapshots");
 
                     b.Navigation("WindowsWallpaperSettings");
-
-                    b.Navigation("WindowsWallpaperSnapshots");
 
                     b.Navigation("WindowsWirelessProfileSnapshots");
 

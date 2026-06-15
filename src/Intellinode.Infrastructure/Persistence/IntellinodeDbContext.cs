@@ -64,6 +64,10 @@ public sealed class IntellinodeDbContext : DbContext, IIntellinodeDbContext
 
     public DbSet<DeviceWindowsTaskbarLiveSettings> DeviceWindowsTaskbarLiveSettings =>
         Set<DeviceWindowsTaskbarLiveSettings>();
+    public DbSet<DeviceWindowsWallpaperSettings> DeviceWindowsWallpaperSettings =>
+        Set<DeviceWindowsWallpaperSettings>();
+    public DbSet<DeviceWindowsWallpaperSettingsSnapshot> DeviceWindowsWallpaperSettingsSnapshots =>
+        Set<DeviceWindowsWallpaperSettingsSnapshot>();
     public DbSet<DeviceWindowsUserInterfaceSettings> DeviceWindowsUserInterfaceSettings =>
         Set<DeviceWindowsUserInterfaceSettings>();
     public DbSet<DeviceWindowsUserInterfaceSettingsSnapshot> DeviceWindowsUserInterfaceSettingsSnapshots =>
@@ -469,6 +473,49 @@ public sealed class IntellinodeDbContext : DbContext, IIntellinodeDbContext
             entity.HasOne(x => x.Device)
                 .WithOne(x => x.WindowsTaskbarLiveSettings)
                 .HasForeignKey<DeviceWindowsTaskbarLiveSettings>(x => x.DeviceId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<DeviceWindowsWallpaperSettings>(entity =>
+        {
+            entity.ToTable("device_windows_wallpaper_settings");
+            entity.HasKey(x => x.DeviceId);
+            entity.Property(x => x.SourceType).HasMaxLength(32).HasDefaultValue("Browse");
+            entity.Property(x => x.PicturePath).HasMaxLength(512);
+            entity.Property(x => x.PictureName).HasMaxLength(256);
+            entity.Property(x => x.PicturePosition).HasMaxLength(32);
+            entity.Property(x => x.RepositoryJson)
+                .HasColumnName("repository_json")
+                .HasColumnType("jsonb");
+            entity.Property(x => x.LastApplyStatus).HasMaxLength(32);
+            entity.Property(x => x.LastApplyMessage).HasMaxLength(500);
+            entity.Property(x => x.AgentAction).HasDefaultValue(0);
+            entity.Property(x => x.SettingsVersion).HasDefaultValue(1L);
+            entity.Property(x => x.PendingApply).HasDefaultValue(false);
+            entity.ToTable(t => t.HasCheckConstraint(
+                "ck_device_windows_wallpaper_settings_settings_version",
+                "settings_version >= 0"));
+            entity.HasOne(x => x.Device)
+                .WithOne(x => x.WindowsWallpaperSettings)
+                .HasForeignKey<DeviceWindowsWallpaperSettings>(x => x.DeviceId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<DeviceWindowsWallpaperSettingsSnapshot>(entity =>
+        {
+            entity.ToTable("device_windows_wallpaper_settings_snapshots");
+            entity.HasKey(x => new { x.DeviceId, x.SettingsVersion });
+            entity.Property(x => x.SourceType).HasMaxLength(32).HasDefaultValue("Browse");
+            entity.Property(x => x.PicturePath).HasMaxLength(512);
+            entity.Property(x => x.PictureName).HasMaxLength(256);
+            entity.Property(x => x.PicturePosition).HasMaxLength(32);
+            entity.Property(x => x.RepositoryJson)
+                .HasColumnName("repository_json")
+                .HasColumnType("jsonb");
+            entity.Property(x => x.AgentAction).HasDefaultValue(0);
+            entity.HasOne(x => x.Device)
+                .WithMany(x => x.WindowsWallpaperSnapshots)
+                .HasForeignKey(x => x.DeviceId)
                 .OnDelete(DeleteBehavior.Cascade);
         });
 

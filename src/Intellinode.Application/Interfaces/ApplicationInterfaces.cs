@@ -588,6 +588,16 @@ public interface IWindowsScreenSaverTaskPayloadHydrator
         CancellationToken cancellationToken = default);
 }
 
+public interface IWindowsWallpaperTaskPayloadHydrator
+{
+    bool CanHydrate(string moduleName);
+    Task<string?> HydrateFunctionParameterAsync(
+        string storedFunctionParameter,
+        Guid deviceId,
+        int legacyTaskId = 0,
+        CancellationToken cancellationToken = default);
+}
+
 public interface IWindowsScreenSaverSettingsService
 {
     Task<WindowsScreenSaverExecuteNowResult> ExecuteNowAsync(
@@ -627,6 +637,60 @@ public interface IWindowsScreenSaverSettingsService
     Task<WindowsScreenSaverHistoryResult> GetApplyHistoryAsync(
         string macAddress,
         WindowsScreenSaverHistoryQuery query,
+        CancellationToken cancellationToken = default);
+}
+
+public interface IWindowsWallpaperPayloadBuilder
+{
+    string BuildAgentPayload(WindowsWallpaperPayloadRequest request);
+    WindowsWallpaperPayloadRequest MapToPayloadRequest(
+        DeviceWindowsWallpaperSettings settings,
+        long taskId,
+        int agentAction);
+    WindowsWallpaperPayloadRequest MapToPayloadRequest(
+        DeviceWindowsWallpaperSettingsSnapshot snapshot,
+        long taskId,
+        int agentAction);
+    string BuildCompactTaskReference(long settingsVersion);
+    bool TryParseCompactTaskReference(string stored, out long settingsVersion);
+    string BuildExtraData(string macAddress, string? signalSuffix = null);
+}
+
+public interface IWindowsWallpaperSettingsService
+{
+    Task<WindowsWallpaperExecuteNowResult> ExecuteNowAsync(
+        WindowsWallpaperExecuteNowRequest request,
+        Guid? adminId = null,
+        CancellationToken cancellationToken = default);
+
+    Task<WindowsWallpaperQueueResult> QueueAsync(
+        WindowsWallpaperQueueRequest request,
+        Guid? adminId = null,
+        CancellationToken cancellationToken = default);
+
+    Task<WindowsWallpaperQueueResult> TemplateQueueAsync(
+        WindowsWallpaperTemplateQueueRequest request,
+        Guid? adminId = null,
+        CancellationToken cancellationToken = default);
+
+    Task<WindowsWallpaperBulkResult> ExecuteNowBulkAsync(
+        WindowsWallpaperExecuteNowBulkRequest request,
+        Guid? adminId = null,
+        CancellationToken cancellationToken = default);
+
+    Task<WindowsWallpaperBulkResult> ExecuteNowGroupAsync(
+        Guid groupId,
+        WindowsWallpaperExecuteNowGroupRequest request,
+        Guid? adminId = null,
+        CancellationToken cancellationToken = default);
+
+    Task<WindowsWallpaperCurrentResult> GetCurrentAsync(
+        string macAddress,
+        CancellationToken cancellationToken = default);
+
+    Task<WindowsWallpaperHistoryResult> GetApplyHistoryAsync(
+        string macAddress,
+        WindowsWallpaperHistoryQuery query,
         CancellationToken cancellationToken = default);
 }
 

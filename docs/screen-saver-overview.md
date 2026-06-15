@@ -98,4 +98,4 @@ dotnet test tests/Intellinode.Infrastructure.Tests/Intellinode.Infrastructure.Te
 
 ## 8. Related user settings (FusionX, not yet in Intellinode)
 
-FusionX **User Settings** also includes Taskbar, User Interface, and Wallpaper. Screen saver is the first module in this group planned for Intellinode porting.
+FusionX **User Settings** also includes Taskbar, User Interface, and Wallpaper. Screen saver was the first module in this group planned for Intellinode porting; Wallpaper PR1 adds the read model for the final module (see [wallpaper-overview.md](./wallpaper-overview.md)).

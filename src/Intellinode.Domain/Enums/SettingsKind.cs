@@ -33,5 +33,7 @@ public enum SettingsKind
     /// <summary>FusionX User Settings → Taskbar Properties (ModuleType "Taskbar").</summary>
     WindowsTaskbar,
     /// <summary>FusionX User Settings → User Interface / Autologon (ModuleType "Autologon").</summary>
-    WindowsUserInterface
+    WindowsUserInterface,
+    /// <summary>FusionX User Settings → Wallpaper (ModuleType "Wallpaper").</summary>
+    WindowsWallpaper
 }

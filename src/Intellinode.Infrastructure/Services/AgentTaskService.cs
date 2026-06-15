@@ -30,6 +30,7 @@ public sealed class AgentTaskService : IAgentTaskService
     private readonly WindowsPowerManagementTaskAckHandler _windowsPowerManagementTaskAckHandler;
     private readonly WindowsScreenSaverTaskAckHandler _windowsScreenSaverTaskAckHandler;
     private readonly WindowsTaskbarTaskAckHandler _windowsTaskbarTaskAckHandler;
+    private readonly WindowsWallpaperTaskAckHandler _windowsWallpaperTaskAckHandler;
     private readonly WindowsUserInterfaceTaskAckHandler _windowsUserInterfaceTaskAckHandler;
     private readonly IWindows8021xTaskPayloadHydrator _windows8021xHydrator;
     private readonly IWindowsWirelessPropertiesTaskPayloadHydrator _windowsWirelessPropertiesHydrator;
@@ -52,6 +53,7 @@ public sealed class AgentTaskService : IAgentTaskService
         WindowsPowerManagementTaskAckHandler windowsPowerManagementTaskAckHandler,
         WindowsScreenSaverTaskAckHandler windowsScreenSaverTaskAckHandler,
         WindowsTaskbarTaskAckHandler windowsTaskbarTaskAckHandler,
+        WindowsWallpaperTaskAckHandler windowsWallpaperTaskAckHandler,
         WindowsUserInterfaceTaskAckHandler windowsUserInterfaceTaskAckHandler,
         IWindows8021xTaskPayloadHydrator windows8021xHydrator,
         IWindowsWirelessPropertiesTaskPayloadHydrator windowsWirelessPropertiesHydrator,
@@ -73,6 +75,7 @@ public sealed class AgentTaskService : IAgentTaskService
         _windowsPowerManagementTaskAckHandler = windowsPowerManagementTaskAckHandler;
         _windowsScreenSaverTaskAckHandler = windowsScreenSaverTaskAckHandler;
         _windowsTaskbarTaskAckHandler = windowsTaskbarTaskAckHandler;
+        _windowsWallpaperTaskAckHandler = windowsWallpaperTaskAckHandler;
         _windowsUserInterfaceTaskAckHandler = windowsUserInterfaceTaskAckHandler;
         _windows8021xHydrator = windows8021xHydrator;
         _windowsWirelessPropertiesHydrator = windowsWirelessPropertiesHydrator;
@@ -190,6 +193,7 @@ public sealed class AgentTaskService : IAgentTaskService
             .Include(d => d.WindowsPowerManagementSettings)
             .Include(d => d.WindowsScreenSaverSettings)
             .Include(d => d.WindowsTaskbarSettings)
+            .Include(d => d.WindowsWallpaperSettings)
             .Include(d => d.WindowsUserInterfaceSettings)
             .FirstOrDefaultAsync(d => d.Id == deviceId, cancellationToken);
 
@@ -343,6 +347,16 @@ public sealed class AgentTaskService : IAgentTaskService
             if (WindowsTaskbarTaskAckHandler.IsTaskbarTask(task))
             {
                 await _windowsTaskbarTaskAckHandler.ApplyAckAsync(
+                    device,
+                    task,
+                    status,
+                    ack.Reason,
+                    cancellationToken);
+            }
+
+            if (WindowsWallpaperTaskAckHandler.IsWallpaperTask(task))
+            {
+                await _windowsWallpaperTaskAckHandler.ApplyAckAsync(
                     device,
                     task,
                     status,
