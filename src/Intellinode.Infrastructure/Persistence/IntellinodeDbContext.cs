@@ -59,6 +59,11 @@ public sealed class IntellinodeDbContext : DbContext, IIntellinodeDbContext
         Set<DeviceWindowsScreenSaverSettings>();
     public DbSet<DeviceWindowsScreenSaverSettingsSnapshot> DeviceWindowsScreenSaverSettingsSnapshots =>
         Set<DeviceWindowsScreenSaverSettingsSnapshot>();
+    public DbSet<DeviceWindowsTaskbarSettings> DeviceWindowsTaskbarSettings =>
+        Set<DeviceWindowsTaskbarSettings>();
+
+    public DbSet<DeviceWindowsTaskbarLiveSettings> DeviceWindowsTaskbarLiveSettings =>
+        Set<DeviceWindowsTaskbarLiveSettings>();
     public DbSet<AgentCommunicationLog> AgentCommunicationLogs => Set<AgentCommunicationLog>();
     public DbSet<ExceptionLog> ExceptionLogs => Set<ExceptionLog>();
 
@@ -94,7 +99,7 @@ public sealed class IntellinodeDbContext : DbContext, IIntellinodeDbContext
             modelBuilder,
             "settings_kind",
             SchemaName,
-            ["General", "Advanced", "Keyboard", "Mouse", "Display", "Windows8021x", "WindowsComputerName", "WindowsEthernetSetup", "WindowsWirelessSetup", "WindowsWirelessProperties", "WindowsDateTimeSetup", "WindowsRegionLocation", "WindowsRegionalFormat", "WindowsPowerManagement"]);
+            ["General", "Advanced", "Keyboard", "Mouse", "Display", "Windows8021x", "WindowsComputerName", "WindowsEthernetSetup", "WindowsWirelessSetup", "WindowsWirelessProperties", "WindowsDateTimeSetup", "WindowsRegionLocation", "WindowsRegionalFormat", "WindowsPowerManagement", "WindowsScreenSaver", "WindowsTaskbar"]);
         NpgsqlModelBuilderExtensions.HasPostgresEnum(
             modelBuilder,
             "settings_apply_status",
@@ -422,6 +427,44 @@ public sealed class IntellinodeDbContext : DbContext, IIntellinodeDbContext
             entity.HasOne(x => x.Device)
                 .WithMany(x => x.WindowsScreenSaverSnapshots)
                 .HasForeignKey(x => x.DeviceId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<DeviceWindowsTaskbarSettings>(entity =>
+        {
+            entity.ToTable("device_windows_taskbar_settings");
+            entity.HasKey(x => x.DeviceId);
+            entity.Property(x => x.LockTaskbar).HasDefaultValue(true);
+            entity.Property(x => x.KeepTaskbarOnTop).HasDefaultValue(true);
+            entity.Property(x => x.GroupSimilarButtons).HasDefaultValue(true);
+            entity.Property(x => x.LastApplyStatus).HasMaxLength(32);
+            entity.Property(x => x.LastApplyMessage).HasMaxLength(500);
+            entity.Property(x => x.AgentAction).HasDefaultValue(0);
+            entity.Property(x => x.SettingsVersion).HasDefaultValue(1L);
+            entity.Property(x => x.PendingApply).HasDefaultValue(false);
+            entity.ToTable(t => t.HasCheckConstraint(
+                "ck_device_windows_taskbar_settings_settings_version",
+                "settings_version >= 0"));
+            entity.HasOne(x => x.Device)
+                .WithOne(x => x.WindowsTaskbarSettings)
+                .HasForeignKey<DeviceWindowsTaskbarSettings>(x => x.DeviceId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<DeviceWindowsTaskbarLiveSettings>(entity =>
+        {
+            entity.ToTable("device_windows_taskbar_live_settings");
+            entity.HasKey(x => x.DeviceId);
+            entity.Property(x => x.LockTaskbar).HasDefaultValue(true);
+            entity.Property(x => x.KeepTaskbarOnTop).HasDefaultValue(true);
+            entity.Property(x => x.GroupSimilarButtons).HasDefaultValue(true);
+            entity.Property(x => x.ReportVersion).HasDefaultValue(1L);
+            entity.ToTable(t => t.HasCheckConstraint(
+                "ck_device_windows_taskbar_live_settings_report_version",
+                "report_version >= 1"));
+            entity.HasOne(x => x.Device)
+                .WithOne(x => x.WindowsTaskbarLiveSettings)
+                .HasForeignKey<DeviceWindowsTaskbarLiveSettings>(x => x.DeviceId)
                 .OnDelete(DeleteBehavior.Cascade);
         });
 

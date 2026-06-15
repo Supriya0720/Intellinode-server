@@ -4458,6 +4458,221 @@ Authorization: Bearer {{adminToken}}
 # Expected: 200 with data.settings.screenSaverName, timeoutMinutes, settingsVersion; compat.source=device|none
 
 
+###############################################################################
+# Windows Taskbar Properties (PR1 read)
+# FusionX User Settings → Taskbar Properties; ModuleName=Taskbar, signal TPR.
+###############################################################################
+
+@taskbarMac = 00-11-22-33-44-55:XP
+
+### Windows Taskbar — Get current by MAC
+# @name taskbarGetCurrent
+GET {{Intellinode.Api_HostAddress}}/api/v1/admin/device-config/taskbar/{{taskbarMac}}
+Authorization: Bearer {{adminToken}}
+
+# Expected: 200 with lockTaskbar, autoHideTaskbar, keepTaskbarOnTop, groupSimilarButtons, showQuickLaunch; compat.source=device|defaults
+
+
+### Windows Taskbar — Get agent-reported live state
+# @name taskbarGetLive
+GET {{Intellinode.Api_HostAddress}}/api/v1/admin/device-config/taskbar/{{taskbarMac}}/live
+Authorization: Bearer {{adminToken}}
+
+# Expected: 200 with compat.source=agent when agent has reported; settings=null and compat.source=none otherwise
+
+
+### Windows Taskbar — Queue live read from agent
+# @name taskbarRefreshLive
+POST {{Intellinode.Api_HostAddress}}/api/v1/admin/device-config/taskbar/{{taskbarMac}}/refresh-live
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "correlationId": "00000000-0000-0000-0000-000000000101"
+}
+
+# Expected: 200 with data.taskId; agent task module Taskbar, function Get
+
+
+### Agent — Report taskbar live state
+# @name agentTaskbarLiveReport
+POST {{Intellinode.Api_HostAddress}}/api/v1/agents/windows/taskbar/live
+Authorization: Bearer {{agentToken}}
+Content-Type: application/json
+
+{
+  "lockTaskbar": true,
+  "autoHideTaskbar": false,
+  "keepTaskbarOnTop": true,
+  "groupSimilarButtons": true,
+  "showQuickLaunch": false,
+  "showClock": true,
+  "hideInactiveIcons": false
+}
+
+# Expected: 200 with reportVersion, collectedUtc
+
+
+### Windows Taskbar — Execute now (instant apply)
+# @name taskbarExecuteNow
+POST {{Intellinode.Api_HostAddress}}/api/v1/admin/device-config/taskbar/execute-now
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "target": {
+    "macAddress": "{{taskbarMac}}",
+    "osType": "XP"
+  },
+  "settings": {
+    "lockTaskbar": true,
+    "autoHideTaskbar": false,
+    "keepTaskbarOnTop": true,
+    "groupSimilarButtons": true,
+    "showQuickLaunch": false
+  },
+  "execution": {
+    "agentAction": "0",
+    "scheduleType": "InstantApply"
+  },
+  "options": {
+    "dryRun": false,
+    "returnLegacySummary": true
+  }
+}
+
+# Expected: 200 with data.taskId, module Taskbar, function Now, extraData ending with &TPR
+
+
+### Windows Taskbar — Queue scheduled apply
+# @name taskbarQueue
+POST {{Intellinode.Api_HostAddress}}/api/v1/admin/device-config/taskbar/queue
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "target": {
+    "macAddress": "{{taskbarMac}}",
+    "osType": "XP"
+  },
+  "settings": {
+    "lockTaskbar": true,
+    "autoHideTaskbar": true,
+    "keepTaskbarOnTop": true,
+    "groupSimilarButtons": false,
+    "showQuickLaunch": false
+  },
+  "execution": {
+    "agentAction": "0",
+    "scheduleType": "Queue"
+  },
+  "options": {
+    "dryRun": false,
+    "returnLegacySummary": true
+  }
+}
+
+# Expected: 200 with data.taskId and function Update
+
+
+### Windows Taskbar — Apply history
+# @name taskbarApplyHistory
+GET {{Intellinode.Api_HostAddress}}/api/v1/admin/device-config/taskbar/apply-history/{{taskbarMac}}?page=1&pageSize=20
+Authorization: Bearer {{adminToken}}
+
+# Expected: 200 with merged task + apply-log items for SettingsKind.WindowsTaskbar
+
+
+### Windows Taskbar — Template queue (SysView)
+# @name taskbarTemplateQueue
+POST {{Intellinode.Api_HostAddress}}/api/v1/admin/device-config/taskbar/template-queue
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "target": {
+    "macAddress": "{{taskbarMac}}",
+    "osType": "XP"
+  },
+  "settings": {
+    "lockTaskbar": true,
+    "autoHideTaskbar": false,
+    "keepTaskbarOnTop": true,
+    "groupSimilarButtons": true,
+    "showQuickLaunch": false
+  },
+  "execution": {
+    "agentAction": "0",
+    "scheduleType": "QueueTemplate",
+    "templateId": 1001,
+    "templateName": "Default Taskbar Template"
+  },
+  "options": {
+    "dryRun": false,
+    "returnLegacySummary": true
+  }
+}
+
+# Expected: 200 with data.template.templateId and function QueueTemplate
+
+
+### Windows Taskbar — Execute now bulk
+# @name taskbarExecuteNowBulk
+POST {{Intellinode.Api_HostAddress}}/api/v1/admin/device-config/taskbar/execute-now/bulk
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "targets": [
+    { "macAddress": "{{taskbarMac}}", "osType": "XP" }
+  ],
+  "settings": {
+    "lockTaskbar": true,
+    "autoHideTaskbar": false,
+    "keepTaskbarOnTop": true,
+    "groupSimilarButtons": true,
+    "showQuickLaunch": false
+  },
+  "execution": {
+    "agentAction": "0",
+    "scheduleType": "InstantApply"
+  },
+  "options": {
+    "dryRun": false,
+    "returnLegacySummary": true
+  }
+}
+
+# Expected: 200 with data.accepted, data.results[]
+
+
+### Windows Taskbar — Execute now group
+# @name taskbarExecuteNowGroup
+POST {{Intellinode.Api_HostAddress}}/api/v1/admin/device-config/taskbar/execute-now/group/00000000-0000-0000-0000-000000000201
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "settings": {
+    "lockTaskbar": true,
+    "autoHideTaskbar": false,
+    "keepTaskbarOnTop": true,
+    "groupSimilarButtons": true,
+    "showQuickLaunch": false
+  },
+  "execution": {
+    "agentAction": "0",
+    "scheduleType": "InstantApply"
+  },
+  "options": {
+    "dryRun": false,
+    "returnLegacySummary": true
+  }
+}
+
+# Expected: 200 bulk response for all active XP devices in group
+
+
 ### Windows Screen Saver — Get catalog stub by MAC
 # @name screenSaverGetCatalog
 GET {{Intellinode.Api_HostAddress}}/api/v1/admin/device-config/screen-saver/{{screenSaverMac}}/catalog

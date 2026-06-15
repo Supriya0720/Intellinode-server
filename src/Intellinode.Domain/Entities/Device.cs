@@ -65,5 +65,7 @@ public class Device
     public ICollection<DeviceWindowsPowerManagementSettingsSnapshot> WindowsPowerManagementSnapshots { get; set; } = [];
     public DeviceWindowsScreenSaverSettings? WindowsScreenSaverSettings { get; set; }
     public ICollection<DeviceWindowsScreenSaverSettingsSnapshot> WindowsScreenSaverSnapshots { get; set; } = [];
+    public DeviceWindowsTaskbarSettings? WindowsTaskbarSettings { get; set; }
+    public DeviceWindowsTaskbarLiveSettings? WindowsTaskbarLiveSettings { get; set; }
     public DeviceAgentAdvancedSettings? AgentAdvancedSettings { get; set; }
 }

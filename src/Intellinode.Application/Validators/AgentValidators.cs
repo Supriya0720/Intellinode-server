@@ -579,6 +579,102 @@ public sealed class WindowsScreenSaverHistoryQueryValidator : AbstractValidator<
     }
 }
 
+public sealed class WindowsTaskbarExecuteNowRequestValidator : AbstractValidator<WindowsTaskbarExecuteNowRequest>
+{
+    public WindowsTaskbarExecuteNowRequestValidator()
+    {
+        RuleFor(x => x.Target).SetValidator(new WindowsTaskbarTargetRequestValidator());
+        RuleFor(x => x.Settings).SetValidator(new WindowsTaskbarSettingsRequestValidator());
+        RuleFor(x => x.Execution)
+            .Must(e => string.Equals(e.ScheduleType?.Trim(), "InstantApply", StringComparison.OrdinalIgnoreCase))
+            .WithMessage("scheduleType must be InstantApply for this endpoint.");
+        RuleFor(x => x)
+            .Must(x => WindowsTaskbarRequestValidation.PayloadWithinLimit(
+                x.Settings,
+                ParseAgentAction(x.Execution.AgentAction)))
+            .WithMessage($"Serialized agent payload exceeds {WindowsTaskbarRequestValidation.MaxFunctionParameterLength} characters.");
+    }
+
+    private static int ParseAgentAction(string? agentAction) =>
+        int.TryParse(agentAction?.Trim(), out var value) ? value : 0;
+}
+
+public sealed class WindowsTaskbarQueueRequestValidator : AbstractValidator<WindowsTaskbarQueueRequest>
+{
+    public WindowsTaskbarQueueRequestValidator()
+    {
+        RuleFor(x => x.Target).SetValidator(new WindowsTaskbarTargetRequestValidator());
+        RuleFor(x => x.Settings).SetValidator(new WindowsTaskbarSettingsRequestValidator());
+        RuleFor(x => x.Execution)
+            .Must(e => string.Equals(e.ScheduleType?.Trim(), "Queue", StringComparison.OrdinalIgnoreCase))
+            .WithMessage("scheduleType must be Queue for this endpoint.");
+        RuleFor(x => x)
+            .Must(x => WindowsTaskbarRequestValidation.PayloadWithinLimit(
+                x.Settings,
+                ParseAgentAction(x.Execution.AgentAction)))
+            .WithMessage($"Serialized agent payload exceeds {WindowsTaskbarRequestValidation.MaxFunctionParameterLength} characters.");
+    }
+
+    private static int ParseAgentAction(string? agentAction) =>
+        int.TryParse(agentAction?.Trim(), out var value) ? value : 0;
+}
+
+public sealed class WindowsTaskbarTargetRequestValidator : AbstractValidator<WindowsTaskbarTargetRequest>
+{
+    public WindowsTaskbarTargetRequestValidator()
+    {
+        RuleFor(x => x.MacAddress)
+            .NotEmpty()
+            .MaximumLength(300)
+            .Must(HaveXpOsSuffix)
+            .WithMessage("macAddress must include :XP suffix.");
+
+        RuleFor(x => x.OsType)
+            .NotEmpty()
+            .Must(os => string.Equals(os.Trim(), "XP", StringComparison.OrdinalIgnoreCase))
+            .WithMessage("osType must be XP.");
+
+        RuleFor(x => x)
+            .Must(x =>
+            {
+                var suffix = SystemSettingExecuteNowRequestValidator.ExtractOsSuffix(x.MacAddress);
+                return suffix == "XP";
+            })
+            .WithMessage("target.osType must match macAddress suffix.");
+    }
+
+    private static bool HaveXpOsSuffix(string macAddress)
+    {
+        var suffix = SystemSettingExecuteNowRequestValidator.ExtractOsSuffix(macAddress);
+        return suffix == "XP";
+    }
+}
+
+public sealed class WindowsTaskbarSettingsRequestValidator : AbstractValidator<WindowsTaskbarSettingsRequest>
+{
+    public WindowsTaskbarSettingsRequestValidator()
+    {
+        // All fields are booleans; no additional scalar constraints for PR2.
+    }
+}
+
+public sealed class WindowsTaskbarHistoryQueryValidator : AbstractValidator<WindowsTaskbarHistoryQuery>
+{
+    public WindowsTaskbarHistoryQueryValidator()
+    {
+        RuleFor(x => x.Page).GreaterThanOrEqualTo(1);
+        RuleFor(x => x.PageSize).InclusiveBetween(1, 100);
+
+        RuleFor(x => x.Status)
+            .Must(s => string.IsNullOrWhiteSpace(s) || s is "Pending" or "Delivered" or "Applied" or "Failed")
+            .WithMessage("status must be one of Pending, Delivered, Applied, Failed.");
+
+        RuleFor(x => x)
+            .Must(x => !x.FromUtc.HasValue || !x.ToUtc.HasValue || x.FromUtc <= x.ToUtc)
+            .WithMessage("fromUtc must be less than or equal to toUtc.");
+    }
+}
+
 public sealed class MouseExecuteNowRequestValidator : AbstractValidator<MouseExecuteNowRequest>
 {
     public MouseExecuteNowRequestValidator()

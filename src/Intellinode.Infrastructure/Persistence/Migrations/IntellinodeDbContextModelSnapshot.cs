@@ -33,9 +33,9 @@ namespace Intellinode.Infrastructure.Persistence.Migrations
             NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "intellinode", "enrollment_state", new[] { "Active", "Disabled", "PendingApproval", "PendingInventory", "Rejected", "Unlicensed" });
             NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "intellinode", "heartbeat_binding_kind", new[] { "HostName", "IpAddress" });
             NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "intellinode", "settings_apply_status", new[] { "Applied", "Delivered", "Failed", "Pending" });
-            NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "intellinode", "settings_kind", new[] { "Advanced", "Display", "General", "Keyboard", "Mouse", "Windows8021x", "WindowsComputerName", "WindowsDateTimeSetup", "WindowsEthernetSetup", "WindowsPowerManagement", "WindowsRegionLocation", "WindowsRegionalFormat", "WindowsWirelessProperties", "WindowsWirelessSetup" });
+            NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "intellinode", "settings_kind", new[] { "Advanced", "Display", "General", "Keyboard", "Mouse", "Windows8021x", "WindowsComputerName", "WindowsDateTimeSetup", "WindowsEthernetSetup", "WindowsPowerManagement", "WindowsRegionLocation", "WindowsRegionalFormat", "WindowsScreenSaver", "WindowsTaskbar", "WindowsWirelessProperties", "WindowsWirelessSetup" });
             NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "settings_apply_status", "intellinode", new[] { "Pending", "Delivered", "Applied", "Failed" });
-            NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "settings_kind", "intellinode", new[] { "General", "Advanced", "Keyboard", "Mouse", "Display", "Windows8021x", "WindowsComputerName", "WindowsEthernetSetup", "WindowsWirelessSetup", "WindowsWirelessProperties", "WindowsDateTimeSetup", "WindowsRegionLocation", "WindowsRegionalFormat", "WindowsPowerManagement" });
+            NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "settings_kind", "intellinode", new[] { "General", "Advanced", "Keyboard", "Mouse", "Display", "Windows8021x", "WindowsComputerName", "WindowsEthernetSetup", "WindowsWirelessSetup", "WindowsWirelessProperties", "WindowsDateTimeSetup", "WindowsRegionLocation", "WindowsRegionalFormat", "WindowsPowerManagement", "WindowsScreenSaver", "WindowsTaskbar" });
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
             modelBuilder.Entity("Intellinode.Domain.Entities.AdminUser", b =>
@@ -1816,6 +1816,95 @@ namespace Intellinode.Infrastructure.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("Intellinode.Domain.Entities.DeviceWindowsTaskbarSettings", b =>
+                {
+                    b.Property<Guid>("DeviceId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("device_id");
+
+                    b.Property<int>("AgentAction")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0)
+                        .HasColumnName("agent_action");
+
+                    b.Property<bool>("AutoHideTaskbar")
+                        .HasColumnType("boolean")
+                        .HasColumnName("auto_hide_taskbar");
+
+                    b.Property<DateTime>("CreatedUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_utc");
+
+                    b.Property<bool>("GroupSimilarButtons")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(true)
+                        .HasColumnName("group_similar_buttons");
+
+                    b.Property<bool>("KeepTaskbarOnTop")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(true)
+                        .HasColumnName("keep_taskbar_on_top");
+
+                    b.Property<DateTime?>("LastAppliedUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("last_applied_utc");
+
+                    b.Property<long?>("LastAppliedVersion")
+                        .HasColumnType("bigint")
+                        .HasColumnName("last_applied_version");
+
+                    b.Property<string>("LastApplyMessage")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("last_apply_message");
+
+                    b.Property<string>("LastApplyStatus")
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("last_apply_status");
+
+                    b.Property<bool>("LockTaskbar")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(true)
+                        .HasColumnName("lock_taskbar");
+
+                    b.Property<bool>("PendingApply")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("pending_apply");
+
+                    b.Property<long>("SettingsVersion")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasDefaultValue(1L)
+                        .HasColumnName("settings_version");
+
+                    b.Property<bool>("ShowQuickLaunch")
+                        .HasColumnType("boolean")
+                        .HasColumnName("show_quick_launch");
+
+                    b.Property<Guid?>("UpdatedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("updated_by");
+
+                    b.Property<DateTime>("UpdatedUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_utc");
+
+                    b.HasKey("DeviceId")
+                        .HasName("pk_device_windows_taskbar_settings");
+
+                    b.ToTable("device_windows_taskbar_settings", "intellinode", t =>
+                        {
+                            t.HasCheckConstraint("ck_device_windows_taskbar_settings_settings_version", "settings_version >= 0");
+                        });
+                });
+
             modelBuilder.Entity("Intellinode.Domain.Entities.DeviceWindowsRegionLocationSettings", b =>
                 {
                     b.Property<Guid>("DeviceId")
@@ -3279,6 +3368,18 @@ namespace Intellinode.Infrastructure.Persistence.Migrations
                     b.Navigation("Device");
                 });
 
+            modelBuilder.Entity("Intellinode.Domain.Entities.DeviceWindowsTaskbarSettings", b =>
+                {
+                    b.HasOne("Intellinode.Domain.Entities.Device", "Device")
+                        .WithOne("WindowsTaskbarSettings")
+                        .HasForeignKey("Intellinode.Domain.Entities.DeviceWindowsTaskbarSettings", "DeviceId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_device_windows_taskbar_settings_devices_device_id");
+
+                    b.Navigation("Device");
+                });
+
             modelBuilder.Entity("Intellinode.Domain.Entities.DeviceWindowsRegionLocationSettings", b =>
                 {
                     b.HasOne("Intellinode.Domain.Entities.Device", "Device")
@@ -3469,6 +3570,8 @@ namespace Intellinode.Infrastructure.Persistence.Migrations
                     b.Navigation("WindowsScreenSaverSettings");
 
                     b.Navigation("WindowsScreenSaverSnapshots");
+
+                    b.Navigation("WindowsTaskbarSettings");
 
                     b.Navigation("WindowsRegionLocationSettings");
 

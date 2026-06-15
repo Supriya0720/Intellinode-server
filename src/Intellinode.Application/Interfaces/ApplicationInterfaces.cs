@@ -630,6 +630,69 @@ public interface IWindowsScreenSaverSettingsService
         CancellationToken cancellationToken = default);
 }
 
+public interface IWindowsTaskbarPayloadBuilder
+{
+    string BuildAgentPayload(WindowsTaskbarPayloadRequest request);
+    WindowsTaskbarPayloadRequest MapToPayloadRequest(
+        DeviceWindowsTaskbarSettings settings,
+        long taskId,
+        int agentAction);
+    string BuildExtraData(string macAddress, string? signalSuffix = null);
+}
+
+public interface IWindowsTaskbarSettingsService
+{
+    Task<WindowsTaskbarExecuteNowResult> ExecuteNowAsync(
+        WindowsTaskbarExecuteNowRequest request,
+        Guid? adminId = null,
+        CancellationToken cancellationToken = default);
+
+    Task<WindowsTaskbarQueueResult> QueueAsync(
+        WindowsTaskbarQueueRequest request,
+        Guid? adminId = null,
+        CancellationToken cancellationToken = default);
+
+    Task<WindowsTaskbarCurrentResult> GetCurrentAsync(
+        string macAddress,
+        CancellationToken cancellationToken = default);
+
+    Task<WindowsTaskbarHistoryResult> GetApplyHistoryAsync(
+        string macAddress,
+        WindowsTaskbarHistoryQuery query,
+        CancellationToken cancellationToken = default);
+
+    Task<WindowsTaskbarQueueResult> TemplateQueueAsync(
+        WindowsTaskbarTemplateQueueRequest request,
+        Guid? adminId = null,
+        CancellationToken cancellationToken = default);
+
+    Task<WindowsTaskbarBulkResult> ExecuteNowBulkAsync(
+        WindowsTaskbarExecuteNowBulkRequest request,
+        Guid? adminId = null,
+        CancellationToken cancellationToken = default);
+
+    Task<WindowsTaskbarBulkResult> ExecuteNowGroupAsync(
+        Guid groupId,
+        WindowsTaskbarExecuteNowGroupRequest request,
+        Guid? adminId = null,
+        CancellationToken cancellationToken = default);
+
+    Task<WindowsTaskbarLiveResult> GetLiveAsync(
+        string macAddress,
+        CancellationToken cancellationToken = default);
+
+    Task<WindowsTaskbarRefreshLiveResult> RefreshLiveAsync(
+        string macAddress,
+        WindowsTaskbarRefreshLiveOptionsRequest? options = null,
+        Guid? adminId = null,
+        CancellationToken cancellationToken = default);
+
+    Task<AgentTaskbarLiveReportResult> ReportAgentLiveAsync(
+        Guid deviceId,
+        AgentTaskbarLiveReportRequest request,
+        CancellationToken cancellationToken = default);
+}
+
 public interface IWindowsPowerManagementTaskPayloadHydrator
 {
     bool CanHydrate(string moduleName);

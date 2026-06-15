@@ -33,6 +33,7 @@ public static class DependencyInjection
         services.Configure<PowerManagementReferenceOptions>(configuration.GetSection(PowerManagementReferenceOptions.SectionName));
         services.Configure<WindowsPowerManagementOptions>(configuration.GetSection(WindowsPowerManagementOptions.SectionName));
         services.Configure<WindowsScreenSaverOptions>(configuration.GetSection(WindowsScreenSaverOptions.SectionName));
+        services.Configure<WindowsTaskbarOptions>(configuration.GetSection(WindowsTaskbarOptions.SectionName));
 
         var connectionString = configuration.GetConnectionString("DefaultConnection")
             ?? throw new InvalidOperationException("Connection string 'DefaultConnection' is not configured.");
@@ -77,6 +78,7 @@ public static class DependencyInjection
         services.AddScoped<WindowsWirelessPropertiesTaskAckHandler>();
         services.AddScoped<WindowsPowerManagementTaskAckHandler>();
         services.AddScoped<WindowsScreenSaverTaskAckHandler>();
+        services.AddScoped<WindowsTaskbarTaskAckHandler>();
         services.AddScoped<AgentTaskService>();
         services.AddScoped<IAgentTaskService, ScreenSaverHydratingAgentTaskService>();
         services.AddScoped<IDeviceRemoteSettingsService, DeviceRemoteSettingsService>();
@@ -112,6 +114,8 @@ public static class DependencyInjection
         services.AddScoped<IWindowsScreenSaverPayloadBuilder, WindowsScreenSaverPayloadBuilder>();
         services.AddScoped<IWindowsScreenSaverTaskPayloadHydrator, WindowsScreenSaverTaskPayloadHydrator>();
         services.AddScoped<IWindowsScreenSaverSettingsService, WindowsScreenSaverSettingsService>();
+        services.AddScoped<IWindowsTaskbarPayloadBuilder, WindowsTaskbarPayloadBuilder>();
+        services.AddScoped<IWindowsTaskbarSettingsService, WindowsTaskbarSettingsService>();
         services.AddScoped<EffectiveAgentSettingsResolver>();
         services.AddScoped<IEffectiveAgentSettingsResolver>(sp => sp.GetRequiredService<EffectiveAgentSettingsResolver>());
         services.AddSingleton<ITokenService, TokenService>();

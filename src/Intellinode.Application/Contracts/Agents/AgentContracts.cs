@@ -16,6 +16,7 @@ public static class AgentApiPaths
     public const string TasksAck = "/api/v1/agents/tasks/ack";
     public const string Config = "/api/v1/agents/config";
     public const string ConfigAck = "/api/v1/agents/config/ack";
+    public const string WindowsTaskbarLive = "/api/v1/agents/windows/taskbar/live";
 }
 
 public sealed class AgentBootstrapResponse
@@ -40,6 +41,7 @@ public sealed class AgentEndpointPaths
     public string TasksAck { get; set; } = AgentApiPaths.TasksAck;
     public string Config { get; set; } = AgentApiPaths.Config;
     public string ConfigAck { get; set; } = AgentApiPaths.ConfigAck;
+    public string WindowsTaskbarLive { get; set; } = AgentApiPaths.WindowsTaskbarLive;
 }
 
 public sealed class WindowsAgentEnrollRequest

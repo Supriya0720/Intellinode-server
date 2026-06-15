@@ -29,6 +29,7 @@ public sealed class AgentTaskService : IAgentTaskService
     private readonly WindowsWirelessPropertiesTaskAckHandler _windowsWirelessPropertiesTaskAckHandler;
     private readonly WindowsPowerManagementTaskAckHandler _windowsPowerManagementTaskAckHandler;
     private readonly WindowsScreenSaverTaskAckHandler _windowsScreenSaverTaskAckHandler;
+    private readonly WindowsTaskbarTaskAckHandler _windowsTaskbarTaskAckHandler;
     private readonly IWindows8021xTaskPayloadHydrator _windows8021xHydrator;
     private readonly IWindowsWirelessPropertiesTaskPayloadHydrator _windowsWirelessPropertiesHydrator;
     private readonly IWindowsPowerManagementTaskPayloadHydrator _windowsPowerManagementHydrator;
@@ -49,6 +50,7 @@ public sealed class AgentTaskService : IAgentTaskService
         WindowsWirelessPropertiesTaskAckHandler windowsWirelessPropertiesTaskAckHandler,
         WindowsPowerManagementTaskAckHandler windowsPowerManagementTaskAckHandler,
         WindowsScreenSaverTaskAckHandler windowsScreenSaverTaskAckHandler,
+        WindowsTaskbarTaskAckHandler windowsTaskbarTaskAckHandler,
         IWindows8021xTaskPayloadHydrator windows8021xHydrator,
         IWindowsWirelessPropertiesTaskPayloadHydrator windowsWirelessPropertiesHydrator,
         IWindowsPowerManagementTaskPayloadHydrator windowsPowerManagementHydrator,
@@ -68,6 +70,7 @@ public sealed class AgentTaskService : IAgentTaskService
         _windowsWirelessPropertiesTaskAckHandler = windowsWirelessPropertiesTaskAckHandler;
         _windowsPowerManagementTaskAckHandler = windowsPowerManagementTaskAckHandler;
         _windowsScreenSaverTaskAckHandler = windowsScreenSaverTaskAckHandler;
+        _windowsTaskbarTaskAckHandler = windowsTaskbarTaskAckHandler;
         _windows8021xHydrator = windows8021xHydrator;
         _windowsWirelessPropertiesHydrator = windowsWirelessPropertiesHydrator;
         _windowsPowerManagementHydrator = windowsPowerManagementHydrator;
@@ -183,6 +186,7 @@ public sealed class AgentTaskService : IAgentTaskService
             .Include(d => d.WindowsWirelessProfiles)
             .Include(d => d.WindowsPowerManagementSettings)
             .Include(d => d.WindowsScreenSaverSettings)
+            .Include(d => d.WindowsTaskbarSettings)
             .FirstOrDefaultAsync(d => d.Id == deviceId, cancellationToken);
 
         if (device is null)
@@ -325,6 +329,16 @@ public sealed class AgentTaskService : IAgentTaskService
             if (WindowsScreenSaverTaskAckHandler.IsScreenSaverTask(task))
             {
                 await _windowsScreenSaverTaskAckHandler.ApplyAckAsync(
+                    device,
+                    task,
+                    status,
+                    ack.Reason,
+                    cancellationToken);
+            }
+
+            if (WindowsTaskbarTaskAckHandler.IsTaskbarTask(task))
+            {
+                await _windowsTaskbarTaskAckHandler.ApplyAckAsync(
                     device,
                     task,
                     status,

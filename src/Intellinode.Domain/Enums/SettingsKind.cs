@@ -29,5 +29,7 @@ public enum SettingsKind
     /// <summary>FusionX module "Power Management Settings" (System Settings → Power Management).</summary>
     WindowsPowerManagement,
     /// <summary>FusionX User Settings → Screen Saver (ModuleType "ScreenSaver").</summary>
-    WindowsScreenSaver
+    WindowsScreenSaver,
+    /// <summary>FusionX User Settings → Taskbar Properties (ModuleType "Taskbar").</summary>
+    WindowsTaskbar
 }
