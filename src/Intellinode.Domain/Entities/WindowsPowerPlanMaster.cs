@@ -2,7 +2,7 @@ namespace Intellinode.Domain.Entities;
 
 public sealed class WindowsPowerPlanMaster
 {
-    public int Id { get; set; }
+    public Guid Id { get; set; }
     public string PlanName { get; set; } = string.Empty;
     public bool IsDefault { get; set; }
     public int SortOrder { get; set; }

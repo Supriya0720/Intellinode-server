@@ -4,7 +4,7 @@ namespace Intellinode.Application.Contracts.Admin;
 
 public sealed class WindowsPowerPlanMasterDto
 {
-    public int Id { get; init; }
+    public Guid Id { get; init; }
     public string PlanName { get; init; } = string.Empty;
     public bool IsDefault { get; init; }
 }
