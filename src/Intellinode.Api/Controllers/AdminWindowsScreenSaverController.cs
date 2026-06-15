@@ -20,7 +20,10 @@ public sealed class AdminWindowsScreenSaverController : ControllerBase
     private readonly IExceptionLogWriter _exceptionLogWriter;
     private readonly ILogger<AdminWindowsScreenSaverController> _logger;
     private readonly IValidator<WindowsScreenSaverExecuteNowRequest> _executeNowValidator;
+    private readonly IValidator<WindowsScreenSaverExecuteNowBulkRequest> _executeNowBulkValidator;
+    private readonly IValidator<WindowsScreenSaverExecuteNowGroupRequest> _executeNowGroupValidator;
     private readonly IValidator<WindowsScreenSaverQueueRequest> _queueValidator;
+    private readonly IValidator<WindowsScreenSaverTemplateQueueRequest> _templateQueueValidator;
     private readonly IValidator<WindowsScreenSaverHistoryQuery> _historyQueryValidator;
     private readonly WindowsScreenSaverOptions _options;
 
@@ -29,7 +32,10 @@ public sealed class AdminWindowsScreenSaverController : ControllerBase
         IExceptionLogWriter exceptionLogWriter,
         ILogger<AdminWindowsScreenSaverController> logger,
         IValidator<WindowsScreenSaverExecuteNowRequest> executeNowValidator,
+        IValidator<WindowsScreenSaverExecuteNowBulkRequest> executeNowBulkValidator,
+        IValidator<WindowsScreenSaverExecuteNowGroupRequest> executeNowGroupValidator,
         IValidator<WindowsScreenSaverQueueRequest> queueValidator,
+        IValidator<WindowsScreenSaverTemplateQueueRequest> templateQueueValidator,
         IValidator<WindowsScreenSaverHistoryQuery> historyQueryValidator,
         IOptions<WindowsScreenSaverOptions> options)
     {
@@ -37,7 +43,10 @@ public sealed class AdminWindowsScreenSaverController : ControllerBase
         _exceptionLogWriter = exceptionLogWriter;
         _logger = logger;
         _executeNowValidator = executeNowValidator;
+        _executeNowBulkValidator = executeNowBulkValidator;
+        _executeNowGroupValidator = executeNowGroupValidator;
         _queueValidator = queueValidator;
+        _templateQueueValidator = templateQueueValidator;
         _historyQueryValidator = historyQueryValidator;
         _options = options.Value;
     }
@@ -274,8 +283,7 @@ public sealed class AdminWindowsScreenSaverController : ControllerBase
                 return NotFound(BuildError("FeatureDisabled", "Screen saver endpoint is disabled.", request.Options.CorrelationId));
             }
 
-            var validator = HttpContext.RequestServices.GetRequiredService<IValidator<WindowsScreenSaverTemplateQueueRequest>>();
-            var validation = await validator.ValidateAsync(request, cancellationToken);
+            var validation = await _templateQueueValidator.ValidateAsync(request, cancellationToken);
             if (!validation.IsValid)
             {
                 return BadRequest(BuildError(
@@ -313,8 +321,7 @@ public sealed class AdminWindowsScreenSaverController : ControllerBase
                 return NotFound(BuildError("FeatureDisabled", "Screen saver endpoint is disabled.", request.Options.CorrelationId));
             }
 
-            var validator = HttpContext.RequestServices.GetRequiredService<IValidator<WindowsScreenSaverExecuteNowBulkRequest>>();
-            var validation = await validator.ValidateAsync(request, cancellationToken);
+            var validation = await _executeNowBulkValidator.ValidateAsync(request, cancellationToken);
             if (!validation.IsValid)
             {
                 return BadRequest(BuildError(
@@ -357,8 +364,7 @@ public sealed class AdminWindowsScreenSaverController : ControllerBase
             }
 
             request.GroupId = groupId;
-            var validator = HttpContext.RequestServices.GetRequiredService<IValidator<WindowsScreenSaverExecuteNowGroupRequest>>();
-            var validation = await validator.ValidateAsync(request, cancellationToken);
+            var validation = await _executeNowGroupValidator.ValidateAsync(request, cancellationToken);
             if (!validation.IsValid)
             {
                 return BadRequest(BuildError(
