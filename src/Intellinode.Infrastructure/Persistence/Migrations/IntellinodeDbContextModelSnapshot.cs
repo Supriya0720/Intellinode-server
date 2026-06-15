@@ -33,9 +33,9 @@ namespace Intellinode.Infrastructure.Persistence.Migrations
             NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "intellinode", "enrollment_state", new[] { "Active", "Disabled", "PendingApproval", "PendingInventory", "Rejected", "Unlicensed" });
             NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "intellinode", "heartbeat_binding_kind", new[] { "HostName", "IpAddress" });
             NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "intellinode", "settings_apply_status", new[] { "Applied", "Delivered", "Failed", "Pending" });
-            NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "intellinode", "settings_kind", new[] { "Advanced", "Display", "General", "Keyboard", "Mouse", "Windows8021x", "WindowsComputerName", "WindowsDateTimeSetup", "WindowsEthernetSetup", "WindowsPowerManagement", "WindowsRegionLocation", "WindowsRegionalFormat", "WindowsScreenSaver", "WindowsTaskbar", "WindowsWirelessProperties", "WindowsWirelessSetup" });
+            NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "intellinode", "settings_kind", new[] { "Advanced", "Display", "General", "Keyboard", "Mouse", "Windows8021x", "WindowsComputerName", "WindowsDateTimeSetup", "WindowsEthernetSetup", "WindowsPowerManagement", "WindowsRegionLocation", "WindowsRegionalFormat", "WindowsScreenSaver", "WindowsTaskbar", "WindowsUserInterface", "WindowsWirelessProperties", "WindowsWirelessSetup" });
             NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "settings_apply_status", "intellinode", new[] { "Pending", "Delivered", "Applied", "Failed" });
-            NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "settings_kind", "intellinode", new[] { "General", "Advanced", "Keyboard", "Mouse", "Display", "Windows8021x", "WindowsComputerName", "WindowsEthernetSetup", "WindowsWirelessSetup", "WindowsWirelessProperties", "WindowsDateTimeSetup", "WindowsRegionLocation", "WindowsRegionalFormat", "WindowsPowerManagement", "WindowsScreenSaver", "WindowsTaskbar" });
+            NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "settings_kind", "intellinode", new[] { "General", "Advanced", "Keyboard", "Mouse", "Display", "Windows8021x", "WindowsComputerName", "WindowsEthernetSetup", "WindowsWirelessSetup", "WindowsWirelessProperties", "WindowsDateTimeSetup", "WindowsRegionLocation", "WindowsRegionalFormat", "WindowsPowerManagement", "WindowsScreenSaver", "WindowsTaskbar", "WindowsUserInterface" });
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
             modelBuilder.Entity("Intellinode.Domain.Entities.AdminUser", b =>
@@ -1905,6 +1905,125 @@ namespace Intellinode.Infrastructure.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("Intellinode.Domain.Entities.DeviceWindowsUserInterfaceSettings", b =>
+                {
+                    b.Property<Guid>("DeviceId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("device_id");
+
+                    b.Property<int>("AgentAction")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0)
+                        .HasColumnName("agent_action");
+
+                    b.Property<bool>("AutoLogon")
+                        .HasColumnType("boolean")
+                        .HasColumnName("auto_logon");
+
+                    b.Property<DateTime>("CreatedUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_utc");
+
+                    b.Property<DateTime?>("LastAppliedUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("last_applied_utc");
+
+                    b.Property<long?>("LastAppliedVersion")
+                        .HasColumnType("bigint")
+                        .HasColumnName("last_applied_version");
+
+                    b.Property<string>("LastApplyMessage")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("last_apply_message");
+
+                    b.Property<string>("LastApplyStatus")
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasColumnName("last_apply_status");
+
+                    b.Property<string>("PasswordCipher")
+                        .HasMaxLength(1024)
+                        .HasColumnType("character varying(1024)")
+                        .HasColumnName("password_cipher");
+
+                    b.Property<bool>("PendingApply")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("pending_apply");
+
+                    b.Property<long>("SettingsVersion")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasDefaultValue(1L)
+                        .HasColumnName("settings_version");
+
+                    b.Property<Guid?>("UpdatedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("updated_by");
+
+                    b.Property<DateTime>("UpdatedUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_utc");
+
+                    b.Property<string>("UserName")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("user_name");
+
+                    b.HasKey("DeviceId")
+                        .HasName("pk_device_windows_user_interface_settings");
+
+                    b.ToTable("device_windows_user_interface_settings", "intellinode", t =>
+                        {
+                            t.HasCheckConstraint("ck_device_windows_user_interface_settings_settings_version", "settings_version >= 0");
+                        });
+                });
+
+            modelBuilder.Entity("Intellinode.Domain.Entities.DeviceWindowsUserInterfaceSettingsSnapshot", b =>
+                {
+                    b.Property<Guid>("DeviceId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("device_id");
+
+                    b.Property<long>("SettingsVersion")
+                        .HasColumnType("bigint")
+                        .HasColumnName("settings_version");
+
+                    b.Property<int>("AgentAction")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0)
+                        .HasColumnName("agent_action");
+
+                    b.Property<bool>("AutoLogon")
+                        .HasColumnType("boolean")
+                        .HasColumnName("auto_logon");
+
+                    b.Property<DateTime>("CreatedUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_utc");
+
+                    b.Property<string>("PasswordCipher")
+                        .HasMaxLength(1024)
+                        .HasColumnType("character varying(1024)")
+                        .HasColumnName("password_cipher");
+
+                    b.Property<string>("UserName")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)")
+                        .HasColumnName("user_name");
+
+                    b.HasKey("DeviceId", "SettingsVersion")
+                        .HasName("pk_device_windows_user_interface_settings_snapshots");
+
+                    b.ToTable("device_windows_user_interface_settings_snapshots", "intellinode");
+                });
+
             modelBuilder.Entity("Intellinode.Domain.Entities.DeviceWindowsRegionLocationSettings", b =>
                 {
                     b.Property<Guid>("DeviceId")
@@ -3380,6 +3499,30 @@ namespace Intellinode.Infrastructure.Persistence.Migrations
                     b.Navigation("Device");
                 });
 
+            modelBuilder.Entity("Intellinode.Domain.Entities.DeviceWindowsUserInterfaceSettings", b =>
+                {
+                    b.HasOne("Intellinode.Domain.Entities.Device", "Device")
+                        .WithOne("WindowsUserInterfaceSettings")
+                        .HasForeignKey("Intellinode.Domain.Entities.DeviceWindowsUserInterfaceSettings", "DeviceId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_device_windows_user_interface_settings_devices_device_id");
+
+                    b.Navigation("Device");
+                });
+
+            modelBuilder.Entity("Intellinode.Domain.Entities.DeviceWindowsUserInterfaceSettingsSnapshot", b =>
+                {
+                    b.HasOne("Intellinode.Domain.Entities.Device", "Device")
+                        .WithMany("WindowsUserInterfaceSnapshots")
+                        .HasForeignKey("DeviceId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_device_windows_user_interface_settings_snapshots_devices_de");
+
+                    b.Navigation("Device");
+                });
+
             modelBuilder.Entity("Intellinode.Domain.Entities.DeviceWindowsRegionLocationSettings", b =>
                 {
                     b.HasOne("Intellinode.Domain.Entities.Device", "Device")
@@ -3572,6 +3715,10 @@ namespace Intellinode.Infrastructure.Persistence.Migrations
                     b.Navigation("WindowsScreenSaverSnapshots");
 
                     b.Navigation("WindowsTaskbarSettings");
+
+                    b.Navigation("WindowsUserInterfaceSettings");
+
+                    b.Navigation("WindowsUserInterfaceSnapshots");
 
                     b.Navigation("WindowsRegionLocationSettings");
 

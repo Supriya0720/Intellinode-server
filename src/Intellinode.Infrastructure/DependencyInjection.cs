@@ -3,6 +3,7 @@ using Intellinode.Infrastructure.Options;
 using Intellinode.Infrastructure.Persistence;
 using Intellinode.Infrastructure.Services;
 using Intellinode.Infrastructure.Services.DeviceManager;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -14,6 +15,9 @@ public static class DependencyInjection
 {
     public static IServiceCollection AddInfrastructure(this IServiceCollection services, IConfiguration configuration)
     {
+        services.AddDataProtection()
+            .SetApplicationName("Intellinode");
+
         services.Configure<JwtOptions>(configuration.GetSection(JwtOptions.SectionName));
         services.Configure<AgentServerOptions>(configuration.GetSection(AgentServerOptions.SectionName));
         services.Configure<AgentDiscoveryOptions>(configuration.GetSection(AgentDiscoveryOptions.SectionName));
@@ -34,6 +38,7 @@ public static class DependencyInjection
         services.Configure<WindowsPowerManagementOptions>(configuration.GetSection(WindowsPowerManagementOptions.SectionName));
         services.Configure<WindowsScreenSaverOptions>(configuration.GetSection(WindowsScreenSaverOptions.SectionName));
         services.Configure<WindowsTaskbarOptions>(configuration.GetSection(WindowsTaskbarOptions.SectionName));
+        services.Configure<WindowsUserInterfaceOptions>(configuration.GetSection(WindowsUserInterfaceOptions.SectionName));
 
         var connectionString = configuration.GetConnectionString("DefaultConnection")
             ?? throw new InvalidOperationException("Connection string 'DefaultConnection' is not configured.");
@@ -79,8 +84,11 @@ public static class DependencyInjection
         services.AddScoped<WindowsPowerManagementTaskAckHandler>();
         services.AddScoped<WindowsScreenSaverTaskAckHandler>();
         services.AddScoped<WindowsTaskbarTaskAckHandler>();
+        services.AddScoped<WindowsUserInterfaceTaskAckHandler>();
         services.AddScoped<AgentTaskService>();
-        services.AddScoped<IAgentTaskService, ScreenSaverHydratingAgentTaskService>();
+        services.AddScoped<ScreenSaverHydratingAgentTaskService>();
+        services.AddScoped<UserInterfaceHydratingAgentTaskService>();
+        services.AddScoped<IAgentTaskService, UserInterfaceHydratingAgentTaskService>();
         services.AddScoped<IDeviceRemoteSettingsService, DeviceRemoteSettingsService>();
         services.AddScoped<IDeviceAgentAdvancedSettingsService, DeviceAgentAdvancedSettingsService>();
         services.AddScoped<IGroupRemoteSettingsService, GroupRemoteSettingsService>();
@@ -116,6 +124,10 @@ public static class DependencyInjection
         services.AddScoped<IWindowsScreenSaverSettingsService, WindowsScreenSaverSettingsService>();
         services.AddScoped<IWindowsTaskbarPayloadBuilder, WindowsTaskbarPayloadBuilder>();
         services.AddScoped<IWindowsTaskbarSettingsService, WindowsTaskbarSettingsService>();
+        services.AddScoped<IWindowsUserInterfacePasswordProtector, WindowsUserInterfacePasswordProtector>();
+        services.AddScoped<IWindowsUserInterfacePayloadBuilder, WindowsUserInterfacePayloadBuilder>();
+        services.AddScoped<IWindowsUserInterfaceTaskPayloadHydrator, WindowsUserInterfaceTaskPayloadHydrator>();
+        services.AddScoped<IWindowsUserInterfaceSettingsService, WindowsUserInterfaceSettingsService>();
         services.AddScoped<EffectiveAgentSettingsResolver>();
         services.AddScoped<IEffectiveAgentSettingsResolver>(sp => sp.GetRequiredService<EffectiveAgentSettingsResolver>());
         services.AddSingleton<ITokenService, TokenService>();

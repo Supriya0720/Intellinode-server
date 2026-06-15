@@ -1,5 +1,4 @@
 using Intellinode.Application.Contracts.Admin;
-using Intellinode.Application.Contracts.Agents;
 using Intellinode.Application.Interfaces;
 using Intellinode.Application.Validation;
 using Intellinode.Domain;
@@ -12,27 +11,30 @@ using Microsoft.Extensions.Options;
 
 namespace Intellinode.Infrastructure.Services;
 
-public sealed class WindowsTaskbarSettingsService : IWindowsTaskbarSettingsService
+public sealed class WindowsUserInterfaceSettingsService : IWindowsUserInterfaceSettingsService
 {
     private readonly IntellinodeDbContext _dbContext;
     private readonly EffectiveAgentSettingsResolver _resolver;
-    private readonly IWindowsTaskbarPayloadBuilder _payloadBuilder;
-    private readonly WindowsTaskbarOptions _options;
+    private readonly IWindowsUserInterfacePayloadBuilder _payloadBuilder;
+    private readonly IWindowsUserInterfacePasswordProtector _passwordProtector;
+    private readonly WindowsUserInterfaceOptions _options;
 
-    public WindowsTaskbarSettingsService(
+    public WindowsUserInterfaceSettingsService(
         IntellinodeDbContext dbContext,
         EffectiveAgentSettingsResolver resolver,
-        IWindowsTaskbarPayloadBuilder payloadBuilder,
-        IOptions<WindowsTaskbarOptions> options)
+        IWindowsUserInterfacePayloadBuilder payloadBuilder,
+        IWindowsUserInterfacePasswordProtector passwordProtector,
+        IOptions<WindowsUserInterfaceOptions> options)
     {
         _dbContext = dbContext;
         _resolver = resolver;
         _payloadBuilder = payloadBuilder;
+        _passwordProtector = passwordProtector;
         _options = options.Value;
     }
 
-    public async Task<WindowsTaskbarExecuteNowResult> ExecuteNowAsync(
-        WindowsTaskbarExecuteNowRequest request,
+    public async Task<WindowsUserInterfaceExecuteNowResult> ExecuteNowAsync(
+        WindowsUserInterfaceExecuteNowRequest request,
         Guid? adminId = null,
         CancellationToken cancellationToken = default)
     {
@@ -41,35 +43,35 @@ public sealed class WindowsTaskbarSettingsService : IWindowsTaskbarSettingsServi
             var scheduleType = NormalizeScheduleType(request.Execution.ScheduleType);
             if (!string.Equals(scheduleType, "InstantApply", StringComparison.OrdinalIgnoreCase))
             {
-                return WindowsTaskbarExecuteNowResult.Failure(
+                return WindowsUserInterfaceExecuteNowResult.Failure(
                     "ValidationFailed",
                     "Only InstantApply is supported on execute-now.");
             }
 
-            var queueResult = await QueueTaskbarWorkAsync(
+            var queueResult = await QueueUserInterfaceWorkAsync(
                 request.Target,
                 request.Settings,
                 request.Execution,
                 request.Options,
                 adminId,
-                WindowsTaskbarModuleConstants.InstantFunctionName,
+                WindowsUserInterfaceModuleConstants.InstantFunctionName,
                 "instant",
-                "Taskbar instant apply queued.",
+                "Autologon instant apply queued.",
                 cancellationToken);
 
             return queueResult.ExecuteNowResult
-                ?? WindowsTaskbarExecuteNowResult.Failure(
+                ?? WindowsUserInterfaceExecuteNowResult.Failure(
                     queueResult.ErrorCode ?? "LegacyBehaviorExecutionFailed",
                     queueResult.Message ?? "Execute-now failed.");
         }
         catch (Exception ex)
         {
-            return WindowsTaskbarExecuteNowResult.Failure("LegacyBehaviorExecutionFailed", ex.Message);
+            return WindowsUserInterfaceExecuteNowResult.Failure("LegacyBehaviorExecutionFailed", ex.Message);
         }
     }
 
-    public async Task<WindowsTaskbarQueueResult> QueueAsync(
-        WindowsTaskbarQueueRequest request,
+    public async Task<WindowsUserInterfaceQueueResult> QueueAsync(
+        WindowsUserInterfaceQueueRequest request,
         Guid? adminId = null,
         CancellationToken cancellationToken = default)
     {
@@ -78,34 +80,34 @@ public sealed class WindowsTaskbarSettingsService : IWindowsTaskbarSettingsServi
             var scheduleType = NormalizeScheduleType(request.Execution.ScheduleType);
             if (!string.Equals(scheduleType, "Queue", StringComparison.OrdinalIgnoreCase))
             {
-                return WindowsTaskbarQueueResult.Failure(
+                return WindowsUserInterfaceQueueResult.Failure(
                     "ValidationFailed",
                     "Only Queue is supported on this endpoint.");
             }
 
-            var queueResult = await QueueTaskbarWorkAsync(
+            var queueResult = await QueueUserInterfaceWorkAsync(
                 request.Target,
                 request.Settings,
                 request.Execution,
                 request.Options,
                 adminId,
-                WindowsTaskbarModuleConstants.QueuedFunctionName,
+                WindowsUserInterfaceModuleConstants.QueuedFunctionName,
                 "queued",
-                "Taskbar scheduled queue.",
+                "Autologon scheduled queue.",
                 cancellationToken);
 
             return queueResult.QueueResult
-                ?? WindowsTaskbarQueueResult.Failure(
+                ?? WindowsUserInterfaceQueueResult.Failure(
                     queueResult.ErrorCode ?? "LegacyBehaviorExecutionFailed",
                     queueResult.Message ?? "Queue failed.");
         }
         catch (Exception ex)
         {
-            return WindowsTaskbarQueueResult.Failure("LegacyBehaviorExecutionFailed", ex.Message);
+            return WindowsUserInterfaceQueueResult.Failure("LegacyBehaviorExecutionFailed", ex.Message);
         }
     }
 
-    public async Task<WindowsTaskbarCurrentResult> GetCurrentAsync(
+    public async Task<WindowsUserInterfaceCurrentResult> GetCurrentAsync(
         string macAddress,
         CancellationToken cancellationToken = default)
     {
@@ -114,46 +116,45 @@ public sealed class WindowsTaskbarSettingsService : IWindowsTaskbarSettingsServi
             var normalizedMac = macAddress.Trim();
             if (string.IsNullOrWhiteSpace(normalizedMac))
             {
-                return WindowsTaskbarCurrentResult.Failure("ValidationFailed", "macAddress is required.");
+                return WindowsUserInterfaceCurrentResult.Failure("ValidationFailed", "macAddress is required.");
             }
 
             var device = await FindDeviceByMacAsync(normalizedMac, cancellationToken);
             if (device is null)
             {
-                return WindowsTaskbarCurrentResult.Failure(
+                return WindowsUserInterfaceCurrentResult.Failure(
                     "DeviceNotFound",
                     $"No device found with MAC address '{normalizedMac}'.");
             }
 
-            var settings = device.WindowsTaskbarSettings;
+            var settings = device.WindowsUserInterfaceSettings;
             var hasSettings = settings is not null;
 
-            return WindowsTaskbarCurrentResult.Success(new WindowsTaskbarCurrentResponse
+            return WindowsUserInterfaceCurrentResult.Success(new WindowsUserInterfaceCurrentResponse
             {
                 Success = true,
-                Message = "Taskbar settings fetched successfully.",
-                Data = new WindowsTaskbarCurrentData
+                Message = "User interface settings fetched successfully.",
+                Data = new WindowsUserInterfaceCurrentData
                 {
                     Target = BuildTargetResponse(device.MacAddress),
                     Settings = hasSettings
                         ? MapCurrentSettingsDto(settings!)
-                        : WindowsTaskbarCurrentSettingsDto.CreateFusionXDefaults(),
-                    Compat = new WindowsTaskbarCurrentCompatDto
+                        : WindowsUserInterfaceCurrentSettingsDto.CreateFusionXDefaults(),
+                    Compat = new WindowsUserInterfaceCurrentCompatDto
                     {
-                        Source = hasSettings ? "device" : "defaults"
+                        Source = hasSettings ? "device" : "none"
                     }
                 }
             });
         }
         catch (Exception ex)
         {
-            return WindowsTaskbarCurrentResult.Failure("LegacyBehaviorExecutionFailed", ex.Message);
+            return WindowsUserInterfaceCurrentResult.Failure("LegacyBehaviorExecutionFailed", ex.Message);
         }
     }
 
-    public async Task<WindowsTaskbarHistoryResult> GetApplyHistoryAsync(
+    public async Task<WindowsUserInterfaceUsersResult> GetUsersAsync(
         string macAddress,
-        WindowsTaskbarHistoryQuery query,
         CancellationToken cancellationToken = default)
     {
         try
@@ -161,7 +162,64 @@ public sealed class WindowsTaskbarSettingsService : IWindowsTaskbarSettingsServi
             var normalizedMac = macAddress.Trim();
             if (string.IsNullOrWhiteSpace(normalizedMac))
             {
-                return WindowsTaskbarHistoryResult.Failure("ValidationFailed", "macAddress is required.");
+                return WindowsUserInterfaceUsersResult.Failure("ValidationFailed", "macAddress is required.");
+            }
+
+            var device = await FindDeviceByMacAsync(normalizedMac, cancellationToken);
+            if (device is null)
+            {
+                return WindowsUserInterfaceUsersResult.Failure(
+                    "DeviceNotFound",
+                    $"No device found with MAC address '{normalizedMac}'.");
+            }
+
+            var names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            AddUserNameCandidate(names, device.UserName);
+            AddUserNameCandidate(names, device.LoginUserName);
+            if (device.WindowsUserInterfaceSettings is not null)
+            {
+                AddUserNameCandidate(names, device.WindowsUserInterfaceSettings.UserName);
+            }
+
+            var items = names
+                .OrderBy(n => n, StringComparer.OrdinalIgnoreCase)
+                .Select(n => new WindowsUserInterfaceUserItemDto { UserName = n })
+                .ToList();
+
+            return WindowsUserInterfaceUsersResult.Success(new WindowsUserInterfaceUsersResponse
+            {
+                Success = true,
+                Message = items.Count > 0
+                    ? "User list returned from device metadata."
+                    : "User list stub returned. Agent user enumeration integration is pending.",
+                Data = new WindowsUserInterfaceUsersData
+                {
+                    Target = BuildTargetResponse(device.MacAddress),
+                    Items = items,
+                    Compat = new WindowsUserInterfaceUsersCompatDto
+                    {
+                        Source = items.Count > 0 ? "device" : "stub"
+                    }
+                }
+            });
+        }
+        catch (Exception ex)
+        {
+            return WindowsUserInterfaceUsersResult.Failure("LegacyBehaviorExecutionFailed", ex.Message);
+        }
+    }
+
+    public async Task<WindowsUserInterfaceHistoryResult> GetApplyHistoryAsync(
+        string macAddress,
+        WindowsUserInterfaceHistoryQuery query,
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var normalizedMac = macAddress.Trim();
+            if (string.IsNullOrWhiteSpace(normalizedMac))
+            {
+                return WindowsUserInterfaceHistoryResult.Failure("ValidationFailed", "macAddress is required.");
             }
 
             var device = await _dbContext.Devices
@@ -171,13 +229,13 @@ public sealed class WindowsTaskbarSettingsService : IWindowsTaskbarSettingsServi
                     cancellationToken);
             if (device is null)
             {
-                return WindowsTaskbarHistoryResult.Failure(
+                return WindowsUserInterfaceHistoryResult.Failure(
                     "DeviceNotFound",
                     $"No device found with MAC address '{normalizedMac}'.");
             }
 
             var statusFilter = query.Status?.Trim();
-            var moduleName = WindowsTaskbarModuleConstants.ModuleName;
+            var moduleName = WindowsUserInterfaceModuleConstants.ModuleName;
 
             var tasksQuery = _dbContext.DeviceTasks
                 .AsNoTracking()
@@ -197,7 +255,7 @@ public sealed class WindowsTaskbarSettingsService : IWindowsTaskbarSettingsServi
 
             var logsQuery = _dbContext.DeviceSettingsApplyLogs
                 .AsNoTracking()
-                .Where(l => l.DeviceId == device.Id && l.SettingsKind == SettingsKind.WindowsTaskbar);
+                .Where(l => l.DeviceId == device.Id && l.SettingsKind == SettingsKind.WindowsUserInterface);
 
             if (query.FromUtc.HasValue)
             {
@@ -217,7 +275,7 @@ public sealed class WindowsTaskbarSettingsService : IWindowsTaskbarSettingsServi
 
             var logs = await logsQuery.ToListAsync(cancellationToken);
 
-            var taskItems = tasks.Select(t => new WindowsTaskbarHistoryItem
+            var taskItems = tasks.Select(t => new WindowsUserInterfaceHistoryItem
             {
                 TaskId = t.Id,
                 LegacyTaskId = t.LegacyTaskId,
@@ -229,7 +287,7 @@ public sealed class WindowsTaskbarSettingsService : IWindowsTaskbarSettingsServi
                 CreatedUtc = t.CreatedUtc
             });
 
-            var logItems = logs.Select(l => new WindowsTaskbarHistoryItem
+            var logItems = logs.Select(l => new WindowsUserInterfaceHistoryItem
             {
                 TaskId = l.TaskId,
                 LegacyTaskId = l.LegacyTaskId,
@@ -260,15 +318,15 @@ public sealed class WindowsTaskbarSettingsService : IWindowsTaskbarSettingsServi
                 .Take(pageSize)
                 .ToList();
 
-            return WindowsTaskbarHistoryResult.Success(new WindowsTaskbarHistoryResponse
+            return WindowsUserInterfaceHistoryResult.Success(new WindowsUserInterfaceHistoryResponse
             {
                 Success = true,
                 Message = "Apply history fetched successfully.",
-                Data = new WindowsTaskbarHistoryData
+                Data = new WindowsUserInterfaceHistoryData
                 {
                     Target = BuildTargetResponse(device.MacAddress),
                     Items = items,
-                    Pagination = new WindowsTaskbarPagination
+                    Pagination = new WindowsUserInterfacePagination
                     {
                         Page = page,
                         PageSize = pageSize,
@@ -279,12 +337,12 @@ public sealed class WindowsTaskbarSettingsService : IWindowsTaskbarSettingsServi
         }
         catch (Exception ex)
         {
-            return WindowsTaskbarHistoryResult.Failure("LegacyBehaviorExecutionFailed", ex.Message);
+            return WindowsUserInterfaceHistoryResult.Failure("LegacyBehaviorExecutionFailed", ex.Message);
         }
     }
 
-    public async Task<WindowsTaskbarQueueResult> TemplateQueueAsync(
-        WindowsTaskbarTemplateQueueRequest request,
+    public async Task<WindowsUserInterfaceQueueResult> TemplateQueueAsync(
+        WindowsUserInterfaceTemplateQueueRequest request,
         Guid? adminId = null,
         CancellationToken cancellationToken = default)
     {
@@ -292,35 +350,35 @@ public sealed class WindowsTaskbarSettingsService : IWindowsTaskbarSettingsServi
         {
             if (!string.Equals(NormalizeScheduleType(request.Execution.ScheduleType), "QueueTemplate", StringComparison.OrdinalIgnoreCase))
             {
-                return WindowsTaskbarQueueResult.Failure(
+                return WindowsUserInterfaceQueueResult.Failure(
                     "ValidationFailed",
                     "Only QueueTemplate is supported on this endpoint.");
             }
 
-            var queueResult = await QueueTaskbarWorkAsync(
+            var queueResult = await QueueUserInterfaceWorkAsync(
                 request.Target,
                 request.Settings,
                 request.Execution,
                 request.Options,
                 adminId,
-                WindowsTaskbarModuleConstants.TemplateQueueFunctionName,
+                WindowsUserInterfaceModuleConstants.TemplateQueueFunctionName,
                 "template",
                 BuildTemplateApplyLogMessage(request.Execution),
                 cancellationToken);
 
             return queueResult.QueueResult
-                ?? WindowsTaskbarQueueResult.Failure(
+                ?? WindowsUserInterfaceQueueResult.Failure(
                     queueResult.ErrorCode ?? "LegacyBehaviorExecutionFailed",
                     queueResult.Message ?? "Template queue failed.");
         }
         catch (Exception ex)
         {
-            return WindowsTaskbarQueueResult.Failure("LegacyBehaviorExecutionFailed", ex.Message);
+            return WindowsUserInterfaceQueueResult.Failure("LegacyBehaviorExecutionFailed", ex.Message);
         }
     }
 
-    public async Task<WindowsTaskbarBulkResult> ExecuteNowBulkAsync(
-        WindowsTaskbarExecuteNowBulkRequest request,
+    public async Task<WindowsUserInterfaceBulkResult> ExecuteNowBulkAsync(
+        WindowsUserInterfaceExecuteNowBulkRequest request,
         Guid? adminId = null,
         CancellationToken cancellationToken = default)
     {
@@ -328,7 +386,7 @@ public sealed class WindowsTaskbarSettingsService : IWindowsTaskbarSettingsServi
         {
             if (!string.Equals(NormalizeScheduleType(request.Execution.ScheduleType), "InstantApply", StringComparison.OrdinalIgnoreCase))
             {
-                return WindowsTaskbarBulkResult.Failure(
+                return WindowsUserInterfaceBulkResult.Failure(
                     "ValidationFailed",
                     "Only InstantApply is supported on execute-now bulk.");
             }
@@ -348,13 +406,13 @@ public sealed class WindowsTaskbarSettingsService : IWindowsTaskbarSettingsServi
         }
         catch (Exception ex)
         {
-            return WindowsTaskbarBulkResult.Failure("LegacyBehaviorExecutionFailed", ex.Message);
+            return WindowsUserInterfaceBulkResult.Failure("LegacyBehaviorExecutionFailed", ex.Message);
         }
     }
 
-    public async Task<WindowsTaskbarBulkResult> ExecuteNowGroupAsync(
+    public async Task<WindowsUserInterfaceBulkResult> ExecuteNowGroupAsync(
         Guid groupId,
-        WindowsTaskbarExecuteNowGroupRequest request,
+        WindowsUserInterfaceExecuteNowGroupRequest request,
         Guid? adminId = null,
         CancellationToken cancellationToken = default)
     {
@@ -362,7 +420,7 @@ public sealed class WindowsTaskbarSettingsService : IWindowsTaskbarSettingsServi
         {
             if (!string.Equals(NormalizeScheduleType(request.Execution.ScheduleType), "InstantApply", StringComparison.OrdinalIgnoreCase))
             {
-                return WindowsTaskbarBulkResult.Failure(
+                return WindowsUserInterfaceBulkResult.Failure(
                     "ValidationFailed",
                     "Only InstantApply is supported on execute-now group.");
             }
@@ -373,20 +431,20 @@ public sealed class WindowsTaskbarSettingsService : IWindowsTaskbarSettingsServi
                     cancellationToken);
             if (!groupExists)
             {
-                return WindowsTaskbarBulkResult.Failure(
+                return WindowsUserInterfaceBulkResult.Failure(
                     "GroupNotFound",
                     $"No device group found with id '{groupId}'.");
             }
 
             var devices = await _dbContext.Devices
-                .Include(d => d.WindowsTaskbarSettings)
+                .Include(d => d.WindowsUserInterfaceSettings)
                 .Where(d => d.TenantId == TenantDefaults.DefaultTenantId &&
                             d.GroupId == groupId &&
                             d.EnrollmentState == EnrollmentState.Active)
                 .ToListAsync(cancellationToken);
 
             var targets = devices
-                .Select(d => new WindowsTaskbarTargetRequest
+                .Select(d => new WindowsUserInterfaceTargetRequest
                 {
                     MacAddress = d.MacAddress,
                     OsType = ExtractOsType(d.MacAddress)
@@ -404,258 +462,17 @@ public sealed class WindowsTaskbarSettingsService : IWindowsTaskbarSettingsServi
         }
         catch (Exception ex)
         {
-            return WindowsTaskbarBulkResult.Failure("LegacyBehaviorExecutionFailed", ex.Message);
+            return WindowsUserInterfaceBulkResult.Failure("LegacyBehaviorExecutionFailed", ex.Message);
         }
     }
 
-    public async Task<WindowsTaskbarLiveResult> GetLiveAsync(
-        string macAddress,
-        CancellationToken cancellationToken = default)
-    {
-        try
-        {
-            if (!_options.AgentLiveReadEnabled)
-            {
-                return WindowsTaskbarLiveResult.Failure(
-                    "FeatureDisabled",
-                    "Taskbar agent live read is disabled.");
-            }
-
-            var normalizedMac = macAddress.Trim();
-            if (string.IsNullOrWhiteSpace(normalizedMac))
-            {
-                return WindowsTaskbarLiveResult.Failure("ValidationFailed", "macAddress is required.");
-            }
-
-            var device = await FindDeviceByMacWithLiveAsync(normalizedMac, cancellationToken);
-            if (device is null)
-            {
-                return WindowsTaskbarLiveResult.Failure(
-                    "DeviceNotFound",
-                    $"No device found with MAC address '{normalizedMac}'.");
-            }
-
-            var live = device.WindowsTaskbarLiveSettings;
-            return WindowsTaskbarLiveResult.Success(new WindowsTaskbarLiveResponse
-            {
-                Success = true,
-                Message = live is null
-                    ? "No agent-reported taskbar state is available yet."
-                    : "Agent-reported taskbar state fetched successfully.",
-                Data = new WindowsTaskbarLiveData
-                {
-                    Target = BuildTargetResponse(device.MacAddress),
-                    Settings = live is null ? null : MapLiveSettingsDto(live),
-                    Compat = new WindowsTaskbarCurrentCompatDto
-                    {
-                        Source = live is null ? "none" : "agent"
-                    }
-                }
-            });
-        }
-        catch (Exception ex)
-        {
-            return WindowsTaskbarLiveResult.Failure("LegacyBehaviorExecutionFailed", ex.Message);
-        }
-    }
-
-    public async Task<WindowsTaskbarRefreshLiveResult> RefreshLiveAsync(
-        string macAddress,
-        WindowsTaskbarRefreshLiveOptionsRequest? options = null,
-        Guid? adminId = null,
-        CancellationToken cancellationToken = default)
-    {
-        try
-        {
-            if (!_options.Enabled || _options.ReadOnly)
-            {
-                return WindowsTaskbarRefreshLiveResult.Failure(
-                    "FeatureDisabled",
-                    "Taskbar endpoint is disabled or read-only.");
-            }
-
-            if (!_options.AgentLiveReadEnabled)
-            {
-                return WindowsTaskbarRefreshLiveResult.Failure(
-                    "FeatureDisabled",
-                    "Taskbar agent live read is disabled.");
-            }
-
-            var normalizedMac = macAddress.Trim();
-            if (string.IsNullOrWhiteSpace(normalizedMac))
-            {
-                return WindowsTaskbarRefreshLiveResult.Failure("ValidationFailed", "macAddress is required.");
-            }
-
-            if (!IsXpDevice(normalizedMac))
-            {
-                return WindowsTaskbarRefreshLiveResult.Failure(
-                    "ValidationFailed",
-                    "Live read is supported for Windows XP targets only.");
-            }
-
-            var correlationId = options?.CorrelationId ?? Guid.NewGuid();
-            var now = DateTime.UtcNow;
-
-            var device = await FindDeviceByMacAsync(normalizedMac, cancellationToken);
-            if (device is null)
-            {
-                return WindowsTaskbarRefreshLiveResult.Failure(
-                    "DeviceNotFound",
-                    $"No device found with MAC address '{normalizedMac}'.");
-            }
-
-            if (!DeviceEnrollmentGuard.IsManaged(device.EnrollmentState))
-            {
-                return WindowsTaskbarRefreshLiveResult.Failure("ApplyBlocked", "EnrollmentStateBlocked");
-            }
-
-            var blockReason = await GetLiveReadBlockReasonAsync(device.Id, cancellationToken);
-            if (blockReason is not null)
-            {
-                return WindowsTaskbarRefreshLiveResult.Failure("ApplyBlocked", blockReason);
-            }
-
-            var legacyTaskId = await GetNextLegacyTaskIdAsync(device.Id, cancellationToken);
-            var task = new DeviceTask
-            {
-                DeviceId = device.Id,
-                LegacyTaskId = legacyTaskId,
-                ModuleName = WindowsTaskbarModuleConstants.ModuleName,
-                FunctionName = WindowsTaskbarModuleConstants.LiveReadFunctionName,
-                FunctionParameter = "{}",
-                ExtraData = _payloadBuilder.BuildExtraData(
-                    device.MacAddress,
-                    string.IsNullOrWhiteSpace(_options.DefaultSignalSuffix)
-                        ? WindowsTaskbarModuleConstants.DefaultSignalSuffix
-                        : _options.DefaultSignalSuffix),
-                Status = DeviceTaskStatus.Pending,
-                CreatedUtc = now
-            };
-            _dbContext.DeviceTasks.Add(task);
-
-            await _resolver.WriteApplyLogAsync(
-                device.Id,
-                SettingsKind.WindowsTaskbar,
-                version: 0,
-                applyMode: "live-read",
-                SettingsApplyStatus.Pending,
-                adminId,
-                "Taskbar live read queued.",
-                cancellationToken,
-                task.Id,
-                legacyTaskId);
-
-            await _dbContext.SaveChangesAsync(cancellationToken);
-
-            return WindowsTaskbarRefreshLiveResult.Success(new WindowsTaskbarRefreshLiveResponse
-            {
-                Success = true,
-                Message = "Taskbar live read queued.",
-                Data = new WindowsTaskbarRefreshLiveData
-                {
-                    TaskId = task.Id,
-                    Target = BuildTargetResponse(device.MacAddress),
-                    Execution = new WindowsTaskbarExecutionResponse
-                    {
-                        ScheduleType = "LiveRead",
-                        Status = "Pending",
-                        QueuedAtUtc = task.CreatedUtc
-                    },
-                    CorrelationId = correlationId
-                }
-            });
-        }
-        catch (Exception ex)
-        {
-            return WindowsTaskbarRefreshLiveResult.Failure("LegacyBehaviorExecutionFailed", ex.Message);
-        }
-    }
-
-    public async Task<AgentTaskbarLiveReportResult> ReportAgentLiveAsync(
-        Guid deviceId,
-        AgentTaskbarLiveReportRequest request,
-        CancellationToken cancellationToken = default)
-    {
-        try
-        {
-            if (!_options.AgentLiveReadEnabled)
-            {
-                return AgentTaskbarLiveReportResult.Failure(
-                    "FeatureDisabled",
-                    "Taskbar agent live read is disabled.");
-            }
-
-            if (!WindowsTaskbarLivePayloadParser.TryParse(request, out var parsed))
-            {
-                return AgentTaskbarLiveReportResult.Failure(
-                    "ValidationFailed",
-                    "Taskbar live report must include flat settings or WinCELinux.XPTaskbarProperties.");
-            }
-
-            var device = await _dbContext.Devices
-                .Include(d => d.WindowsTaskbarLiveSettings)
-                .FirstOrDefaultAsync(
-                    d => d.Id == deviceId && d.TenantId == TenantDefaults.DefaultTenantId,
-                    cancellationToken);
-            if (device is null)
-            {
-                return AgentTaskbarLiveReportResult.Failure(
-                    "DeviceNotFound",
-                    "Device associated with this token was not found.");
-            }
-
-            var now = DateTime.UtcNow;
-            var live = device.WindowsTaskbarLiveSettings;
-            if (live is null)
-            {
-                live = new DeviceWindowsTaskbarLiveSettings
-                {
-                    DeviceId = device.Id,
-                    ReportVersion = 0,
-                    CreatedUtc = now,
-                    UpdatedUtc = now
-                };
-                _dbContext.DeviceWindowsTaskbarLiveSettings.Add(live);
-                device.WindowsTaskbarLiveSettings = live;
-            }
-
-            live.LockTaskbar = parsed.LockTaskbar;
-            live.AutoHideTaskbar = parsed.AutoHideTaskbar;
-            live.KeepTaskbarOnTop = parsed.KeepTaskbarOnTop;
-            live.GroupSimilarButtons = parsed.GroupSimilarButtons;
-            live.ShowQuickLaunch = parsed.ShowQuickLaunch;
-            live.ShowClock = parsed.ShowClock;
-            live.HideInactiveIcons = parsed.HideInactiveIcons;
-            live.ReportVersion++;
-            live.CollectedUtc = now;
-            live.UpdatedUtc = now;
-
-            await _dbContext.SaveChangesAsync(cancellationToken);
-
-            return AgentTaskbarLiveReportResult.Success(new AgentTaskbarLiveReportResponse
-            {
-                Success = true,
-                Message = "Taskbar live state stored.",
-                ReportVersion = live.ReportVersion,
-                CollectedUtc = live.CollectedUtc
-            });
-        }
-        catch (Exception ex)
-        {
-            return AgentTaskbarLiveReportResult.Failure("LegacyBehaviorExecutionFailed", ex.Message);
-        }
-    }
-
-    internal static WindowsTaskbarCurrentSettingsDto MapCurrentSettingsDto(
-        DeviceWindowsTaskbarSettings settings) =>
+    internal static WindowsUserInterfaceCurrentSettingsDto MapCurrentSettingsDto(
+        DeviceWindowsUserInterfaceSettings settings) =>
         new()
         {
-            LockTaskbar = settings.LockTaskbar,
-            AutoHideTaskbar = settings.AutoHideTaskbar,
-            KeepTaskbarOnTop = settings.KeepTaskbarOnTop,
-            GroupSimilarButtons = settings.GroupSimilarButtons,
-            ShowQuickLaunch = settings.ShowQuickLaunch,
+            UserName = settings.UserName,
+            AutoLogon = settings.AutoLogon,
+            HasPassword = !string.IsNullOrWhiteSpace(settings.PasswordCipher),
             AgentAction = settings.AgentAction,
             SettingsVersion = settings.SettingsVersion,
             PendingApply = settings.PendingApply,
@@ -665,11 +482,11 @@ public sealed class WindowsTaskbarSettingsService : IWindowsTaskbarSettingsServi
             LastApplyMessage = settings.LastApplyMessage
         };
 
-    private async Task<TaskbarWorkResult> QueueTaskbarWorkAsync(
-        WindowsTaskbarTargetRequest target,
-        WindowsTaskbarSettingsRequest settings,
-        WindowsTaskbarExecutionRequest execution,
-        WindowsTaskbarOptionsRequest options,
+    private async Task<UserInterfaceWorkResult> QueueUserInterfaceWorkAsync(
+        WindowsUserInterfaceTargetRequest target,
+        WindowsUserInterfaceSettingsRequest settings,
+        WindowsUserInterfaceExecutionRequest execution,
+        WindowsUserInterfaceOptionsRequest options,
         Guid? adminId,
         string functionName,
         string applyMode,
@@ -680,19 +497,29 @@ public sealed class WindowsTaskbarSettingsService : IWindowsTaskbarSettingsServi
         var correlationId = options.CorrelationId ?? Guid.NewGuid();
         var now = DateTime.UtcNow;
         var agentAction = ParseAgentAction(execution.AgentAction);
+        var useCompactReference = WindowsUserInterfaceModuleConstants.IsQueuedApplyFunctionName(functionName);
 
-        if (!WindowsTaskbarRequestValidation.PayloadWithinLimit(settings, agentAction))
+        var credentialValidationError = WindowsUserInterfaceRequestValidation.ValidateAutologonCredentials(settings);
+        if (credentialValidationError is not null)
         {
-            return TaskbarWorkResult.Failure(
+            return UserInterfaceWorkResult.Failure("ValidationFailed", credentialValidationError);
+        }
+
+        if (!WindowsUserInterfaceRequestValidation.PayloadWithinLimit(
+                settings,
+                agentAction,
+                useCompactReference))
+        {
+            return UserInterfaceWorkResult.Failure(
                 "ValidationFailed",
-                $"Serialized agent payload exceeds {WindowsTaskbarModuleConstants.MaxFunctionParameterLength} characters.");
+                $"Serialized agent payload exceeds {WindowsUserInterfaceModuleConstants.MaxFunctionParameterLength} characters.");
         }
 
         if (options.DryRun)
         {
-            if (WindowsTaskbarModuleConstants.IsQueuedApplyFunctionName(functionName))
+            if (WindowsUserInterfaceModuleConstants.IsQueuedApplyFunctionName(functionName))
             {
-                return TaskbarWorkResult.FromQueue(BuildQueueResponse(
+                return UserInterfaceWorkResult.FromQueue(BuildQueueResponse(
                     target,
                     execution,
                     Guid.Empty,
@@ -701,7 +528,7 @@ public sealed class WindowsTaskbarSettingsService : IWindowsTaskbarSettingsServi
                     correlationId));
             }
 
-            return TaskbarWorkResult.FromExecuteNow(BuildExecuteNowResponse(
+            return UserInterfaceWorkResult.FromExecuteNow(BuildExecuteNowResponse(
                 target,
                 execution,
                 Guid.Empty,
@@ -713,59 +540,88 @@ public sealed class WindowsTaskbarSettingsService : IWindowsTaskbarSettingsServi
         var device = await FindDeviceByMacAsync(normalizedMac, cancellationToken);
         if (device is null)
         {
-            return TaskbarWorkResult.Failure(
+            return UserInterfaceWorkResult.Failure(
                 "DeviceNotFound",
                 $"No device found with MAC address '{normalizedMac}'.");
         }
 
-        var blockReason = await GetTaskbarBlockReasonAsync(device.Id, device.EnrollmentState, cancellationToken);
+        var blockReason = await GetUserInterfaceBlockReasonAsync(device.Id, device.EnrollmentState, cancellationToken);
         if (blockReason is not null)
         {
-            return TaskbarWorkResult.Failure("ApplyBlocked", blockReason);
+            return UserInterfaceWorkResult.Failure("ApplyBlocked", blockReason);
         }
 
-        var taskbar = device.WindowsTaskbarSettings;
-        if (taskbar is null)
+        var uiSettings = device.WindowsUserInterfaceSettings;
+        if (uiSettings is null)
         {
-            taskbar = new DeviceWindowsTaskbarSettings
+            uiSettings = new DeviceWindowsUserInterfaceSettings
             {
                 DeviceId = device.Id,
                 SettingsVersion = 0,
                 CreatedUtc = now,
                 UpdatedUtc = now
             };
-            _dbContext.DeviceWindowsTaskbarSettings.Add(taskbar);
-            device.WindowsTaskbarSettings = taskbar;
+            _dbContext.DeviceWindowsUserInterfaceSettings.Add(uiSettings);
+            device.WindowsUserInterfaceSettings = uiSettings;
         }
 
-        ApplySettingsRequest(taskbar, settings, agentAction);
-        taskbar.SettingsVersion++;
-        taskbar.PendingApply = true;
-        taskbar.UpdatedBy = adminId;
-        taskbar.UpdatedUtc = now;
+        var applyPasswordResult = ApplySettingsRequest(uiSettings, settings, agentAction);
+        if (applyPasswordResult.Error is not null)
+        {
+            return UserInterfaceWorkResult.Failure("ValidationFailed", applyPasswordResult.Error);
+        }
+
+        uiSettings.SettingsVersion++;
+        uiSettings.PendingApply = true;
+        uiSettings.UpdatedBy = adminId;
+        uiSettings.UpdatedUtc = now;
 
         var legacyTaskId = await GetNextLegacyTaskIdAsync(device.Id, cancellationToken);
-        var functionPayload = _payloadBuilder.BuildAgentPayload(
-            _payloadBuilder.MapToPayloadRequest(taskbar, legacyTaskId, agentAction));
+        string functionPayload;
 
-        if (functionPayload.Length > WindowsTaskbarModuleConstants.MaxFunctionParameterLength)
+        if (useCompactReference)
         {
-            return TaskbarWorkResult.Failure(
-                "ValidationFailed",
-                $"Agent payload exceeds {WindowsTaskbarModuleConstants.MaxFunctionParameterLength} characters ({functionPayload.Length}).");
+            _dbContext.DeviceWindowsUserInterfaceSettingsSnapshots.Add(new DeviceWindowsUserInterfaceSettingsSnapshot
+            {
+                DeviceId = device.Id,
+                SettingsVersion = uiSettings.SettingsVersion,
+                UserName = uiSettings.UserName,
+                AutoLogon = uiSettings.AutoLogon,
+                PasswordCipher = uiSettings.PasswordCipher,
+                AgentAction = agentAction,
+                CreatedUtc = now
+            });
+
+            functionPayload = _payloadBuilder.BuildCompactTaskReference(uiSettings.SettingsVersion);
+        }
+        else
+        {
+            functionPayload = _payloadBuilder.BuildAgentPayload(
+                _payloadBuilder.MapToPayloadRequest(
+                    uiSettings,
+                    legacyTaskId,
+                    agentAction,
+                    applyPasswordResult.PlaintextPassword ?? string.Empty));
+
+            if (functionPayload.Length > WindowsUserInterfaceModuleConstants.MaxFunctionParameterLength)
+            {
+                return UserInterfaceWorkResult.Failure(
+                    "ValidationFailed",
+                    $"Agent payload exceeds {WindowsUserInterfaceModuleConstants.MaxFunctionParameterLength} characters ({functionPayload.Length}).");
+            }
         }
 
         var task = new DeviceTask
         {
             DeviceId = device.Id,
             LegacyTaskId = legacyTaskId,
-            ModuleName = WindowsTaskbarModuleConstants.ModuleName,
+            ModuleName = WindowsUserInterfaceModuleConstants.ModuleName,
             FunctionName = functionName,
             FunctionParameter = functionPayload,
             ExtraData = _payloadBuilder.BuildExtraData(
                 device.MacAddress,
                 string.IsNullOrWhiteSpace(_options.DefaultSignalSuffix)
-                    ? WindowsTaskbarModuleConstants.DefaultSignalSuffix
+                    ? WindowsUserInterfaceModuleConstants.DefaultSignalSuffix
                     : _options.DefaultSignalSuffix),
             Status = DeviceTaskStatus.Pending,
             CreatedUtc = now
@@ -774,8 +630,8 @@ public sealed class WindowsTaskbarSettingsService : IWindowsTaskbarSettingsServi
 
         await _resolver.WriteApplyLogAsync(
             device.Id,
-            SettingsKind.WindowsTaskbar,
-            taskbar.SettingsVersion,
+            SettingsKind.WindowsUserInterface,
+            uiSettings.SettingsVersion,
             applyMode,
             SettingsApplyStatus.Pending,
             adminId,
@@ -786,9 +642,9 @@ public sealed class WindowsTaskbarSettingsService : IWindowsTaskbarSettingsServi
 
         await _dbContext.SaveChangesAsync(cancellationToken);
 
-        if (WindowsTaskbarModuleConstants.IsQueuedApplyFunctionName(functionName))
+        if (WindowsUserInterfaceModuleConstants.IsQueuedApplyFunctionName(functionName))
         {
-            return TaskbarWorkResult.FromQueue(BuildQueueResponse(
+            return UserInterfaceWorkResult.FromQueue(BuildQueueResponse(
                 target,
                 execution,
                 task.Id,
@@ -797,7 +653,7 @@ public sealed class WindowsTaskbarSettingsService : IWindowsTaskbarSettingsServi
                 correlationId));
         }
 
-        return TaskbarWorkResult.FromExecuteNow(BuildExecuteNowResponse(
+        return UserInterfaceWorkResult.FromExecuteNow(BuildExecuteNowResponse(
             target,
             execution,
             task.Id,
@@ -806,37 +662,66 @@ public sealed class WindowsTaskbarSettingsService : IWindowsTaskbarSettingsServi
             correlationId));
     }
 
-    private static void ApplySettingsRequest(
-        DeviceWindowsTaskbarSettings entity,
-        WindowsTaskbarSettingsRequest request,
+    private ApplyPasswordResult ApplySettingsRequest(
+        DeviceWindowsUserInterfaceSettings entity,
+        WindowsUserInterfaceSettingsRequest request,
         int agentAction)
     {
-        entity.LockTaskbar = request.LockTaskbar;
-        entity.AutoHideTaskbar = request.AutoHideTaskbar;
-        entity.KeepTaskbarOnTop = request.KeepTaskbarOnTop;
-        entity.GroupSimilarButtons = request.GroupSimilarButtons;
-        entity.ShowQuickLaunch = request.ShowQuickLaunch;
+        entity.UserName = request.UserName.Trim();
+        entity.AutoLogon = request.AutoLogon;
         entity.AgentAction = agentAction;
+
+        if (!request.AutoLogon)
+        {
+            entity.PasswordCipher = null;
+            return ApplyPasswordResult.Success(null);
+        }
+
+        if (request.KeepExistingPassword)
+        {
+            if (string.IsNullOrWhiteSpace(entity.PasswordCipher))
+            {
+                return ApplyPasswordResult.Failure("No stored password to retain.");
+            }
+
+            if (!_passwordProtector.TryUnprotect(entity.PasswordCipher, out var existingPassword))
+            {
+                return ApplyPasswordResult.Failure("Stored password could not be decrypted.");
+            }
+
+            return ApplyPasswordResult.Success(existingPassword);
+        }
+
+        var password = request.Password ?? string.Empty;
+        entity.PasswordCipher = _passwordProtector.Protect(password);
+        return ApplyPasswordResult.Success(password);
     }
 
-    private async Task<string?> GetTaskbarBlockReasonAsync(
+    private async Task<string?> GetUserInterfaceBlockReasonAsync(
         Guid deviceId,
         EnrollmentState enrollmentState,
         CancellationToken cancellationToken)
     {
         if (!DeviceEnrollmentGuard.IsManaged(enrollmentState))
         {
-            return "EnrollmentStateBlocked";
+            return WindowsUserInterfaceApplyBlockReason.EnrollmentStateBlocked;
         }
 
-        var hasPendingTask = await _dbContext.DeviceTasks
-            .AnyAsync(
-                t => t.DeviceId == deviceId &&
-                     t.ModuleName == WindowsTaskbarModuleConstants.ModuleName &&
-                     (t.Status == DeviceTaskStatus.Pending || t.Status == DeviceTaskStatus.InProcess),
-                cancellationToken);
+        var activeTaskStatus = await _dbContext.DeviceTasks
+            .Where(t => t.DeviceId == deviceId &&
+                        t.ModuleName == WindowsUserInterfaceModuleConstants.ModuleName &&
+                        (t.Status == DeviceTaskStatus.Pending || t.Status == DeviceTaskStatus.InProcess))
+            .Select(t => (DeviceTaskStatus?)t.Status)
+            .FirstOrDefaultAsync(cancellationToken);
 
-        return hasPendingTask ? "PendingTaskExists" : null;
+        if (activeTaskStatus is null)
+        {
+            return null;
+        }
+
+        return activeTaskStatus == DeviceTaskStatus.InProcess
+            ? WindowsUserInterfaceApplyBlockReason.InProcessTaskExists
+            : WindowsUserInterfaceApplyBlockReason.PendingTaskExists;
     }
 
     private async Task<int> GetNextLegacyTaskIdAsync(Guid deviceId, CancellationToken cancellationToken)
@@ -850,27 +735,36 @@ public sealed class WindowsTaskbarSettingsService : IWindowsTaskbarSettingsServi
 
     private async Task<Device?> FindDeviceByMacAsync(string normalizedMac, CancellationToken cancellationToken) =>
         await _dbContext.Devices
-            .Include(d => d.WindowsTaskbarSettings)
+            .Include(d => d.WindowsUserInterfaceSettings)
             .FirstOrDefaultAsync(
                 d => d.TenantId == TenantDefaults.DefaultTenantId && d.MacAddress == normalizedMac,
                 cancellationToken);
 
-    private static WindowsTaskbarTargetResponse BuildTargetResponse(string macAddress) =>
+    private static void AddUserNameCandidate(ISet<string> names, string? candidate)
+    {
+        if (string.IsNullOrWhiteSpace(candidate))
+        {
+            return;
+        }
+
+        var trimmed = candidate.Trim();
+        if (string.Equals(trimmed, "---Select---", StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        names.Add(trimmed);
+    }
+
+    private static WindowsUserInterfaceTargetResponse BuildTargetResponse(string macAddress) =>
         new()
         {
             MacAddress = macAddress,
             OsType = ExtractOsType(macAddress)
         };
 
-    private static string MapTaskApplyMode(string functionName)
-    {
-        if (string.Equals(functionName, WindowsTaskbarModuleConstants.InstantFunctionName, StringComparison.OrdinalIgnoreCase))
-        {
-            return "instant";
-        }
-
-        return "queued";
-    }
+    private static string MapTaskApplyMode(string functionName) =>
+        WindowsUserInterfaceModuleConstants.MapApplyMode(functionName);
 
     private static string MapTaskToApplyStatus(DeviceTaskStatus status) => status switch
     {
@@ -881,7 +775,7 @@ public sealed class WindowsTaskbarSettingsService : IWindowsTaskbarSettingsServi
         _ => "Pending"
     };
 
-    private static string NormalizeScheduleType(string? scheduleType)
+    internal static string NormalizeScheduleType(string? scheduleType)
     {
         if (string.IsNullOrWhiteSpace(scheduleType))
         {
@@ -891,7 +785,7 @@ public sealed class WindowsTaskbarSettingsService : IWindowsTaskbarSettingsServi
         return scheduleType.Trim();
     }
 
-    private static int ParseAgentAction(string? agentAction)
+    internal static int ParseAgentAction(string? agentAction)
     {
         if (string.IsNullOrWhiteSpace(agentAction))
         {
@@ -901,13 +795,13 @@ public sealed class WindowsTaskbarSettingsService : IWindowsTaskbarSettingsServi
         return int.TryParse(agentAction.Trim(), out var value) ? value : 0;
     }
 
-    private static string ExtractOsType(string macAddress)
+    internal static string ExtractOsType(string macAddress)
     {
         var suffix = ExtractOsSuffix(macAddress);
         return suffix ?? "XP";
     }
 
-    private static string? ExtractOsSuffix(string macAddress)
+    internal static string? ExtractOsSuffix(string macAddress)
     {
         if (string.IsNullOrWhiteSpace(macAddress))
         {
@@ -924,42 +818,33 @@ public sealed class WindowsTaskbarSettingsService : IWindowsTaskbarSettingsServi
         return trimmed[(idx + 1)..].ToUpperInvariant();
     }
 
-    private static WindowsTaskbarLegacySummary BuildLegacySummary(string qualifiedMsg) =>
-        new()
-        {
-            ErrorMsg = "...$ApplyGreenSuccess",
-            QualifiedMsg = qualifiedMsg,
-            DtApproved = [],
-            HtmlData = string.Empty
-        };
-
-    private static string BuildTemplateApplyLogMessage(WindowsTaskbarExecutionRequest execution)
+    private static string BuildTemplateApplyLogMessage(WindowsUserInterfaceExecutionRequest execution)
     {
         var templateName = execution.TemplateName?.Trim();
         if (execution.TemplateId is > 0 && !string.IsNullOrWhiteSpace(templateName))
         {
-            return $"Taskbar SysView template queue ({templateName}, id {execution.TemplateId.Value}).";
+            return $"Autologon SysView template queue ({templateName}, id {execution.TemplateId.Value}).";
         }
 
         if (execution.TemplateId is > 0)
         {
-            return $"Taskbar SysView template queue (id {execution.TemplateId.Value}).";
+            return $"Autologon SysView template queue (id {execution.TemplateId.Value}).";
         }
 
-        return "Taskbar SysView template queue.";
+        return "Autologon SysView template queue.";
     }
 
-    private bool ShouldReturnLegacySummary(WindowsTaskbarOptionsRequest options) =>
+    private bool ShouldReturnLegacySummary(WindowsUserInterfaceOptionsRequest options) =>
         options.ReturnLegacySummary && _options.LegacySummaryEnabled;
 
     private static bool IsXpDevice(string macAddress) =>
         string.Equals(ExtractOsSuffix(macAddress), "XP", StringComparison.OrdinalIgnoreCase);
 
-    private async Task<WindowsTaskbarBulkResult> ExecuteNowForTargetsInternalAsync(
-        List<WindowsTaskbarTargetRequest> uniqueTargets,
-        WindowsTaskbarSettingsRequest settingsTemplate,
-        WindowsTaskbarExecutionRequest execution,
-        WindowsTaskbarOptionsRequest options,
+    private async Task<WindowsUserInterfaceBulkResult> ExecuteNowForTargetsInternalAsync(
+        List<WindowsUserInterfaceTargetRequest> uniqueTargets,
+        WindowsUserInterfaceSettingsRequest settingsTemplate,
+        WindowsUserInterfaceExecutionRequest execution,
+        WindowsUserInterfaceOptionsRequest options,
         Guid? adminId,
         CancellationToken cancellationToken,
         List<Device>? preloadedDevices = null)
@@ -977,13 +862,13 @@ public sealed class WindowsTaskbarSettingsService : IWindowsTaskbarSettingsServi
                     .ToListAsync(cancellationToken);
             var dryRunByMac = dryRunDevices.ToDictionary(d => d.MacAddress, StringComparer.OrdinalIgnoreCase);
 
-            var dryRunResults = new List<WindowsTaskbarTargetResult>(uniqueTargets.Count);
+            var dryRunResults = new List<WindowsUserInterfaceTargetResult>(uniqueTargets.Count);
             foreach (var target in uniqueTargets)
             {
                 var mac = target.MacAddress.Trim();
                 if (!IsXpDevice(mac))
                 {
-                    dryRunResults.Add(new WindowsTaskbarTargetResult
+                    dryRunResults.Add(new WindowsUserInterfaceTargetResult
                     {
                         MacAddress = mac,
                         Status = "Blocked",
@@ -992,9 +877,9 @@ public sealed class WindowsTaskbarSettingsService : IWindowsTaskbarSettingsServi
                     continue;
                 }
 
-                if (!dryRunByMac.ContainsKey(mac))
+                if (!dryRunByMac.TryGetValue(mac, out var device))
                 {
-                    dryRunResults.Add(new WindowsTaskbarTargetResult
+                    dryRunResults.Add(new WindowsUserInterfaceTargetResult
                     {
                         MacAddress = mac,
                         Status = "Blocked",
@@ -1003,14 +888,26 @@ public sealed class WindowsTaskbarSettingsService : IWindowsTaskbarSettingsServi
                     continue;
                 }
 
-                dryRunResults.Add(new WindowsTaskbarTargetResult
+                var blockReason = await GetUserInterfaceBlockReasonAsync(device.Id, device.EnrollmentState, cancellationToken);
+                if (blockReason is not null)
+                {
+                    dryRunResults.Add(new WindowsUserInterfaceTargetResult
+                    {
+                        MacAddress = mac,
+                        Status = "Blocked",
+                        Reason = blockReason
+                    });
+                    continue;
+                }
+
+                dryRunResults.Add(new WindowsUserInterfaceTargetResult
                 {
                     MacAddress = mac,
                     Status = "Pending"
                 });
             }
 
-            return WindowsTaskbarBulkResult.Success(BuildBulkResponse(
+            return WindowsUserInterfaceBulkResult.Success(BuildBulkResponse(
                 batchTaskId,
                 uniqueTargets.Count,
                 dryRunResults.Count(r => r.Status == "Pending"),
@@ -1020,7 +917,7 @@ public sealed class WindowsTaskbarSettingsService : IWindowsTaskbarSettingsServi
                 correlationId));
         }
 
-        var results = new List<WindowsTaskbarTargetResult>(uniqueTargets.Count);
+        var results = new List<WindowsUserInterfaceTargetResult>(uniqueTargets.Count);
         var firstAcceptedTaskId = Guid.Empty;
         var accepted = 0;
         var blocked = 0;
@@ -1031,7 +928,7 @@ public sealed class WindowsTaskbarSettingsService : IWindowsTaskbarSettingsServi
             if (!IsXpDevice(mac))
             {
                 blocked++;
-                results.Add(new WindowsTaskbarTargetResult
+                results.Add(new WindowsUserInterfaceTargetResult
                 {
                     MacAddress = mac,
                     Status = "Blocked",
@@ -1040,25 +937,25 @@ public sealed class WindowsTaskbarSettingsService : IWindowsTaskbarSettingsServi
                 continue;
             }
 
-            var work = await QueueTaskbarWorkAsync(
+            var work = await QueueUserInterfaceWorkAsync(
                 target,
                 settingsTemplate,
                 execution,
                 options,
                 adminId,
-                WindowsTaskbarModuleConstants.InstantFunctionName,
+                WindowsUserInterfaceModuleConstants.InstantFunctionName,
                 "instant",
-                "Taskbar bulk instant apply queued.",
+                "Autologon bulk instant apply queued.",
                 cancellationToken);
 
             if (work.ExecuteNowResult is null)
             {
                 blocked++;
-                results.Add(new WindowsTaskbarTargetResult
+                results.Add(new WindowsUserInterfaceTargetResult
                 {
                     MacAddress = mac,
                     Status = "Blocked",
-                    Reason = work.ErrorCode ?? work.Message ?? "ApplyBlocked"
+                    Reason = WindowsUserInterfaceApplyBlockReason.MapBulkBlockReason(work.ErrorCode, work.Message)
                 });
                 continue;
             }
@@ -1067,14 +964,14 @@ public sealed class WindowsTaskbarSettingsService : IWindowsTaskbarSettingsServi
                 ? work.ExecuteNowResult.Response!.Data.TaskId
                 : firstAcceptedTaskId;
             accepted++;
-            results.Add(new WindowsTaskbarTargetResult
+            results.Add(new WindowsUserInterfaceTargetResult
             {
                 MacAddress = mac,
                 Status = "Pending"
             });
         }
 
-        return WindowsTaskbarBulkResult.Success(BuildBulkResponse(
+        return WindowsUserInterfaceBulkResult.Success(BuildBulkResponse(
             firstAcceptedTaskId == Guid.Empty ? batchTaskId : firstAcceptedTaskId,
             uniqueTargets.Count,
             accepted,
@@ -1084,19 +981,19 @@ public sealed class WindowsTaskbarSettingsService : IWindowsTaskbarSettingsServi
             correlationId));
     }
 
-    private static WindowsTaskbarBulkResponse BuildBulkResponse(
+    private static WindowsUserInterfaceBulkResponse BuildBulkResponse(
         Guid taskId,
         int totalTargets,
         int accepted,
         int blocked,
-        List<WindowsTaskbarTargetResult> results,
+        List<WindowsUserInterfaceTargetResult> results,
         bool includeLegacySummary,
         Guid correlationId) =>
         new()
         {
             Success = true,
             Message = "Bulk execute-now accepted.",
-            Data = new WindowsTaskbarBulkData
+            Data = new WindowsUserInterfaceBulkData
             {
                 TaskId = taskId,
                 TotalTargets = totalTargets,
@@ -1108,66 +1005,39 @@ public sealed class WindowsTaskbarSettingsService : IWindowsTaskbarSettingsServi
             }
         };
 
-    private static WindowsTaskbarLiveSettingsDto MapLiveSettingsDto(DeviceWindowsTaskbarLiveSettings live) =>
+    internal static WindowsUserInterfaceLegacySummary BuildLegacySummary(string qualifiedMsg) =>
         new()
         {
-            LockTaskbar = live.LockTaskbar,
-            AutoHideTaskbar = live.AutoHideTaskbar,
-            KeepTaskbarOnTop = live.KeepTaskbarOnTop,
-            GroupSimilarButtons = live.GroupSimilarButtons,
-            ShowQuickLaunch = live.ShowQuickLaunch,
-            ShowClock = live.ShowClock,
-            HideInactiveIcons = live.HideInactiveIcons,
-            ReportVersion = live.ReportVersion,
-            CollectedUtc = live.CollectedUtc
+            ErrorMsg = "...$ApplyGreenSuccess",
+            QualifiedMsg = qualifiedMsg,
+            DtApproved = [],
+            HtmlData = string.Empty
         };
 
-    private async Task<Device?> FindDeviceByMacWithLiveAsync(string normalizedMac, CancellationToken cancellationToken) =>
-        await _dbContext.Devices
-            .Include(d => d.WindowsTaskbarLiveSettings)
-            .FirstOrDefaultAsync(
-                d => d.TenantId == TenantDefaults.DefaultTenantId && d.MacAddress == normalizedMac,
-                cancellationToken);
-
-    private async Task<string?> GetLiveReadBlockReasonAsync(
-        Guid deviceId,
-        CancellationToken cancellationToken)
-    {
-        var hasPendingLiveRead = await _dbContext.DeviceTasks
-            .AnyAsync(
-                t => t.DeviceId == deviceId &&
-                     t.ModuleName == WindowsTaskbarModuleConstants.ModuleName &&
-                     t.FunctionName == WindowsTaskbarModuleConstants.LiveReadFunctionName &&
-                     (t.Status == DeviceTaskStatus.Pending || t.Status == DeviceTaskStatus.InProcess),
-                cancellationToken);
-
-        return hasPendingLiveRead ? "PendingLiveReadTaskExists" : null;
-    }
-
-    private static WindowsTaskbarQueueResponse BuildQueueResponse(
-        WindowsTaskbarTargetRequest target,
-        WindowsTaskbarExecutionRequest execution,
+    internal static WindowsUserInterfaceQueueResponse BuildQueueResponse(
+        WindowsUserInterfaceTargetRequest target,
+        WindowsUserInterfaceExecutionRequest execution,
         Guid taskId,
         DateTime queuedAtUtc,
         bool includeLegacySummary,
         Guid correlationId)
     {
         var scheduleType = NormalizeScheduleType(execution.ScheduleType);
-        return new WindowsTaskbarQueueResponse
+        return new WindowsUserInterfaceQueueResponse
         {
             Success = true,
             Message = string.Equals(scheduleType, "QueueTemplate", StringComparison.OrdinalIgnoreCase)
                 ? "Template queue accepted."
                 : "Queue accepted.",
-            Data = new WindowsTaskbarQueueData
+            Data = new WindowsUserInterfaceQueueData
             {
                 TaskId = taskId,
-                Target = new WindowsTaskbarTargetResponse
+                Target = new WindowsUserInterfaceTargetResponse
                 {
                     MacAddress = target.MacAddress.Trim(),
                     OsType = target.OsType.Trim().ToUpperInvariant()
                 },
-                Execution = new WindowsTaskbarExecutionResponse
+                Execution = new WindowsUserInterfaceExecutionResponse
                 {
                     ScheduleType = scheduleType,
                     Status = "Pending",
@@ -1175,7 +1045,7 @@ public sealed class WindowsTaskbarSettingsService : IWindowsTaskbarSettingsServi
                 },
                 Template = string.Equals(scheduleType, "QueueTemplate", StringComparison.OrdinalIgnoreCase) &&
                            execution.TemplateId is > 0
-                    ? new WindowsTaskbarTemplateInfo
+                    ? new WindowsUserInterfaceTemplateInfo
                     {
                         TemplateId = execution.TemplateId.Value,
                         TemplateName = execution.TemplateName ?? string.Empty
@@ -1187,9 +1057,9 @@ public sealed class WindowsTaskbarSettingsService : IWindowsTaskbarSettingsServi
         };
     }
 
-    private static WindowsTaskbarExecuteNowResponse BuildExecuteNowResponse(
-        WindowsTaskbarTargetRequest target,
-        WindowsTaskbarExecutionRequest execution,
+    internal static WindowsUserInterfaceExecuteNowResponse BuildExecuteNowResponse(
+        WindowsUserInterfaceTargetRequest target,
+        WindowsUserInterfaceExecutionRequest execution,
         Guid taskId,
         DateTime queuedAtUtc,
         bool includeLegacySummary,
@@ -1198,15 +1068,15 @@ public sealed class WindowsTaskbarSettingsService : IWindowsTaskbarSettingsServi
         {
             Success = true,
             Message = "Execute Now queued successfully.",
-            Data = new WindowsTaskbarExecuteNowData
+            Data = new WindowsUserInterfaceExecuteNowData
             {
                 TaskId = taskId,
-                Target = new WindowsTaskbarTargetResponse
+                Target = new WindowsUserInterfaceTargetResponse
                 {
                     MacAddress = target.MacAddress.Trim(),
                     OsType = target.OsType.Trim().ToUpperInvariant()
                 },
-                Execution = new WindowsTaskbarExecutionResponse
+                Execution = new WindowsUserInterfaceExecutionResponse
                 {
                     ScheduleType = NormalizeScheduleType(execution.ScheduleType),
                     Status = "Pending",
@@ -1217,20 +1087,32 @@ public sealed class WindowsTaskbarSettingsService : IWindowsTaskbarSettingsServi
             }
         };
 
-    private sealed class TaskbarWorkResult
+    private readonly struct ApplyPasswordResult
     {
-        public WindowsTaskbarExecuteNowResult? ExecuteNowResult { get; init; }
-        public WindowsTaskbarQueueResult? QueueResult { get; init; }
+        public string? Error { get; init; }
+        public string? PlaintextPassword { get; init; }
+
+        public static ApplyPasswordResult Success(string? plaintextPassword) =>
+            new() { PlaintextPassword = plaintextPassword };
+
+        public static ApplyPasswordResult Failure(string error) =>
+            new() { Error = error };
+    }
+
+    internal sealed class UserInterfaceWorkResult
+    {
+        public WindowsUserInterfaceExecuteNowResult? ExecuteNowResult { get; init; }
+        public WindowsUserInterfaceQueueResult? QueueResult { get; init; }
         public string? ErrorCode { get; init; }
         public string? Message { get; init; }
 
-        public static TaskbarWorkResult FromExecuteNow(WindowsTaskbarExecuteNowResponse response) =>
-            new() { ExecuteNowResult = WindowsTaskbarExecuteNowResult.Success(response) };
+        public static UserInterfaceWorkResult FromExecuteNow(WindowsUserInterfaceExecuteNowResponse response) =>
+            new() { ExecuteNowResult = WindowsUserInterfaceExecuteNowResult.Success(response) };
 
-        public static TaskbarWorkResult FromQueue(WindowsTaskbarQueueResponse response) =>
-            new() { QueueResult = WindowsTaskbarQueueResult.Success(response) };
+        public static UserInterfaceWorkResult FromQueue(WindowsUserInterfaceQueueResponse response) =>
+            new() { QueueResult = WindowsUserInterfaceQueueResult.Success(response) };
 
-        public static TaskbarWorkResult Failure(string errorCode, string message) =>
+        public static UserInterfaceWorkResult Failure(string errorCode, string message) =>
             new() { ErrorCode = errorCode, Message = message };
     }
 }

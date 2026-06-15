@@ -67,5 +67,7 @@ public class Device
     public ICollection<DeviceWindowsScreenSaverSettingsSnapshot> WindowsScreenSaverSnapshots { get; set; } = [];
     public DeviceWindowsTaskbarSettings? WindowsTaskbarSettings { get; set; }
     public DeviceWindowsTaskbarLiveSettings? WindowsTaskbarLiveSettings { get; set; }
+    public DeviceWindowsUserInterfaceSettings? WindowsUserInterfaceSettings { get; set; }
+    public ICollection<DeviceWindowsUserInterfaceSettingsSnapshot> WindowsUserInterfaceSnapshots { get; set; } = [];
     public DeviceAgentAdvancedSettings? AgentAdvancedSettings { get; set; }
 }

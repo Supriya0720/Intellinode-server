@@ -31,5 +31,7 @@ public enum SettingsKind
     /// <summary>FusionX User Settings → Screen Saver (ModuleType "ScreenSaver").</summary>
     WindowsScreenSaver,
     /// <summary>FusionX User Settings → Taskbar Properties (ModuleType "Taskbar").</summary>
-    WindowsTaskbar
+    WindowsTaskbar,
+    /// <summary>FusionX User Settings → User Interface / Autologon (ModuleType "Autologon").</summary>
+    WindowsUserInterface
 }

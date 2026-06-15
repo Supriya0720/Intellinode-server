@@ -4672,8 +4672,6 @@ Content-Type: application/json
 
 # Expected: 200 bulk response for all active XP devices in group
 
-
-### Windows Screen Saver — Get catalog stub by MAC
 # @name screenSaverGetCatalog
 GET {{Intellinode.Api_HostAddress}}/api/v1/admin/device-config/screen-saver/{{screenSaverMac}}/catalog
 Authorization: Bearer {{adminToken}}
@@ -4886,3 +4884,270 @@ Content-Type: application/json
 }
 
 # Expected: 200 bulk response for active devices in group; 404 if groupId unknown
+
+
+###############################################################################
+# Windows User Interface / Autologon (PR4)
+# FusionX User Settings → User Interface; ModuleName=Autologon, payload XPAutologon.
+###############################################################################
+
+@userInterfaceMac = 00-11-22-33-44-55:XP
+
+### Windows User Interface — Get current by MAC
+# @name userInterfaceGetCurrent
+GET {{Intellinode.Api_HostAddress}}/api/v1/admin/device-config/user-interface/{{userInterfaceMac}}
+Authorization: Bearer {{adminToken}}
+
+# Expected: 200 with data.settings.userName, autoLogon, hasPassword (never plaintext password); compat.source=device|none
+
+
+### Windows User Interface — Get user list for dropdown
+# @name userInterfaceGetUsers
+GET {{Intellinode.Api_HostAddress}}/api/v1/admin/device-config/user-interface/{{userInterfaceMac}}/users
+Authorization: Bearer {{adminToken}}
+
+# Expected: 200 with items[].userName from device metadata or empty stub list
+
+
+### Windows User Interface — Execute now (instant autologon apply)
+# @name userInterfaceExecuteNow
+POST {{Intellinode.Api_HostAddress}}/api/v1/admin/device-config/user-interface/execute-now
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "target": {
+    "macAddress": "{{userInterfaceMac}}",
+    "osType": "XP"
+  },
+  "settings": {
+    "userName": "Administrator",
+    "autoLogon": true,
+    "password": "P@ssw0rd!"
+  },
+  "execution": {
+    "agentAction": "0",
+    "scheduleType": "InstantApply"
+  },
+  "options": {
+    "dryRun": false,
+    "returnLegacySummary": true,
+    "correlationId": "00000000-0000-0000-0000-000000000201"
+  }
+}
+
+# Expected: 200 with data.taskId; agent task moduleName=Autologon, functionName=Now, inline WinCELinux.XPAutologon JSON
+
+
+### Windows User Interface — Queue scheduled apply
+# @name userInterfaceQueue
+POST {{Intellinode.Api_HostAddress}}/api/v1/admin/device-config/user-interface/queue
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "target": {
+    "macAddress": "{{userInterfaceMac}}",
+    "osType": "XP"
+  },
+  "settings": {
+    "userName": "Administrator",
+    "autoLogon": true,
+    "password": "P@ssw0rd!"
+  },
+  "execution": {
+    "agentAction": "0",
+    "scheduleType": "Queue"
+  },
+  "options": {
+    "dryRun": false,
+    "returnLegacySummary": true,
+    "correlationId": "00000000-0000-0000-0000-000000000202"
+  }
+}
+
+# Expected: 200 with data.taskId and function Update; functionParameter is compact {"settingsVersion":N}
+
+
+### Windows User Interface — Apply history
+# @name userInterfaceApplyHistory
+GET {{Intellinode.Api_HostAddress}}/api/v1/admin/device-config/user-interface/apply-history/{{userInterfaceMac}}?page=1&pageSize=20
+Authorization: Bearer {{adminToken}}
+
+# Expected: 200 with merged task + apply-log items for SettingsKind.WindowsUserInterface
+
+
+### Windows User Interface — Template queue (SysView)
+# @name userInterfaceTemplateQueue
+POST {{Intellinode.Api_HostAddress}}/api/v1/admin/device-config/user-interface/template-queue
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "target": {
+    "macAddress": "{{userInterfaceMac}}",
+    "osType": "XP"
+  },
+  "settings": {
+    "userName": "Administrator",
+    "autoLogon": true,
+    "password": "P@ssw0rd!"
+  },
+  "execution": {
+    "agentAction": "0",
+    "scheduleType": "QueueTemplate",
+    "templateId": 2001,
+    "templateName": "Default Autologon Template"
+  },
+  "options": {
+    "dryRun": false,
+    "returnLegacySummary": true,
+    "correlationId": "00000000-0000-0000-0000-000000000203"
+  }
+}
+
+# Expected: 200 with data.template.templateId and function QueueTemplate
+
+
+### Windows User Interface — Execute now bulk
+# @name userInterfaceExecuteNowBulk
+POST {{Intellinode.Api_HostAddress}}/api/v1/admin/device-config/user-interface/execute-now/bulk
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "targets": [
+    { "macAddress": "{{userInterfaceMac}}", "osType": "XP" }
+  ],
+  "settings": {
+    "userName": "Administrator",
+    "autoLogon": true,
+    "password": "P@ssw0rd!"
+  },
+  "execution": {
+    "agentAction": "0",
+    "scheduleType": "InstantApply"
+  },
+  "options": {
+    "dryRun": false,
+    "returnLegacySummary": true,
+    "correlationId": "00000000-0000-0000-0000-000000000204"
+  }
+}
+
+# Expected: 200 with data.accepted, data.results[]
+
+
+### Windows User Interface — Execute now group
+# @name userInterfaceExecuteNowGroup
+POST {{Intellinode.Api_HostAddress}}/api/v1/admin/device-config/user-interface/execute-now/group/00000000-0000-0000-0000-000000000201
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "settings": {
+    "userName": "Administrator",
+    "autoLogon": true,
+    "password": "P@ssw0rd!"
+  },
+  "execution": {
+    "agentAction": "0",
+    "scheduleType": "InstantApply"
+  },
+  "options": {
+    "dryRun": false,
+    "returnLegacySummary": true,
+    "correlationId": "00000000-0000-0000-0000-000000000205"
+  }
+}
+
+# Expected: 200 bulk response for all active XP devices in group
+
+
+### Windows User Interface PR5 — Execute now blocked (pending Autologon task)
+# @name userInterfaceExecuteNowBlocked
+POST {{Intellinode.Api_HostAddress}}/api/v1/admin/device-config/user-interface/execute-now
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "target": {
+    "macAddress": "{{userInterfaceMac}}",
+    "osType": "XP"
+  },
+  "settings": {
+    "userName": "Administrator",
+    "autoLogon": true,
+    "password": "P@ssw0rd!"
+  },
+  "execution": {
+    "agentAction": "0",
+    "scheduleType": "InstantApply"
+  },
+  "options": {
+    "dryRun": false,
+    "returnLegacySummary": true,
+    "correlationId": "00000000-0000-0000-0000-000000000206"
+  }
+}
+
+# Expected: 409 ApplyBlocked — message "Autologon settings are pending" when a Pending/InProcess Autologon task exists
+
+
+### Windows User Interface PR5 — Execute now bulk (partial blocked)
+# @name userInterfaceExecuteNowBulkPartial
+POST {{Intellinode.Api_HostAddress}}/api/v1/admin/device-config/user-interface/execute-now/bulk
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "targets": [
+    { "macAddress": "{{userInterfaceMac}}", "osType": "XP" },
+    { "macAddress": "00-11-22-33-44-66:XP", "osType": "XP" }
+  ],
+  "settings": {
+    "userName": "Administrator",
+    "autoLogon": true,
+    "password": "P@ssw0rd!"
+  },
+  "execution": {
+    "agentAction": "0",
+    "scheduleType": "InstantApply"
+  },
+  "options": {
+    "dryRun": false,
+    "returnLegacySummary": true,
+    "correlationId": "00000000-0000-0000-0000-000000000207"
+  }
+}
+
+# Expected: 200 partial success — per-target Results with reason PendingTaskExists or InProcessTaskExists for blocked MACs
+
+
+### Windows User Interface PR5 — Execute now bulk dry run (qualification only)
+# @name userInterfaceExecuteNowBulkDryRun
+POST {{Intellinode.Api_HostAddress}}/api/v1/admin/device-config/user-interface/execute-now/bulk
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "targets": [
+    { "macAddress": "{{userInterfaceMac}}", "osType": "XP" }
+  ],
+  "settings": {
+    "userName": "Administrator",
+    "autoLogon": true,
+    "password": "P@ssw0rd!"
+  },
+  "execution": {
+    "agentAction": "0",
+    "scheduleType": "InstantApply"
+  },
+  "options": {
+    "dryRun": true,
+    "returnLegacySummary": true,
+    "correlationId": "00000000-0000-0000-0000-000000000208"
+  }
+}
+
+# Expected: 200 qualification summary without persisting DeviceTasks

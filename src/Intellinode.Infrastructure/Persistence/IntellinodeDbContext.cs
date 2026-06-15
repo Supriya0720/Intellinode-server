@@ -64,6 +64,10 @@ public sealed class IntellinodeDbContext : DbContext, IIntellinodeDbContext
 
     public DbSet<DeviceWindowsTaskbarLiveSettings> DeviceWindowsTaskbarLiveSettings =>
         Set<DeviceWindowsTaskbarLiveSettings>();
+    public DbSet<DeviceWindowsUserInterfaceSettings> DeviceWindowsUserInterfaceSettings =>
+        Set<DeviceWindowsUserInterfaceSettings>();
+    public DbSet<DeviceWindowsUserInterfaceSettingsSnapshot> DeviceWindowsUserInterfaceSettingsSnapshots =>
+        Set<DeviceWindowsUserInterfaceSettingsSnapshot>();
     public DbSet<AgentCommunicationLog> AgentCommunicationLogs => Set<AgentCommunicationLog>();
     public DbSet<ExceptionLog> ExceptionLogs => Set<ExceptionLog>();
 
@@ -99,7 +103,7 @@ public sealed class IntellinodeDbContext : DbContext, IIntellinodeDbContext
             modelBuilder,
             "settings_kind",
             SchemaName,
-            ["General", "Advanced", "Keyboard", "Mouse", "Display", "Windows8021x", "WindowsComputerName", "WindowsEthernetSetup", "WindowsWirelessSetup", "WindowsWirelessProperties", "WindowsDateTimeSetup", "WindowsRegionLocation", "WindowsRegionalFormat", "WindowsPowerManagement", "WindowsScreenSaver", "WindowsTaskbar"]);
+            ["General", "Advanced", "Keyboard", "Mouse", "Display", "Windows8021x", "WindowsComputerName", "WindowsEthernetSetup", "WindowsWirelessSetup", "WindowsWirelessProperties", "WindowsDateTimeSetup", "WindowsRegionLocation", "WindowsRegionalFormat", "WindowsPowerManagement", "WindowsScreenSaver", "WindowsTaskbar", "WindowsUserInterface"]);
         NpgsqlModelBuilderExtensions.HasPostgresEnum(
             modelBuilder,
             "settings_apply_status",
@@ -465,6 +469,39 @@ public sealed class IntellinodeDbContext : DbContext, IIntellinodeDbContext
             entity.HasOne(x => x.Device)
                 .WithOne(x => x.WindowsTaskbarLiveSettings)
                 .HasForeignKey<DeviceWindowsTaskbarLiveSettings>(x => x.DeviceId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<DeviceWindowsUserInterfaceSettings>(entity =>
+        {
+            entity.ToTable("device_windows_user_interface_settings");
+            entity.HasKey(x => x.DeviceId);
+            entity.Property(x => x.UserName).HasMaxLength(256);
+            entity.Property(x => x.PasswordCipher).HasMaxLength(1024);
+            entity.Property(x => x.LastApplyStatus).HasMaxLength(32);
+            entity.Property(x => x.LastApplyMessage).HasMaxLength(500);
+            entity.Property(x => x.AgentAction).HasDefaultValue(0);
+            entity.Property(x => x.SettingsVersion).HasDefaultValue(1L);
+            entity.Property(x => x.PendingApply).HasDefaultValue(false);
+            entity.ToTable(t => t.HasCheckConstraint(
+                "ck_device_windows_user_interface_settings_settings_version",
+                "settings_version >= 0"));
+            entity.HasOne(x => x.Device)
+                .WithOne(x => x.WindowsUserInterfaceSettings)
+                .HasForeignKey<DeviceWindowsUserInterfaceSettings>(x => x.DeviceId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<DeviceWindowsUserInterfaceSettingsSnapshot>(entity =>
+        {
+            entity.ToTable("device_windows_user_interface_settings_snapshots");
+            entity.HasKey(x => new { x.DeviceId, x.SettingsVersion });
+            entity.Property(x => x.UserName).HasMaxLength(256);
+            entity.Property(x => x.PasswordCipher).HasMaxLength(1024);
+            entity.Property(x => x.AgentAction).HasDefaultValue(0);
+            entity.HasOne(x => x.Device)
+                .WithMany(x => x.WindowsUserInterfaceSnapshots)
+                .HasForeignKey(x => x.DeviceId)
                 .OnDelete(DeleteBehavior.Cascade);
         });
 

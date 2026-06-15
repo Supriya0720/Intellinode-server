@@ -693,6 +693,76 @@ public interface IWindowsTaskbarSettingsService
         CancellationToken cancellationToken = default);
 }
 
+public interface IWindowsUserInterfacePayloadBuilder
+{
+    string BuildAgentPayload(WindowsUserInterfacePayloadRequest request);
+    WindowsUserInterfacePayloadRequest MapToPayloadRequest(
+        DeviceWindowsUserInterfaceSettings settings,
+        long taskId,
+        int agentAction,
+        string password);
+    WindowsUserInterfacePayloadRequest MapToPayloadRequest(
+        DeviceWindowsUserInterfaceSettingsSnapshot snapshot,
+        long taskId,
+        int agentAction,
+        string password);
+    string BuildCompactTaskReference(long settingsVersion);
+    bool TryParseCompactTaskReference(string stored, out long settingsVersion);
+    string BuildExtraData(string macAddress, string? signalSuffix = null);
+}
+
+public interface IWindowsUserInterfaceTaskPayloadHydrator
+{
+    bool CanHydrate(string moduleName);
+    Task<string?> HydrateFunctionParameterAsync(
+        string storedFunctionParameter,
+        Guid deviceId,
+        int legacyTaskId = 0,
+        CancellationToken cancellationToken = default);
+}
+
+public interface IWindowsUserInterfaceSettingsService
+{
+    Task<WindowsUserInterfaceExecuteNowResult> ExecuteNowAsync(
+        WindowsUserInterfaceExecuteNowRequest request,
+        Guid? adminId = null,
+        CancellationToken cancellationToken = default);
+
+    Task<WindowsUserInterfaceQueueResult> QueueAsync(
+        WindowsUserInterfaceQueueRequest request,
+        Guid? adminId = null,
+        CancellationToken cancellationToken = default);
+
+    Task<WindowsUserInterfaceQueueResult> TemplateQueueAsync(
+        WindowsUserInterfaceTemplateQueueRequest request,
+        Guid? adminId = null,
+        CancellationToken cancellationToken = default);
+
+    Task<WindowsUserInterfaceBulkResult> ExecuteNowBulkAsync(
+        WindowsUserInterfaceExecuteNowBulkRequest request,
+        Guid? adminId = null,
+        CancellationToken cancellationToken = default);
+
+    Task<WindowsUserInterfaceBulkResult> ExecuteNowGroupAsync(
+        Guid groupId,
+        WindowsUserInterfaceExecuteNowGroupRequest request,
+        Guid? adminId = null,
+        CancellationToken cancellationToken = default);
+
+    Task<WindowsUserInterfaceCurrentResult> GetCurrentAsync(
+        string macAddress,
+        CancellationToken cancellationToken = default);
+
+    Task<WindowsUserInterfaceUsersResult> GetUsersAsync(
+        string macAddress,
+        CancellationToken cancellationToken = default);
+
+    Task<WindowsUserInterfaceHistoryResult> GetApplyHistoryAsync(
+        string macAddress,
+        WindowsUserInterfaceHistoryQuery query,
+        CancellationToken cancellationToken = default);
+}
+
 public interface IWindowsPowerManagementTaskPayloadHydrator
 {
     bool CanHydrate(string moduleName);
