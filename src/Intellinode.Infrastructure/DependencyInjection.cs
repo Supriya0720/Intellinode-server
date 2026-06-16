@@ -1,4 +1,5 @@
 using Intellinode.Application.Interfaces;
+using Intellinode.Application.Validation;
 using Intellinode.Infrastructure.Options;
 using Intellinode.Infrastructure.Persistence;
 using Intellinode.Infrastructure.Services;
@@ -40,6 +41,8 @@ public static class DependencyInjection
         services.Configure<WindowsTaskbarOptions>(configuration.GetSection(WindowsTaskbarOptions.SectionName));
         services.Configure<WindowsWallpaperOptions>(configuration.GetSection(WindowsWallpaperOptions.SectionName));
         services.Configure<WindowsUserInterfaceOptions>(configuration.GetSection(WindowsUserInterfaceOptions.SectionName));
+        services.Configure<WindowsApplicationCommandOptions>(configuration.GetSection(WindowsApplicationCommandOptions.SectionName));
+        services.Configure<WindowsApplicationCommandValidationPolicy>(configuration.GetSection(WindowsApplicationCommandValidationPolicy.SectionName));
 
         var connectionString = configuration.GetConnectionString("DefaultConnection")
             ?? throw new InvalidOperationException("Connection string 'DefaultConnection' is not configured.");
@@ -127,6 +130,9 @@ public static class DependencyInjection
         services.AddScoped<IWindowsScreenSaverSettingsService, WindowsScreenSaverSettingsService>();
         services.AddScoped<IWindowsTaskbarPayloadBuilder, WindowsTaskbarPayloadBuilder>();
         services.AddScoped<IWindowsTaskbarSettingsService, WindowsTaskbarSettingsService>();
+        services.AddScoped<WindowsApplicationCommandTaskAckHandler>();
+        services.AddScoped<IWindowsApplicationCommandPayloadBuilder, WindowsApplicationCommandPayloadBuilder>();
+        services.AddScoped<IWindowsApplicationCommandSettingsService, WindowsApplicationCommandSettingsService>();
         services.AddScoped<IWindowsWallpaperPayloadBuilder, WindowsWallpaperPayloadBuilder>();
         services.AddScoped<IWindowsWallpaperTaskPayloadHydrator, WindowsWallpaperTaskPayloadHydrator>();
         services.AddScoped<IWindowsWallpaperSettingsService, WindowsWallpaperSettingsService>();

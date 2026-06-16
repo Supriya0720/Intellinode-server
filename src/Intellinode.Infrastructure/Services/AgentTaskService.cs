@@ -32,6 +32,7 @@ public sealed class AgentTaskService : IAgentTaskService
     private readonly WindowsTaskbarTaskAckHandler _windowsTaskbarTaskAckHandler;
     private readonly WindowsWallpaperTaskAckHandler _windowsWallpaperTaskAckHandler;
     private readonly WindowsUserInterfaceTaskAckHandler _windowsUserInterfaceTaskAckHandler;
+    private readonly WindowsApplicationCommandTaskAckHandler _windowsApplicationCommandTaskAckHandler;
     private readonly IWindows8021xTaskPayloadHydrator _windows8021xHydrator;
     private readonly IWindowsWirelessPropertiesTaskPayloadHydrator _windowsWirelessPropertiesHydrator;
     private readonly IWindowsPowerManagementTaskPayloadHydrator _windowsPowerManagementHydrator;
@@ -55,6 +56,7 @@ public sealed class AgentTaskService : IAgentTaskService
         WindowsTaskbarTaskAckHandler windowsTaskbarTaskAckHandler,
         WindowsWallpaperTaskAckHandler windowsWallpaperTaskAckHandler,
         WindowsUserInterfaceTaskAckHandler windowsUserInterfaceTaskAckHandler,
+        WindowsApplicationCommandTaskAckHandler windowsApplicationCommandTaskAckHandler,
         IWindows8021xTaskPayloadHydrator windows8021xHydrator,
         IWindowsWirelessPropertiesTaskPayloadHydrator windowsWirelessPropertiesHydrator,
         IWindowsPowerManagementTaskPayloadHydrator windowsPowerManagementHydrator,
@@ -77,6 +79,7 @@ public sealed class AgentTaskService : IAgentTaskService
         _windowsTaskbarTaskAckHandler = windowsTaskbarTaskAckHandler;
         _windowsWallpaperTaskAckHandler = windowsWallpaperTaskAckHandler;
         _windowsUserInterfaceTaskAckHandler = windowsUserInterfaceTaskAckHandler;
+        _windowsApplicationCommandTaskAckHandler = windowsApplicationCommandTaskAckHandler;
         _windows8021xHydrator = windows8021xHydrator;
         _windowsWirelessPropertiesHydrator = windowsWirelessPropertiesHydrator;
         _windowsPowerManagementHydrator = windowsPowerManagementHydrator;
@@ -367,6 +370,16 @@ public sealed class AgentTaskService : IAgentTaskService
             if (WindowsUserInterfaceTaskAckHandler.IsUserInterfaceTask(task))
             {
                 await _windowsUserInterfaceTaskAckHandler.ApplyAckAsync(
+                    device,
+                    task,
+                    status,
+                    ack.Reason,
+                    cancellationToken);
+            }
+
+            if (WindowsApplicationCommandTaskAckHandler.IsApplicationCommandTask(task))
+            {
+                await _windowsApplicationCommandTaskAckHandler.ApplyAckAsync(
                     device,
                     task,
                     status,

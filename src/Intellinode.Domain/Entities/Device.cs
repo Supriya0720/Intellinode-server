@@ -71,5 +71,6 @@ public class Device
     public ICollection<DeviceWindowsWallpaperSettingsSnapshot> WindowsWallpaperSnapshots { get; set; } = [];
     public DeviceWindowsUserInterfaceSettings? WindowsUserInterfaceSettings { get; set; }
     public ICollection<DeviceWindowsUserInterfaceSettingsSnapshot> WindowsUserInterfaceSnapshots { get; set; } = [];
+    public DeviceWindowsApplicationCommandSettings? WindowsApplicationCommandSettings { get; set; }
     public DeviceAgentAdvancedSettings? AgentAdvancedSettings { get; set; }
 }

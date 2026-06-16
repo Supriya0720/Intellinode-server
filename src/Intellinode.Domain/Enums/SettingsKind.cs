@@ -35,5 +35,9 @@ public enum SettingsKind
     /// <summary>FusionX User Settings → User Interface / Autologon (ModuleType "Autologon").</summary>
     WindowsUserInterface,
     /// <summary>FusionX User Settings → Wallpaper (ModuleType "Wallpaper").</summary>
-    WindowsWallpaper
+    WindowsWallpaper,
+    /// <summary>FusionX Administration → Application command, Remote Application (ModuleType "Application").</summary>
+    WindowsApplication,
+    /// <summary>FusionX Administration → Application command, Remote Command (ModuleType "Command").</summary>
+    WindowsCommand
 }

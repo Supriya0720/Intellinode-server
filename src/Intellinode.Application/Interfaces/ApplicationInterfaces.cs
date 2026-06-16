@@ -640,6 +640,73 @@ public interface IWindowsScreenSaverSettingsService
         CancellationToken cancellationToken = default);
 }
 
+public interface IWindowsApplicationCommandPayloadBuilder
+{
+    string BuildAgentPayload(WindowsApplicationCommandPayloadRequest request);
+    WindowsApplicationCommandPayloadRequest MapApplicationToPayloadRequest(
+        string applicationPath,
+        string parameters,
+        bool warnUser,
+        string alertTitle,
+        string alertMessage,
+        string messageType,
+        string displayTime,
+        bool rebootRequired,
+        long taskId,
+        int agentAction);
+    WindowsApplicationCommandPayloadRequest MapCommandToPayloadRequest(
+        string commandText,
+        string timeout,
+        bool rebootRequired,
+        bool requireCommandOutput,
+        long taskId,
+        int agentAction);
+    WindowsApplicationCommandPayloadRequest MapToPayloadRequest(
+        DeviceWindowsApplicationCommandSettings settings,
+        long taskId,
+        int agentAction);
+    string BuildExtraData(string macAddress, string? signalSuffix = null);
+}
+
+public interface IWindowsApplicationCommandSettingsService
+{
+    Task<WindowsApplicationCommandCurrentResult> GetCurrentAsync(
+        string macAddress,
+        string? mode = null,
+        CancellationToken cancellationToken = default);
+
+    Task<WindowsApplicationCommandExecuteNowResult> ExecuteNowAsync(
+        WindowsApplicationCommandExecuteNowRequest request,
+        Guid? adminId = null,
+        CancellationToken cancellationToken = default);
+
+    Task<WindowsApplicationCommandQueueResult> QueueAsync(
+        WindowsApplicationCommandQueueRequest request,
+        Guid? adminId = null,
+        CancellationToken cancellationToken = default);
+
+    Task<WindowsApplicationCommandQueueResult> TemplateQueueAsync(
+        WindowsApplicationCommandTemplateQueueRequest request,
+        Guid? adminId = null,
+        CancellationToken cancellationToken = default);
+
+    Task<WindowsApplicationCommandBulkResult> ExecuteNowBulkAsync(
+        WindowsApplicationCommandExecuteNowBulkRequest request,
+        Guid? adminId = null,
+        CancellationToken cancellationToken = default);
+
+    Task<WindowsApplicationCommandBulkResult> ExecuteNowGroupAsync(
+        Guid groupId,
+        WindowsApplicationCommandExecuteNowGroupRequest request,
+        Guid? adminId = null,
+        CancellationToken cancellationToken = default);
+
+    Task<WindowsApplicationCommandHistoryResult> GetApplyHistoryAsync(
+        string macAddress,
+        WindowsApplicationCommandHistoryQuery query,
+        CancellationToken cancellationToken = default);
+}
+
 public interface IWindowsWallpaperPayloadBuilder
 {
     string BuildAgentPayload(WindowsWallpaperPayloadRequest request);

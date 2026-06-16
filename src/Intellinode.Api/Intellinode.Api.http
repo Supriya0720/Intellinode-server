@@ -4684,6 +4684,259 @@ Authorization: Bearer {{adminToken}}
 
 
 ###############################################################################
+# Windows Application Command (PR1 read, PR2 apply)
+# FusionX Administration → Application command; ModuleName=Application|Command, signal 196.
+###############################################################################
+
+@appCommandMac = 00-11-22-33-44-55:XP
+
+### Windows Application Command — Get current by MAC
+# @name appCommandGetCurrent
+GET {{Intellinode.Api_HostAddress}}/api/v1/admin/device-config/application-command/{{appCommandMac}}
+Authorization: Bearer {{adminToken}}
+
+# Expected: 200 with data.settings.mode, applicationPath/commandText, settingsVersion; compat.source=device|none
+
+
+### Windows Application Command — Get current (Application mode filter)
+# @name appCommandGetCurrentApplication
+GET {{Intellinode.Api_HostAddress}}/api/v1/admin/device-config/application-command/{{appCommandMac}}?mode=Application
+Authorization: Bearer {{adminToken}}
+
+# Expected: 200 with mode=Application defaults when no stored row or stored row matches Application
+
+
+### Windows Application Command — Get current (Command mode filter)
+# @name appCommandGetCurrentCommand
+GET {{Intellinode.Api_HostAddress}}/api/v1/admin/device-config/application-command/{{appCommandMac}}?mode=Command
+Authorization: Bearer {{adminToken}}
+
+# Expected: 200 with mode=Command defaults when no stored row or stored row matches Command
+
+
+### Windows Application Command — Execute now (Application mode, PR2)
+# @name appCommandExecuteNowApplication
+POST {{Intellinode.Api_HostAddress}}/api/v1/admin/device-config/application-command/execute-now
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "target": {
+    "macAddress": "{{appCommandMac}}",
+    "osType": "XP"
+  },
+  "settings": {
+    "mode": "Application",
+    "applicationPath": "C:\\Program Files\\Corp\\RemoteApp.exe",
+    "parameters": "/silent",
+    "warnUser": false,
+    "rebootRequired": false
+  },
+  "execution": {
+    "agentAction": "0",
+    "scheduleType": "InstantApply"
+  },
+  "options": {
+    "dryRun": false,
+    "returnLegacySummary": true
+  }
+}
+
+# Expected: 200 with data.taskId, module Application, function Now, extra_data {mac}&196
+
+
+### Windows Application Command — Execute now (Command mode, PR2)
+# @name appCommandExecuteNowCommand
+POST {{Intellinode.Api_HostAddress}}/api/v1/admin/device-config/application-command/execute-now
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "target": {
+    "macAddress": "{{appCommandMac}}",
+    "osType": "XP"
+  },
+  "settings": {
+    "mode": "Command",
+    "commandText": "ipconfig /all",
+    "timeout": "60",
+    "requireCommandOutput": true,
+    "rebootRequired": false
+  },
+  "execution": {
+    "agentAction": "0",
+    "scheduleType": "InstantApply"
+  },
+  "options": {
+    "dryRun": false,
+    "returnLegacySummary": true
+  }
+}
+
+# Expected: 200 with data.taskId, module Command, function Now, inline WinCELinux.Command JSON
+
+
+### Windows Application Command — Queue scheduled apply (PR2)
+# @name appCommandQueue
+POST {{Intellinode.Api_HostAddress}}/api/v1/admin/device-config/application-command/queue
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "target": {
+    "macAddress": "{{appCommandMac}}",
+    "osType": "XP"
+  },
+  "settings": {
+    "mode": "Application",
+    "applicationPath": "C:\\Program Files\\Corp\\RemoteApp.exe",
+    "parameters": "",
+    "warnUser": true,
+    "alertTitle": "Launch app",
+    "alertMessage": "Corp app will start shortly.",
+    "messageType": "1",
+    "displayTime": "60",
+    "rebootRequired": false
+  },
+  "execution": {
+    "agentAction": "0",
+    "scheduleType": "Queue"
+  },
+  "options": {
+    "dryRun": false,
+    "returnLegacySummary": true
+  }
+}
+
+# Expected: 200 with data.taskId and function Update
+
+
+### Windows Application Command — Apply history (PR2)
+# @name appCommandApplyHistory
+GET {{Intellinode.Api_HostAddress}}/api/v1/admin/device-config/application-command/apply-history/{{appCommandMac}}?page=1&pageSize=20
+Authorization: Bearer {{adminToken}}
+
+# Expected: 200 with paginated apply history items for Application and Command modules
+
+
+### Windows Application Command PR3 — Reference options (all dropdowns)
+# @name appCommandReferenceOptions
+GET {{Intellinode.Api_HostAddress}}/api/v1/admin/device-config/application-command/reference/options
+Authorization: Bearer {{adminToken}}
+
+# Expected: 200 with data.messageTypes (0/1), displayTimes (60-600), timeouts (0/5/30/...)
+
+
+### Windows Application Command PR3 — Reference message types
+# @name appCommandReferenceMessageTypes
+GET {{Intellinode.Api_HostAddress}}/api/v1/admin/device-config/application-command/reference/message-types
+Authorization: Bearer {{adminToken}}
+
+
+### Windows Application Command PR3 — Reference display times
+# @name appCommandReferenceDisplayTimes
+GET {{Intellinode.Api_HostAddress}}/api/v1/admin/device-config/application-command/reference/display-times
+Authorization: Bearer {{adminToken}}
+
+
+### Windows Application Command PR3 — Reference timeouts
+# @name appCommandReferenceTimeouts
+GET {{Intellinode.Api_HostAddress}}/api/v1/admin/device-config/application-command/reference/timeouts
+Authorization: Bearer {{adminToken}}
+
+
+### Windows Application Command PR4 — Template queue (SysView parity)
+# @name appCommandTemplateQueue
+POST {{Intellinode.Api_HostAddress}}/api/v1/admin/device-config/application-command/template-queue
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "target": {
+    "macAddress": "{{appCommandMac}}",
+    "osType": "XP"
+  },
+  "settings": {
+    "mode": "Application",
+    "applicationPath": "C:\\Program Files\\Corp\\RemoteApp.exe",
+    "parameters": "",
+    "warnUser": false,
+    "rebootRequired": false
+  },
+  "execution": {
+    "agentAction": "0",
+    "scheduleType": "QueueTemplate",
+    "templateId": 42,
+    "templateName": "Standard Application Launch"
+  },
+  "options": {
+    "dryRun": false,
+    "returnLegacySummary": true
+  }
+}
+
+# Expected: 200 with execution.scheduleType=QueueTemplate, function QueueTemplate, data.template populated
+
+
+### Windows Application Command PR4 — Execute now bulk
+# @name appCommandExecuteNowBulk
+POST {{Intellinode.Api_HostAddress}}/api/v1/admin/device-config/application-command/execute-now/bulk
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "targets": [
+    { "macAddress": "{{appCommandMac}}", "osType": "XP" },
+    { "macAddress": "00-11-22-33-44-66:XP", "osType": "XP" }
+  ],
+  "settings": {
+    "mode": "Application",
+    "applicationPath": "C:\\Program Files\\Corp\\RemoteApp.exe",
+    "parameters": "/silent",
+    "warnUser": false,
+    "rebootRequired": false
+  },
+  "execution": {
+    "agentAction": "0",
+    "scheduleType": "InstantApply"
+  },
+  "options": {
+    "dryRun": false,
+    "returnLegacySummary": true
+  }
+}
+
+# Expected: 200 with per-target Pending/Blocked results
+
+
+### Windows Application Command PR4 — Execute now group
+# @name appCommandExecuteNowGroup
+POST {{Intellinode.Api_HostAddress}}/api/v1/admin/device-config/application-command/execute-now/group/00000000-0000-0000-0000-000000000201
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "settings": {
+    "mode": "Command",
+    "commandText": "ipconfig /all",
+    "timeout": "60",
+    "requireCommandOutput": true,
+    "rebootRequired": false
+  },
+  "execution": {
+    "agentAction": "0",
+    "scheduleType": "InstantApply"
+  },
+  "options": {
+    "dryRun": false,
+    "returnLegacySummary": true
+  }
+}
+
+# Expected: 200 with per-target results for active devices in group
+
+
+###############################################################################
 # Windows Taskbar Properties (PR1 read)
 # FusionX User Settings → Taskbar Properties; ModuleName=Taskbar, signal TPR.
 ###############################################################################

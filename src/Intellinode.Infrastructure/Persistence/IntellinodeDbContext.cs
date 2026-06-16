@@ -72,6 +72,8 @@ public sealed class IntellinodeDbContext : DbContext, IIntellinodeDbContext
         Set<DeviceWindowsUserInterfaceSettings>();
     public DbSet<DeviceWindowsUserInterfaceSettingsSnapshot> DeviceWindowsUserInterfaceSettingsSnapshots =>
         Set<DeviceWindowsUserInterfaceSettingsSnapshot>();
+    public DbSet<DeviceWindowsApplicationCommandSettings> DeviceWindowsApplicationCommandSettings =>
+        Set<DeviceWindowsApplicationCommandSettings>();
     public DbSet<AgentCommunicationLog> AgentCommunicationLogs => Set<AgentCommunicationLog>();
     public DbSet<ExceptionLog> ExceptionLogs => Set<ExceptionLog>();
 
@@ -549,6 +551,33 @@ public sealed class IntellinodeDbContext : DbContext, IIntellinodeDbContext
             entity.HasOne(x => x.Device)
                 .WithMany(x => x.WindowsUserInterfaceSnapshots)
                 .HasForeignKey(x => x.DeviceId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<DeviceWindowsApplicationCommandSettings>(entity =>
+        {
+            entity.ToTable("device_windows_application_command_settings");
+            entity.HasKey(x => x.DeviceId);
+            entity.Property(x => x.Mode).HasMaxLength(16).HasDefaultValue("Application");
+            entity.Property(x => x.ApplicationPath).HasMaxLength(120);
+            entity.Property(x => x.Parameters).HasMaxLength(32);
+            entity.Property(x => x.AlertTitle).HasMaxLength(32);
+            entity.Property(x => x.AlertMessage).HasMaxLength(87);
+            entity.Property(x => x.MessageType).HasMaxLength(4);
+            entity.Property(x => x.DisplayTime).HasMaxLength(4);
+            entity.Property(x => x.CommandText).HasMaxLength(200);
+            entity.Property(x => x.Timeout).HasMaxLength(4);
+            entity.Property(x => x.LastApplyStatus).HasMaxLength(32);
+            entity.Property(x => x.LastApplyMessage).HasMaxLength(500);
+            entity.Property(x => x.AgentAction).HasDefaultValue(0);
+            entity.Property(x => x.SettingsVersion).HasDefaultValue(1L);
+            entity.Property(x => x.PendingApply).HasDefaultValue(false);
+            entity.ToTable(t => t.HasCheckConstraint(
+                "ck_device_windows_application_command_settings_settings_version",
+                "settings_version >= 0"));
+            entity.HasOne(x => x.Device)
+                .WithOne(x => x.WindowsApplicationCommandSettings)
+                .HasForeignKey<DeviceWindowsApplicationCommandSettings>(x => x.DeviceId)
                 .OnDelete(DeleteBehavior.Cascade);
         });
 
