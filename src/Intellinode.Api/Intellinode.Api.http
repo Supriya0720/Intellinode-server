@@ -4537,7 +4537,7 @@ Content-Type: application/json
 
 
 ### Windows Wallpaper — Queue repository apply (PR3 hydration)
-# @name wallpaperQueueRepository
+# @name wallpaperQueueRepository test
 POST {{Intellinode.Api_HostAddress}}/api/v1/admin/device-config/wallpaper/queue
 Authorization: Bearer {{adminToken}}
 Content-Type: application/json
